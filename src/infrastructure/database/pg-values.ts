@@ -53,3 +53,11 @@ export function pgNumeric<P extends number, S extends number>(
 export function pgBigInt(value: number): bigint {
   return BigInt(value);
 }
+
+export type PgDate = string & {
+  readonly __dateString: true;
+};
+
+export function pgDate(value: string): PgDate {
+  return value as PgDate;
+}

@@ -15,6 +15,7 @@ import { CartModule } from './modules/cart/cart.module';
 import { CheckoutModule } from './modules/checkout/checkout.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
+import { DriversModule } from './modules/drivers/drivers.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { MerchantsModule } from './modules/merchants/merchants.module';
 import { OrdersModule } from './modules/orders/orders.module';
@@ -41,6 +42,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     CheckoutModule,
     OrdersModule,
     DeliveryModule,
+    DriversModule,
   ],
   controllers: [AppController],
   providers: [AppService],

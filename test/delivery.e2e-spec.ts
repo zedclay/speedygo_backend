@@ -401,6 +401,7 @@ describe('Delivery foundation (e2e)', () => {
       customer: `0591${suffix}`,
       owner: `0592${suffix}`,
       other: `0593${suffix}`,
+      driver: `0596${suffix}`,
     };
     const e164: string[] = [];
     const zoneIds: string[] = [];
@@ -410,12 +411,14 @@ describe('Delivery foundation (e2e)', () => {
       const tokenCustomer = await authenticate(phones.customer);
       const tokenOwner = await authenticate(phones.owner);
       const tokenOther = await authenticate(phones.other);
+      const tokenDriver = await authenticate(phones.driver);
       const accountCustomer = await authMe(tokenCustomer);
       const accountOwner = await authMe(tokenOwner);
       e164.push(
         accountCustomer.phone,
         accountOwner.phone,
         (await authMe(tokenOther)).phone,
+        (await authMe(tokenDriver)).phone,
       );
 
       await request(server)
@@ -758,6 +761,19 @@ describe('Delivery foundation (e2e)', () => {
         'MERCHANT_ORDER_NOT_FOUND',
       );
 
+      const driverBrowse = await request(server)
+        .get('/api/v1/driver/deliveries')
+        .set('Authorization', `Bearer ${tokenDriver}`);
+      expect(driverBrowse.status).toBe(404);
+      const driverCustomerLeak = await request(server)
+        .get(`/api/v1/customer/orders/${orderId}/delivery`)
+        .set('Authorization', `Bearer ${tokenDriver}`);
+      expect(driverCustomerLeak.status).toBe(404);
+      const driverMerchantLeak = await request(server)
+        .get(`/api/v1/merchant/${merchantId}/orders/${orderId}/delivery`)
+        .set('Authorization', `Bearer ${tokenDriver}`);
+      expect(driverMerchantLeak.status).toBe(404);
+
       const electronicId = await addCartAndOrder('ELECTRONIC');
       const electronicAccept = await request(server)
         .post(`/api/v1/merchant/${merchantId}/orders/${electronicId}/accept`)
@@ -802,6 +818,7 @@ describe('Delivery foundation (e2e)', () => {
       await cleanupZones(zoneIds);
       await cleanupByPhone(e164[1] ?? '');
       await cleanupByPhone(e164[2] ?? '');
+      await cleanupByPhone(e164[3] ?? '');
     }
   });
 });

@@ -2,9 +2,9 @@
 
 Placeholder folders for the SpeedyGo modular monolith.
 
-`auth`, `identity`, and `authorization` contain the Authentication Foundation v1.0. `customers` contains the Customer Onboarding Foundation v1.0. `merchants` contains the Merchant Foundation v1.0. `catalog` contains the Catalog Foundation v1.0 (branch-owned categories, products, and options). `cart` contains the Cart Foundation v1.0 (Customer Active Cart). `checkout` contains Checkout Foundation v1.0 (live preview only; no Order creation). `orders` contains Order Foundation v1.0 (Customer Order creation and historical reads) and Merchant Order Workflow v1.0 (accept / reject / prepare / ready). `delivery` contains Delivery Foundation v1.0 (internal Delivery aggregate when Driver Matching starts; Customer/Merchant reads). Other folders remain empty until their approved domain tasks.
+`auth`, `identity`, and `authorization` contain the Authentication Foundation v1.0. `customers` contains the Customer Onboarding Foundation v1.0. `merchants` contains the Merchant Foundation v1.0. `catalog` contains the Catalog Foundation v1.0 (branch-owned categories, products, and options). `cart` contains the Cart Foundation v1.0 (Customer Active Cart). `checkout` contains Checkout Foundation v1.0 (live preview only; no Order creation). `orders` contains Order Foundation v1.0 (Customer Order creation and historical reads) and Merchant Order Workflow v1.0 (accept / reject / prepare / ready). `delivery` contains Delivery Foundation v1.0 (internal Delivery aggregate when Driver Matching starts; Customer/Merchant reads). `drivers` contains Driver Foundation & Onboarding v1.0 (profile, KYC metadata, vehicle, availability). Other folders remain empty until their approved domain tasks.
 
-Do not implement payment provider integration, COD collection, Driver matching, or driver assignment as part of Delivery Foundation.
+Do not implement payment provider integration, COD collection, Driver matching, or driver assignment as part of Driver Foundation.
 
 | Module | Responsibility |
 | --- | --- |
@@ -12,7 +12,7 @@ Do not implement payment provider integration, COD collection, Driver matching, 
 | `identity` | Account / Device / Session persistence |
 | `authorization` | Admin RBAC guards (no admin login yet) |
 | `customers` | CustomerProfile onboarding, profile management, addresses |
-| `drivers` | Driver accounts and availability |
+| `drivers` | Driver onboarding, verification metadata, vehicle, availability |
 | `merchants` | Merchant organization, membership access, branches |
 | `catalog` | Merchant catalog |
 | `cart` | Customer Active Cart |
