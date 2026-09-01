@@ -1,4 +1,4 @@
-# Prisma 8 — SpeedyGo Schema v1.0
+# Prisma 8 — SpeedyGo Schema v1.0 + v1.1 additive
 
 Canonical contract (one schema only):
 
@@ -19,6 +19,7 @@ There is **no** `schema.prisma` and **no** `@prisma/client`. Do not add a second
 | `prisma/contract.json` / `contract.d.ts` | Emitted — `pnpm contract:emit` |
 | `prisma/db.ts` | `getDb()` client |
 | `migrations/app/20260901T0054_init_speedygo_v1` | Initial SpeedyGo DDL |
+| `migrations/app/20260901T1312_cart_item_options` | Prisma Schema v1.1 `cart_item_options` |
 | `migrations/postgis/20260601T0000_install_postgis_extension` | `CREATE EXTENSION postgis` |
 
 ## Commands
