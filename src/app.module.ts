@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { IdentityModule } from './modules/identity/identity.module';
+import { MerchantsModule } from './modules/merchants/merchants.module';
 
 @Module({
   imports: [
@@ -29,6 +30,7 @@ import { IdentityModule } from './modules/identity/identity.module';
     AuthModule,
     AuthorizationModule,
     CustomersModule,
+    MerchantsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

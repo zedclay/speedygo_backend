@@ -1,7 +1,10 @@
-import { isPostgresUniqueViolation } from './postgres-unique';
+import {
+  isPostgresForeignKeyViolation,
+  isPostgresUniqueViolation,
+} from './postgres-unique';
 
-describe('isPostgresUniqueViolation', () => {
-  it('detects sqlState 23505 on nested causes', () => {
+describe('postgres SQLSTATE helpers', () => {
+  it('detects unique and foreign-key violations on nested causes', () => {
     expect(
       isPostgresUniqueViolation({
         cause: { code: '23505' },
@@ -9,5 +12,7 @@ describe('isPostgresUniqueViolation', () => {
     ).toBe(true);
     expect(isPostgresUniqueViolation({ sqlState: '23505' })).toBe(true);
     expect(isPostgresUniqueViolation(new Error('nope'))).toBe(false);
+    expect(isPostgresForeignKeyViolation({ sqlState: '23503' })).toBe(true);
+    expect(isPostgresForeignKeyViolation({ code: '23505' })).toBe(false);
   });
 });
