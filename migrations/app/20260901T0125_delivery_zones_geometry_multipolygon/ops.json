@@ -1,0 +1,44 @@
+[
+  {
+    "id": "checkConstraint.delivery_zones.delivery_zones_geometry_multipolygon_218a73f6",
+    "label": "Add check constraint \"delivery_zones_geometry_multipolygon_218a73f6\" on \"delivery_zones\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "delivery_zones_geometry_multipolygon_218a73f6",
+        "table": "delivery_zones"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"delivery_zones_geometry_multipolygon_218a73f6\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "delivery_zones_geometry_multipolygon_218a73f6",
+          "public",
+          "\"public\".\"delivery_zones\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"delivery_zones_geometry_multipolygon_218a73f6\"",
+        "sql": "ALTER TABLE \"public\".\"delivery_zones\" ADD CONSTRAINT \"delivery_zones_geometry_multipolygon_218a73f6\" CHECK (GeometryType(geometry) = 'MULTIPOLYGON')"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"delivery_zones_geometry_multipolygon_218a73f6\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "delivery_zones_geometry_multipolygon_218a73f6",
+          "public",
+          "\"public\".\"delivery_zones\""
+        ]
+      }
+    ]
+  }
+]

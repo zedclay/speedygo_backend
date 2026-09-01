@@ -1,0 +1,71 @@
+# SpeedyGo backend local dependencies only.
+# Application process runs on the host (`pnpm start:dev`).
+#
+# Ports:
+#   PostgreSQL  5432
+#   Redis       6379
+#   MinIO API   9000
+#   MinIO UI    9001
+#
+# Usage:
+#   docker compose up -d
+#   docker compose down
+
+name: speedygo-backend
+
+services:
+  postgres:
+    # Prefer a local build on postgres:16-alpine + Alpine PostGIS packages.
+    # Official postgis/postgis:16-3.5 is the upstream alternative when Docker Hub is reachable.
+    build:
+      context: ./docker/postgres-postgis
+    image: speedygo-postgres-postgis:16
+    container_name: speedygo-postgres
+    restart: unless-stopped
+    ports:
+      - '5432:5432'
+    environment:
+      POSTGRES_USER: speedygo
+      POSTGRES_PASSWORD: speedygo
+      POSTGRES_DB: speedygo_dev
+    volumes:
+      - speedygo_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U speedygo -d speedygo_dev']
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: speedygo-redis
+    restart: unless-stopped
+    ports:
+      - '6379:6379'
+    command: ['redis-server', '--appendonly', 'yes']
+    volumes:
+      - speedygo_redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: speedygo-minio
+    restart: unless-stopped
+    ports:
+      - '9000:9000'
+      - '9001:9001'
+    environment:
+      MINIO_ROOT_USER: speedygo
+      MINIO_ROOT_PASSWORD: speedygo_dev_password
+    command: ['server', '/data', '--console-address', ':9001']
+    volumes:
+      - speedygo_minio_data:/data
+
+volumes:
+  speedygo_postgres_data:
+  speedygo_redis_data:
+  speedygo_minio_data:

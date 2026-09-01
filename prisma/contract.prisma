@@ -1,0 +1,1253 @@
+// use prisma-next
+//
+// SpeedyGo Prisma Schema v1.0
+// Source of truth: docs/database/ERD.md (physical) + docs/architecture/DOMAIN_MODEL.md (meaning)
+//
+// PRISMA IMPLEMENTATION DECISIONS (see docs/database/PRISMA_IMPLEMENTATION.md):
+// - Canonical file is contract.prisma (Prisma 8), not schema.prisma
+// - UUID columns are Uuid; application supplies UUIDv7 (no UUIDv4 @default)
+// - TIMESTAMPTZ stored as TimestamptzString(6) (ISO strings; no Temporal polyfill)
+// - Frozen vocabularies are text-backed Prisma enums (TEXT + CHECK, not PG ENUM)
+// - Coordinates: Numeric(9, 6) instead of DOUBLE PRECISION
+// - PostGIS via @prisma/orm-extension-postgis (postgis.Geometry(4326) →
+//   geometry(Geometry, 4326); MultiPolygon + SRID 4326 enforced by @@check)
+// - Partial uniques and CHECKs declared here; planner emits them
+//
+// IDs are application-generated UUIDv7. Do not use @default(uuid()).
+// OrderFinancialSnapshot is write-once in domain code. Prisma can UPDATE; services must not.
+// BigInt money cannot be JSON.stringify()'d blindly in future HTTP DTOs.
+
+// ---------------------------------------------------------------------------
+// Frozen vocabularies — TEXT + CHECK (not PostgreSQL ENUM)
+// ---------------------------------------------------------------------------
+
+enum OrderStatus {
+  @@type("pg/text@1")
+  CREATED   = "CREATED"
+  CONFIRMED = "CONFIRMED"
+  ACTIVE    = "ACTIVE"
+  COMPLETED = "COMPLETED"
+  CANCELLED = "CANCELLED"
+  FAILED    = "FAILED"
+}
+
+enum FulfillmentStatus {
+  @@type("pg/text@1")
+  PENDING_ACCEPTANCE = "PENDING_ACCEPTANCE"
+  ACCEPTED           = "ACCEPTED"
+  PREPARING          = "PREPARING"
+  READY              = "READY"
+}
+
+enum DeliveryStatus {
+  @@type("pg/text@1")
+  SEARCHING_DRIVER = "SEARCHING_DRIVER"
+  DRIVER_ASSIGNED  = "DRIVER_ASSIGNED"
+  TO_PICKUP        = "TO_PICKUP"
+  AT_PICKUP        = "AT_PICKUP"
+  PICKED_UP        = "PICKED_UP"
+  IN_TRANSIT       = "IN_TRANSIT"
+  ARRIVED_CUSTOMER = "ARRIVED_CUSTOMER"
+  DELIVERED        = "DELIVERED"
+  FAILED           = "FAILED"
+  CANCELLED        = "CANCELLED"
+}
+
+enum PaymentStatus {
+  @@type("pg/text@1")
+  PENDING    = "PENDING"
+  PROCESSING = "PROCESSING"
+  SUCCEEDED  = "SUCCEEDED"
+  FAILED     = "FAILED"
+  CANCELLED  = "CANCELLED"
+}
+
+enum RefundStatus {
+  @@type("pg/text@1")
+  REQUESTED    = "REQUESTED"
+  UNDER_REVIEW = "UNDER_REVIEW"
+  APPROVED     = "APPROVED"
+  PROCESSING   = "PROCESSING"
+  REFUNDED     = "REFUNDED"
+  REJECTED     = "REJECTED"
+  FAILED       = "FAILED"
+}
+
+enum DriverAvailabilityStatus {
+  @@type("pg/text@1")
+  OFFLINE                         = "OFFLINE"
+  ONLINE                          = "ONLINE"
+  OFFLINE_AFTER_CURRENT_DELIVERY  = "OFFLINE_AFTER_CURRENT_DELIVERY"
+  SUSPENDED                       = "SUSPENDED"
+}
+
+enum RefundMethod {
+  @@type("pg/text@1")
+  ORIGINAL_PAYMENT = "ORIGINAL_PAYMENT"
+  MANUAL_COD       = "MANUAL_COD"
+  MANUAL_OTHER     = "MANUAL_OTHER"
+}
+
+enum CommissionScope {
+  @@type("pg/text@1")
+  GLOBAL_DEFAULT    = "GLOBAL_DEFAULT"
+  MERCHANT_OVERRIDE = "MERCHANT_OVERRIDE"
+}
+
+enum TimeBand {
+  @@type("pg/text@1")
+  DAY    = "DAY"
+  NIGHT  = "NIGHT"
+  CUSTOM = "CUSTOM"
+}
+
+enum SettlementLineType {
+  @@type("pg/text@1")
+  SALE              = "SALE"
+  REFUND_ADJUSTMENT = "REFUND_ADJUSTMENT"
+  MANUAL_ADJUSTMENT = "MANUAL_ADJUSTMENT"
+  REVERSAL          = "REVERSAL"
+}
+
+enum PromotionFunding {
+  @@type("pg/text@1")
+  SPEEDYGO = "SPEEDYGO"
+  MERCHANT = "MERCHANT"
+  SHARED   = "SHARED"
+}
+
+enum LedgerDirection {
+  @@type("pg/text@1")
+  DEBIT  = "DEBIT"
+  CREDIT = "CREDIT"
+}
+
+enum CartStatus {
+  @@type("pg/text@1")
+  ACTIVE     = "ACTIVE"
+  ABANDONED  = "ABANDONED"
+  CONVERTED  = "CONVERTED"
+}
+
+// ---------------------------------------------------------------------------
+// 1. Identity
+// ---------------------------------------------------------------------------
+
+model Account {
+  id        Uuid               @id
+  phone     VarChar(32)?
+  email     VarChar(255)?
+  status    VarChar(64)
+  createdAt TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt TimestamptzString(6) @default(now()) @map("updated_at")
+
+  @@index([phone], unique: true, where: "(phone IS NOT NULL)", name: "accounts_phone_uq")
+  @@index([email], unique: true, where: "(email IS NOT NULL)", name: "accounts_email_uq")
+  @@map("accounts")
+}
+
+model Session {
+  id               Uuid                 @id
+  accountId        Uuid                 @map("account_id")
+  refreshTokenHash VarChar(255)         @unique @map("refresh_token_hash")
+  deviceId         Uuid?                @map("device_id")
+  ipAddress        Inet?                @map("ip_address")
+  expiresAt        TimestamptzString(6) @map("expires_at")
+  revokedAt        TimestamptzString(6)? @map("revoked_at")
+  createdAt        TimestamptzString(6) @default(now()) @map("created_at")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  device  Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([accountId, expiresAt], name: "sessions_account_expires")
+  @@map("sessions")
+}
+
+model Device {
+  id         Uuid                 @id
+  accountId  Uuid                 @map("account_id")
+  platform   VarChar(32)
+  appVersion VarChar(32)          @map("app_version")
+  deviceName VarChar(128)?        @map("device_name")
+  lastSeenAt TimestamptzString(6) @map("last_seen_at")
+  createdAt  TimestamptzString(6) @default(now()) @map("created_at")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([accountId, lastSeenAt], name: "devices_account_last_seen")
+  @@map("devices")
+}
+
+model CustomerProfile {
+  id        Uuid                 @id
+  accountId Uuid                 @unique @map("account_id")
+  fullName  VarChar(255)         @map("full_name")
+  avatarUrl String?              @map("avatar_url")
+  createdAt TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt TimestamptzString(6) @default(now()) @map("updated_at")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@map("customer_profiles")
+}
+
+model DriverProfile {
+  id                 Uuid                 @id
+  accountId          Uuid                 @unique @map("account_id")
+  fullName           VarChar(255)         @map("full_name")
+  verificationStatus VarChar(64)          @map("verification_status")
+  approvedAt         TimestamptzString(6)? @map("approved_at")
+  createdAt          TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt          TimestamptzString(6) @default(now()) @map("updated_at")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@map("driver_profiles")
+}
+
+model AdminProfile {
+  id               Uuid                 @id
+  accountId        Uuid                 @unique @map("account_id")
+  roleId           Uuid                 @map("role_id")
+  displayName      VarChar(255)         @map("display_name")
+  twoFactorEnabled Boolean              @default(false) @map("two_factor_enabled")
+  createdAt        TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt        TimestamptzString(6) @default(now()) @map("updated_at")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  role    Role    @relation(fields: [roleId], references: [id], onDelete: Restrict)
+
+  @@map("admin_profiles")
+}
+
+model Role {
+  id          Uuid     @id
+  name        VarChar(128) @unique
+  description String?
+  active      Boolean  @default(true)
+
+  @@map("roles")
+}
+
+model Permission {
+  id          Uuid         @id
+  code        VarChar(128) @unique
+  description String?
+
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       Uuid @map("role_id")
+  permissionId Uuid @map("permission_id")
+
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Restrict)
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+// ---------------------------------------------------------------------------
+// 2. Customer
+// ---------------------------------------------------------------------------
+
+model Address {
+  id          Uuid                 @id
+  customerId  Uuid                 @map("customer_id")
+  label       VarChar(64)
+  addressText String               @map("address_text")
+  latitude    Numeric(9, 6)
+  longitude   Numeric(9, 6)
+  isDefault   Boolean              @default(false) @map("is_default")
+  createdAt   TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt   TimestamptzString(6) @default(now()) @map("updated_at")
+
+  customer CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+
+  @@index([customerId], name: "addresses_customer")
+  @@index([customerId], unique: true, where: "(is_default)", name: "addresses_one_default_per_customer")
+  @@map("addresses")
+}
+
+model Cart {
+  id               Uuid                 @id
+  customerId       Uuid                 @map("customer_id")
+  merchantBranchId Uuid                 @map("merchant_branch_id")
+  status           CartStatus
+  createdAt        TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt        TimestamptzString(6) @default(now()) @map("updated_at")
+
+  customer       CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  merchantBranch MerchantBranch  @relation(fields: [merchantBranchId], references: [id], onDelete: Restrict)
+
+  @@index([customerId], name: "carts_customer")
+  @@index([customerId], unique: true, where: "(status = 'ACTIVE')", name: "carts_one_active_per_customer")
+  @@map("carts")
+}
+
+model CartItem {
+  id             Uuid                 @id
+  cartId         Uuid                 @map("cart_id")
+  productId      Uuid                 @map("product_id")
+  quantity       Int
+  unitPriceMinor BigInt               @map("unit_price_minor")
+  createdAt      TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt      TimestamptzString(6) @default(now()) @map("updated_at")
+
+  cart    Cart    @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([cartId], name: "cart_items_cart")
+  @@check(expression: "quantity > 0", name: "cart_items_quantity_positive")
+  @@check(expression: "unit_price_minor >= 0", name: "cart_items_unit_price_nonneg")
+  @@map("cart_items")
+}
+
+// ---------------------------------------------------------------------------
+// 3. Merchant
+// ---------------------------------------------------------------------------
+
+model Merchant {
+  id              Uuid                  @id
+  publicReference VarChar(64)           @unique @map("public_reference")
+  name            VarChar(255)
+  status          VarChar(64)
+  verifiedAt      TimestamptzString(6)? @map("verified_at")
+  createdAt       TimestamptzString(6)  @default(now()) @map("created_at")
+  updatedAt       TimestamptzString(6)  @default(now()) @map("updated_at")
+
+  @@map("merchants")
+}
+
+model MerchantBranch {
+  id                 Uuid                 @id
+  merchantId         Uuid                 @map("merchant_id")
+  name               VarChar(255)
+  phone              VarChar(32)
+  addressText        String               @map("address_text")
+  latitude           Numeric(9, 6)
+  longitude          Numeric(9, 6)
+  operationalStatus  VarChar(64)          @map("operational_status")
+  createdAt          TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt          TimestamptzString(6) @default(now()) @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+
+  @@index([merchantId], name: "merchant_branches_merchant")
+  @@map("merchant_branches")
+}
+
+model MerchantMember {
+  id         Uuid                 @id
+  merchantId Uuid                 @map("merchant_id")
+  accountId  Uuid                 @map("account_id")
+  role       VarChar(64)
+  createdAt  TimestamptzString(6) @default(now()) @map("created_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  account  Account  @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([merchantId, accountId], unique: true, name: "merchant_members_merchant_account")
+  @@index([accountId], name: "merchant_members_account")
+  @@map("merchant_members")
+}
+
+model MerchantDocument {
+  id         Uuid                 @id
+  merchantId Uuid                 @map("merchant_id")
+  type       VarChar(64)
+  fileUrl    String               @map("file_url")
+  status     VarChar(64)
+  expiryDate DateString?          @map("expiry_date")
+  createdAt  TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt  TimestamptzString(6) @default(now()) @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+
+  @@map("merchant_documents")
+}
+
+// ---------------------------------------------------------------------------
+// 4. Catalog
+// ---------------------------------------------------------------------------
+
+model Category {
+  id               Uuid                 @id
+  merchantBranchId Uuid                 @map("merchant_branch_id")
+  name             VarChar(255)
+  sortOrder        Int                  @default(0) @map("sort_order")
+  active           Boolean              @default(true)
+  createdAt        TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt        TimestamptzString(6) @default(now()) @map("updated_at")
+
+  merchantBranch MerchantBranch @relation(fields: [merchantBranchId], references: [id], onDelete: Restrict)
+
+  @@index([merchantBranchId, sortOrder], name: "categories_branch_sort")
+  @@map("categories")
+}
+
+model Product {
+  id               Uuid                 @id
+  merchantBranchId Uuid                 @map("merchant_branch_id")
+  categoryId       Uuid                 @map("category_id")
+  name             VarChar(255)
+  description      String?
+  priceMinor       BigInt               @map("price_minor")
+  available        Boolean              @default(true)
+  createdAt        TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt        TimestamptzString(6) @default(now()) @map("updated_at")
+
+  merchantBranch MerchantBranch @relation(fields: [merchantBranchId], references: [id], onDelete: Restrict)
+  category       Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+
+  @@index([merchantBranchId, available], name: "products_branch_available")
+  @@index([categoryId], name: "products_category")
+  @@check(expression: "price_minor >= 0", name: "products_price_nonneg")
+  @@map("products")
+}
+
+model ProductOptionGroup {
+  id            Uuid                 @id
+  productId     Uuid                 @map("product_id")
+  name          VarChar(255)
+  required      Boolean
+  minSelections Int                  @map("min_selections")
+  maxSelections Int                  @map("max_selections")
+  createdAt     TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt     TimestamptzString(6) @default(now()) @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@check(expression: "min_selections >= 0", name: "product_option_groups_min_nonneg")
+  @@check(expression: "max_selections >= min_selections", name: "product_option_groups_max_gte_min")
+  @@map("product_option_groups")
+}
+
+model ProductOption {
+  id                   Uuid                 @id
+  optionGroupId        Uuid                 @map("option_group_id")
+  name                 VarChar(255)
+  additionalPriceMinor BigInt               @map("additional_price_minor")
+  available            Boolean              @default(true)
+  createdAt            TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt            TimestamptzString(6) @default(now()) @map("updated_at")
+
+  optionGroup ProductOptionGroup @relation(fields: [optionGroupId], references: [id], onDelete: Cascade)
+
+  @@check(expression: "additional_price_minor >= 0", name: "product_options_price_nonneg")
+  @@map("product_options")
+}
+
+// ---------------------------------------------------------------------------
+// 5. Driver
+// ---------------------------------------------------------------------------
+
+model Vehicle {
+  id          Uuid                 @id
+  driverId    Uuid                 @map("driver_id")
+  type        VarChar(64)
+  plateNumber VarChar(32)          @map("plate_number")
+  model       VarChar(128)
+  color       VarChar(64)?
+  status      VarChar(64)
+  createdAt   TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt   TimestamptzString(6) @default(now()) @map("updated_at")
+
+  driver DriverProfile @relation(fields: [driverId], references: [id], onDelete: Restrict)
+
+  @@index([driverId], name: "vehicles_driver")
+  @@index([plateNumber], unique: true, where: "(status = 'ACTIVE')", name: "vehicles_active_plate_uq")
+  @@map("vehicles")
+}
+
+model DriverDocument {
+  id         Uuid                 @id
+  driverId   Uuid                 @map("driver_id")
+  type       VarChar(64)
+  fileUrl    String               @map("file_url")
+  status     VarChar(64)
+  expiryDate DateString?          @map("expiry_date")
+  createdAt  TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt  TimestamptzString(6) @default(now()) @map("updated_at")
+
+  driver DriverProfile @relation(fields: [driverId], references: [id], onDelete: Restrict)
+
+  @@index([driverId], name: "driver_documents_driver")
+  @@map("driver_documents")
+}
+
+model DriverAvailability {
+  driverId                      Uuid                      @id @map("driver_id")
+  status                        DriverAvailabilityStatus
+  currentZoneId                 Uuid?                     @map("current_zone_id")
+  offlineAfterCurrentDelivery   Boolean                   @default(false) @map("offline_after_current_delivery")
+  updatedAt                     TimestamptzString(6)      @default(now()) @map("updated_at")
+
+  driver      DriverProfile  @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  currentZone DeliveryZone?  @relation(fields: [currentZoneId], references: [id], onDelete: SetNull)
+
+  @@index([status, currentZoneId], name: "driver_availability_status_zone")
+  @@map("driver_availability")
+}
+
+// ---------------------------------------------------------------------------
+// 6. Geography / pricing / commission
+// ---------------------------------------------------------------------------
+
+model DeliveryZone {
+  id        Uuid                 @id
+  name      VarChar(255)
+  // Prisma 8 PostGIS pack can only author postgis.Geometry(srid) → geometry(Geometry, 4326).
+  // Coverage-area invariant is the CHECK below (NOT NULL; MultiPolygon + SRID 4326).
+  geometry  postgis.Geometry(4326)
+  active    Boolean              @default(true)
+  createdAt TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt TimestamptzString(6) @default(now()) @map("updated_at")
+
+  @@index([geometry], type: "gist", name: "delivery_zones_geometry_gist")
+  @@check(expression: "GeometryType(geometry) = 'MULTIPOLYGON' AND ST_SRID(geometry) = 4326", name: "delivery_zones_geometry_multipolygon")
+  @@map("delivery_zones")
+}
+
+model DeliveryPricingRule {
+  id                        Uuid                  @id
+  zoneId                    Uuid                  @map("zone_id")
+  name                      VarChar(255)
+  timeBand                  TimeBand              @map("time_band")
+  startLocalTime            TimeString?           @map("start_local_time")
+  endLocalTime              TimeString?           @map("end_local_time")
+  customerDeliveryFeeMinor  BigInt                @map("customer_delivery_fee_minor")
+  driverRemunerationMinor   BigInt                @map("driver_remuneration_minor")
+  effectiveFrom             TimestamptzString(6)  @map("effective_from")
+  effectiveTo               TimestamptzString(6)? @map("effective_to")
+  active                    Boolean               @default(true)
+  createdAt                 TimestamptzString(6)  @default(now()) @map("created_at")
+  updatedAt                 TimestamptzString(6)  @default(now()) @map("updated_at")
+
+  zone DeliveryZone @relation(fields: [zoneId], references: [id], onDelete: Restrict)
+
+  @@index([zoneId, effectiveFrom], name: "delivery_pricing_rules_zone_from")
+  @@index([zoneId, timeBand, active], name: "delivery_pricing_rules_zone_band_active")
+  @@check(expression: "customer_delivery_fee_minor >= 0", name: "delivery_pricing_rules_fee_nonneg")
+  @@check(expression: "driver_remuneration_minor >= 0", name: "delivery_pricing_rules_pay_nonneg")
+  @@check(expression: "effective_to IS NULL OR effective_to > effective_from", name: "delivery_pricing_rules_range")
+  @@map("delivery_pricing_rules")
+}
+
+model MerchantCommissionRule {
+  id                Uuid                 @id
+  scope             CommissionScope
+  merchantId        Uuid?                @map("merchant_id")
+  rateBps           Int                  @map("rate_bps")
+  effectiveFrom     TimestamptzString(6) @map("effective_from")
+  effectiveTo       TimestamptzString(6)? @map("effective_to")
+  changeReason      String?              @map("change_reason")
+  changedByAdminId  Uuid                 @map("changed_by_admin_id")
+  active            Boolean              @default(true)
+  createdAt         TimestamptzString(6) @default(now()) @map("created_at")
+
+  merchant       Merchant?    @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  changedByAdmin AdminProfile @relation(fields: [changedByAdminId], references: [id], onDelete: Restrict)
+
+  @@index([merchantId, effectiveFrom], name: "merchant_commission_rules_merchant_from")
+  @@index([scope, active, effectiveFrom], name: "merchant_commission_rules_scope_active_from")
+  @@check(expression: "rate_bps >= 0 AND rate_bps <= 10000", name: "merchant_commission_rules_rate_bps")
+  @@check(expression: "effective_to IS NULL OR effective_to > effective_from", name: "merchant_commission_rules_range")
+  @@check(expression: "(scope = 'GLOBAL_DEFAULT' AND merchant_id IS NULL) OR (scope = 'MERCHANT_OVERRIDE' AND merchant_id IS NOT NULL)", name: "merchant_commission_rules_scope_merchant")
+  @@map("merchant_commission_rules")
+}
+
+// ---------------------------------------------------------------------------
+// 7. Order
+// ---------------------------------------------------------------------------
+
+model Order {
+  id                 Uuid                  @id
+  publicReference    VarChar(64)           @unique @map("public_reference")
+  customerId         Uuid                  @map("customer_id")
+  merchantBranchId   Uuid                  @map("merchant_branch_id")
+  deliveryZoneId     Uuid                  @map("delivery_zone_id")
+  status             OrderStatus
+  fulfillmentStatus  FulfillmentStatus     @map("fulfillment_status")
+  createdAt          TimestamptzString(6)  @default(now()) @map("created_at")
+  confirmedAt        TimestamptzString(6)? @map("confirmed_at")
+  completedAt        TimestamptzString(6)? @map("completed_at")
+  updatedAt          TimestamptzString(6)  @default(now()) @map("updated_at")
+
+  customer       CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  merchantBranch MerchantBranch  @relation(fields: [merchantBranchId], references: [id], onDelete: Restrict)
+  deliveryZone   DeliveryZone    @relation(fields: [deliveryZoneId], references: [id], onDelete: Restrict)
+
+  @@index([customerId, createdAt], name: "orders_customer_created")
+  @@index([merchantBranchId, createdAt], name: "orders_branch_created")
+  @@index([status, createdAt], name: "orders_status_created")
+  @@index([fulfillmentStatus], name: "orders_fulfillment")
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  Uuid   @id
+  orderId             Uuid   @map("order_id")
+  productId           Uuid?  @map("product_id")
+  productNameSnapshot VarChar(255) @map("product_name_snapshot")
+  quantity            Int
+  unitPriceMinor      BigInt @map("unit_price_minor")
+  lineTotalMinor      BigInt @map("line_total_minor")
+
+  order   Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  @@index([orderId], name: "order_items_order")
+  @@check(expression: "quantity > 0", name: "order_items_quantity_positive")
+  @@check(expression: "unit_price_minor >= 0", name: "order_items_unit_price_nonneg")
+  @@check(expression: "line_total_minor >= 0", name: "order_items_line_total_nonneg")
+  @@map("order_items")
+}
+
+model OrderItemOption {
+  id                   Uuid         @id
+  orderItemId          Uuid         @map("order_item_id")
+  optionNameSnapshot   VarChar(255) @map("option_name_snapshot")
+  additionalPriceMinor BigInt       @map("additional_price_minor")
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Restrict)
+
+  @@check(expression: "additional_price_minor >= 0", name: "order_item_options_price_nonneg")
+  @@map("order_item_options")
+}
+
+model OrderDeliveryAddressSnapshot {
+  orderId      Uuid         @id @map("order_id")
+  addressText  String       @map("address_text")
+  latitude     Numeric(9, 6)
+  longitude    Numeric(9, 6)
+  instructions String?
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@map("order_delivery_address_snapshots")
+}
+
+model OrderStatusEvent {
+  id           Uuid                 @id
+  orderId      Uuid                 @map("order_id")
+  eventType    VarChar(64)          @map("event_type")
+  actorType    VarChar(32)          @map("actor_type")
+  actorId      Uuid?                @map("actor_id")
+  fromStatus   VarChar(32)?         @map("from_status")
+  toStatus     VarChar(32)          @map("to_status")
+  occurredAt   TimestamptzString(6) @map("occurred_at")
+  metadataJson Jsonb?               @map("metadata_json")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, occurredAt], name: "order_status_events_order_occurred")
+  @@map("order_status_events")
+}
+
+model OrderCancellation {
+  id                    Uuid                 @id
+  orderId               Uuid                 @unique @map("order_id")
+  reason                VarChar(255)
+  internalNote          String?              @map("internal_note")
+  cancelledByAccountId  Uuid?                @map("cancelled_by_account_id")
+  cancelledAt           TimestamptzString(6) @map("cancelled_at")
+
+  order               Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  cancelledByAccount  Account? @relation(fields: [cancelledByAccountId], references: [id], onDelete: SetNull)
+
+  @@map("order_cancellations")
+}
+
+model OrderFinancialSnapshot {
+  orderId                         Uuid    @id @map("order_id")
+  currency                        Char(3)
+  grossMerchandiseSubtotalMinor   BigInt  @map("gross_merchandise_subtotal_minor")
+  merchantDiscountMinor           BigInt  @map("merchant_discount_minor")
+  platformDiscountMinor           BigInt  @map("platform_discount_minor")
+  totalDiscountMinor              BigInt  @map("total_discount_minor")
+  commissionBaseMinor             BigInt  @map("commission_base_minor")
+  merchantCommissionRateBps       Int     @map("merchant_commission_rate_bps")
+  merchantCommissionAmountMinor   BigInt  @map("merchant_commission_amount_minor")
+  merchantNetAmountMinor          BigInt  @map("merchant_net_amount_minor")
+  customerDeliveryFeeMinor        BigInt  @map("customer_delivery_fee_minor")
+  driverRemunerationMinor         BigInt  @map("driver_remuneration_minor")
+  speedyGoDeliveryShareMinor      BigInt  @map("speedygo_delivery_share_minor")
+  serviceFeeMinor                 BigInt  @map("service_fee_minor")
+  customerPayableMinor            BigInt  @map("customer_payable_minor")
+  commissionRuleId                Uuid    @map("commission_rule_id")
+  pricingRuleId                   Uuid    @map("pricing_rule_id")
+  createdAt                       TimestamptzString(6) @default(now()) @map("created_at")
+
+  order          Order                   @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  commissionRule MerchantCommissionRule  @relation(fields: [commissionRuleId], references: [id], onDelete: Restrict)
+  pricingRule    DeliveryPricingRule     @relation(fields: [pricingRuleId], references: [id], onDelete: Restrict)
+
+  @@check(expression: "gross_merchandise_subtotal_minor >= 0", name: "ofs_gms_nonneg")
+  @@check(expression: "merchant_discount_minor >= 0", name: "ofs_merchant_discount_nonneg")
+  @@check(expression: "platform_discount_minor >= 0", name: "ofs_platform_discount_nonneg")
+  @@check(expression: "total_discount_minor >= 0", name: "ofs_total_discount_nonneg")
+  @@check(expression: "commission_base_minor >= 0", name: "ofs_commission_base_nonneg")
+  @@check(expression: "merchant_commission_rate_bps >= 0 AND merchant_commission_rate_bps <= 10000", name: "ofs_commission_rate_bps")
+  @@check(expression: "merchant_commission_amount_minor >= 0", name: "ofs_commission_amount_nonneg")
+  @@check(expression: "merchant_net_amount_minor >= 0", name: "ofs_merchant_net_nonneg")
+  @@check(expression: "customer_delivery_fee_minor >= 0", name: "ofs_delivery_fee_nonneg")
+  @@check(expression: "driver_remuneration_minor >= 0", name: "ofs_driver_pay_nonneg")
+  @@check(expression: "speedygo_delivery_share_minor >= 0", name: "ofs_delivery_share_nonneg")
+  @@check(expression: "service_fee_minor >= 0", name: "ofs_service_fee_nonneg")
+  @@check(expression: "customer_payable_minor >= 0", name: "ofs_customer_payable_nonneg")
+  @@map("order_financial_snapshots")
+}
+
+// ---------------------------------------------------------------------------
+// 8. Delivery
+// ---------------------------------------------------------------------------
+
+model Delivery {
+  id                    Uuid                  @id
+  orderId               Uuid                  @unique @map("order_id")
+  status                DeliveryStatus
+  driverSearchStartedAt TimestamptzString(6)? @map("driver_search_started_at")
+  pickedUpAt            TimestamptzString(6)? @map("picked_up_at")
+  estimatedArrivalAt    TimestamptzString(6)? @map("estimated_arrival_at")
+  arrivedCustomerAt     TimestamptzString(6)? @map("arrived_customer_at")
+  deliveredAt           TimestamptzString(6)? @map("delivered_at")
+  createdAt             TimestamptzString(6)  @default(now()) @map("created_at")
+  updatedAt             TimestamptzString(6)  @default(now()) @map("updated_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([status], name: "deliveries_status")
+  @@map("deliveries")
+}
+
+model DriverAssignment {
+  id         Uuid                  @id
+  deliveryId Uuid                  @map("delivery_id")
+  driverId   Uuid                  @map("driver_id")
+  status     VarChar(64)
+  assignedAt TimestamptzString(6)  @map("assigned_at")
+  acceptedAt TimestamptzString(6)? @map("accepted_at")
+  releasedAt TimestamptzString(6)? @map("released_at")
+
+  delivery Delivery      @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+  driver   DriverProfile @relation(fields: [driverId], references: [id], onDelete: Restrict)
+
+  @@index([driverId, assignedAt], name: "driver_assignments_driver_assigned")
+  @@index([deliveryId], name: "driver_assignments_delivery")
+  @@index([deliveryId], unique: true, where: "(released_at IS NULL)", name: "driver_assignments_one_open_per_delivery")
+  @@index([driverId], unique: true, where: "(released_at IS NULL)", name: "driver_assignments_one_open_per_driver")
+  @@map("driver_assignments")
+}
+
+model DeliveryEvent {
+  id         Uuid                 @id
+  deliveryId Uuid                 @map("delivery_id")
+  type       VarChar(64)
+  driverId   Uuid?                @map("driver_id")
+  occurredAt TimestamptzString(6) @map("occurred_at")
+  metadataJson Jsonb?             @map("metadata_json")
+
+  delivery Delivery       @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+  driver   DriverProfile? @relation(fields: [driverId], references: [id], onDelete: SetNull)
+
+  @@index([deliveryId, occurredAt], name: "delivery_events_delivery_occurred")
+  @@map("delivery_events")
+}
+
+model DeliveryProof {
+  id              Uuid                  @id
+  deliveryId      Uuid                  @unique @map("delivery_id")
+  deliveryPinHash VarChar(255)?         @map("delivery_pin_hash")
+  proofImageUrl   String?               @map("proof_image_url")
+  verifiedAt      TimestamptzString(6)? @map("verified_at")
+  createdAt       TimestamptzString(6)  @default(now()) @map("created_at")
+
+  delivery Delivery @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+
+  @@map("delivery_proofs")
+}
+
+model DriverEarning {
+  id                    Uuid                  @id
+  deliveryId            Uuid                  @unique @map("delivery_id")
+  driverId              Uuid                  @map("driver_id")
+  baseRemunerationMinor BigInt                @map("base_remuneration_minor")
+  bonusMinor            BigInt                @map("bonus_minor")
+  adjustmentMinor       BigInt                @map("adjustment_minor")
+  netEarningMinor       BigInt                @map("net_earning_minor")
+  status                VarChar(64)
+  validatedAt           TimestamptzString(6)? @map("validated_at")
+  createdAt             TimestamptzString(6)  @default(now()) @map("created_at")
+  updatedAt             TimestamptzString(6)  @default(now()) @map("updated_at")
+
+  delivery Delivery      @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+  driver   DriverProfile @relation(fields: [driverId], references: [id], onDelete: Restrict)
+
+  @@index([driverId, createdAt], name: "driver_earnings_driver_created")
+  @@check(expression: "base_remuneration_minor >= 0", name: "driver_earnings_base_nonneg")
+  @@check(expression: "bonus_minor >= 0", name: "driver_earnings_bonus_nonneg")
+  @@map("driver_earnings")
+}
+
+// ---------------------------------------------------------------------------
+// 9. Payment
+// ---------------------------------------------------------------------------
+
+model Payment {
+  id          Uuid                 @id
+  orderId     Uuid                 @unique @map("order_id")
+  method      VarChar(64)
+  status      PaymentStatus
+  amountMinor BigInt               @map("amount_minor")
+  currency    Char(3)
+  createdAt   TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt   TimestamptzString(6) @default(now()) @map("updated_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@check(expression: "amount_minor >= 0", name: "payments_amount_nonneg")
+  @@map("payments")
+}
+
+model PaymentTransaction {
+  id                Uuid                  @id
+  paymentId         Uuid                  @map("payment_id")
+  provider          VarChar(64)
+  providerReference VarChar(255)?         @map("provider_reference")
+  status            VarChar(64)
+  amountMinor       BigInt                @map("amount_minor")
+  idempotencyKey    VarChar(128)          @unique @map("idempotency_key")
+  processedAt       TimestamptzString(6)? @map("processed_at")
+  createdAt         TimestamptzString(6)  @default(now()) @map("created_at")
+
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@index([paymentId], name: "payment_transactions_payment")
+  @@index([providerReference], name: "payment_transactions_provider_ref")
+  @@check(expression: "amount_minor >= 0", name: "payment_transactions_amount_nonneg")
+  @@map("payment_transactions")
+}
+
+// ---------------------------------------------------------------------------
+// 10. COD
+// ---------------------------------------------------------------------------
+
+model CodCollection {
+  id                   Uuid                 @id
+  orderId              Uuid                 @unique @map("order_id")
+  driverId             Uuid                 @map("driver_id")
+  expectedAmountMinor  BigInt               @map("expected_amount_minor")
+  collectedAmountMinor BigInt               @map("collected_amount_minor")
+  collectedAt          TimestamptzString(6) @map("collected_at")
+  status               VarChar(64)
+  createdAt            TimestamptzString(6) @default(now()) @map("created_at")
+
+  order  Order         @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  driver DriverProfile @relation(fields: [driverId], references: [id], onDelete: Restrict)
+
+  @@index([driverId, status], name: "cod_collections_driver_status")
+  @@check(expression: "expected_amount_minor >= 0", name: "cod_collections_expected_nonneg")
+  @@check(expression: "collected_amount_minor >= 0", name: "cod_collections_collected_nonneg")
+  @@map("cod_collections")
+}
+
+model CodRemittance {
+  id                   Uuid                  @id
+  driverId             Uuid                  @map("driver_id")
+  submittedAmountMinor BigInt                @map("submitted_amount_minor")
+  confirmedAmountMinor BigInt                @map("confirmed_amount_minor")
+  status               VarChar(64)
+  reference            VarChar(64)           @unique
+  proofUrl             String?               @map("proof_url")
+  submittedAt          TimestamptzString(6)  @map("submitted_at")
+  confirmedAt          TimestamptzString(6)? @map("confirmed_at")
+  createdAt            TimestamptzString(6)  @default(now()) @map("created_at")
+
+  driver DriverProfile @relation(fields: [driverId], references: [id], onDelete: Restrict)
+
+  @@index([driverId, status], name: "cod_remittances_driver_status")
+  @@check(expression: "submitted_amount_minor >= 0", name: "cod_remittances_submitted_nonneg")
+  @@check(expression: "confirmed_amount_minor >= 0", name: "cod_remittances_confirmed_nonneg")
+  @@map("cod_remittances")
+}
+
+model CodRemittanceAllocation {
+  id                   Uuid                 @id
+  remittanceId         Uuid                 @map("remittance_id")
+  collectionId         Uuid                 @map("collection_id")
+  allocatedAmountMinor BigInt               @map("allocated_amount_minor")
+  createdAt            TimestamptzString(6) @default(now()) @map("created_at")
+
+  remittance CodRemittance @relation(fields: [remittanceId], references: [id], onDelete: Restrict)
+  collection CodCollection @relation(fields: [collectionId], references: [id], onDelete: Restrict)
+
+  @@index([remittanceId, collectionId], unique: true, name: "cod_alloc_remittance_collection")
+  @@index([collectionId], name: "cod_remittance_allocations_collection")
+  @@check(expression: "allocated_amount_minor > 0", name: "cod_alloc_amount_positive")
+  @@map("cod_remittance_allocations")
+}
+
+model CodDiscrepancy {
+  id            Uuid                  @id
+  driverId      Uuid                  @map("driver_id")
+  remittanceId  Uuid                  @unique @map("remittance_id")
+  expectedMinor BigInt                @map("expected_minor")
+  confirmedMinor BigInt               @map("confirmed_minor")
+  differenceMinor BigInt              @map("difference_minor")
+  status        VarChar(64)
+  cause         String?
+  resolution    String?
+  createdAt     TimestamptzString(6)  @default(now()) @map("created_at")
+  resolvedAt    TimestamptzString(6)? @map("resolved_at")
+
+  driver     DriverProfile @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  remittance CodRemittance @relation(fields: [remittanceId], references: [id], onDelete: Restrict)
+
+  @@check(expression: "expected_minor >= 0", name: "cod_discrepancies_expected_nonneg")
+  @@check(expression: "confirmed_minor >= 0", name: "cod_discrepancies_confirmed_nonneg")
+  @@map("cod_discrepancies")
+}
+
+// ---------------------------------------------------------------------------
+// 11. Refunds
+// ---------------------------------------------------------------------------
+
+model Refund {
+  id                    Uuid                  @id
+  orderId               Uuid                  @map("order_id")
+  paymentTransactionId  Uuid?                 @map("payment_transaction_id")
+  refundMethod          RefundMethod          @map("refund_method")
+  amountMinor           BigInt                @map("amount_minor")
+  status                RefundStatus
+  reason                VarChar(255)
+  internalNote          String?               @map("internal_note")
+  requestedByAdminId    Uuid                  @map("requested_by_admin_id")
+  requestedAt           TimestamptzString(6)  @map("requested_at")
+  completedAt           TimestamptzString(6)? @map("completed_at")
+  createdAt             TimestamptzString(6)  @default(now()) @map("created_at")
+
+  order               Order               @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  paymentTransaction  PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id], onDelete: Restrict)
+  requestedByAdmin    AdminProfile        @relation(fields: [requestedByAdminId], references: [id], onDelete: Restrict)
+
+  @@index([orderId], name: "refunds_order")
+  @@index([status, requestedAt], name: "refunds_status_requested")
+  @@check(expression: "amount_minor > 0", name: "refunds_amount_positive")
+  @@map("refunds")
+}
+
+// ---------------------------------------------------------------------------
+// 12. Settlements / ledger
+// ---------------------------------------------------------------------------
+
+model MerchantSettlement {
+  id                      Uuid                  @id
+  merchantId              Uuid                  @map("merchant_id")
+  periodStart             TimestamptzString(6)  @map("period_start")
+  periodEnd               TimestamptzString(6)  @map("period_end")
+  grossSalesMinor         BigInt                @map("gross_sales_minor")
+  commissionMinor         BigInt                @map("commission_minor")
+  refundAdjustmentsMinor  BigInt                @map("refund_adjustments_minor")
+  manualAdjustmentsMinor  BigInt                @map("manual_adjustments_minor")
+  netPayableMinor         BigInt                @map("net_payable_minor")
+  status                  VarChar(64)
+  paidAt                  TimestamptzString(6)? @map("paid_at")
+  createdAt               TimestamptzString(6)  @default(now()) @map("created_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+
+  @@index([merchantId, periodStart, periodEnd], name: "merchant_settlements_merchant_period")
+  @@check(expression: "period_end > period_start", name: "merchant_settlements_period")
+  @@check(expression: "gross_sales_minor >= 0", name: "merchant_settlements_gms_nonneg")
+  @@check(expression: "commission_minor >= 0", name: "merchant_settlements_commission_nonneg")
+  @@map("merchant_settlements")
+}
+
+model MerchantSettlementLine {
+  id                    Uuid                 @id
+  settlementId          Uuid                 @map("settlement_id")
+  orderId               Uuid?                @map("order_id")
+  type                  SettlementLineType
+  grossMerchandiseMinor BigInt               @map("gross_merchandise_minor")
+  commissionMinor       BigInt               @map("commission_minor")
+  merchantNetMinor      BigInt               @map("merchant_net_minor")
+  adjustmentMinor       BigInt               @map("adjustment_minor")
+  reference             VarChar(128)?
+  createdAt             TimestamptzString(6) @default(now()) @map("created_at")
+
+  settlement MerchantSettlement @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  order      Order?             @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([settlementId], name: "merchant_settlement_lines_settlement")
+  @@index([orderId], name: "merchant_settlement_lines_order")
+  @@check(expression: "gross_merchandise_minor >= 0", name: "msl_gms_nonneg")
+  @@check(expression: "commission_minor >= 0", name: "msl_commission_nonneg")
+  @@map("merchant_settlement_lines")
+}
+
+model FinancialLedgerEntry {
+  id           Uuid                 @id
+  orderId      Uuid?                @map("order_id")
+  merchantId   Uuid?                @map("merchant_id")
+  driverId     Uuid?                @map("driver_id")
+  type         VarChar(64)
+  direction    LedgerDirection
+  amountMinor  BigInt               @map("amount_minor")
+  currency     Char(3)
+  reversalOfId Uuid?                @map("reversal_of_id")
+  reference    VarChar(128)
+  createdAt    TimestamptzString(6) @default(now()) @map("created_at")
+
+  order      Order?                 @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  merchant   Merchant?              @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  driver     DriverProfile?         @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  reversalOf FinancialLedgerEntry?  @relation("LedgerReversal", fields: [reversalOfId], references: [id], onDelete: Restrict)
+  reversals  FinancialLedgerEntry[] @relation("LedgerReversal")
+
+  @@index([orderId], name: "financial_ledger_entries_order")
+  @@index([merchantId, createdAt], name: "financial_ledger_entries_merchant_created")
+  @@index([driverId, createdAt], name: "financial_ledger_entries_driver_created")
+  @@index([type, createdAt], name: "financial_ledger_entries_type_created")
+  @@index([createdAt], name: "financial_ledger_entries_created")
+  @@check(expression: "amount_minor >= 0", name: "financial_ledger_entries_amount_nonneg")
+  @@map("financial_ledger_entries")
+}
+
+// ---------------------------------------------------------------------------
+// 13. Promotions / ratings
+// ---------------------------------------------------------------------------
+
+model Promotion {
+  id        Uuid                 @id
+  code      VarChar(64)          @unique
+  type      VarChar(64)
+  value     Int
+  startsAt  TimestamptzString(6) @map("starts_at")
+  endsAt    TimestamptzString(6) @map("ends_at")
+  active    Boolean
+  createdAt TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt TimestamptzString(6) @default(now()) @map("updated_at")
+
+  @@check(expression: "ends_at > starts_at", name: "promotions_window")
+  @@map("promotions")
+}
+
+model PromotionRedemption {
+  id                  Uuid                 @id
+  promotionId         Uuid                 @map("promotion_id")
+  customerId          Uuid                 @map("customer_id")
+  orderId             Uuid                 @map("order_id")
+  discountAmountMinor BigInt               @map("discount_amount_minor")
+  fundedBy            PromotionFunding     @map("funded_by")
+  redeemedAt          TimestamptzString(6) @map("redeemed_at")
+
+  promotion Promotion       @relation(fields: [promotionId], references: [id], onDelete: Restrict)
+  customer  CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  order     Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@index([orderId], name: "promotion_redemptions_order")
+  @@index([customerId, redeemedAt], name: "promotion_redemptions_customer_redeemed")
+  @@check(expression: "discount_amount_minor >= 0", name: "promotion_redemptions_discount_nonneg")
+  @@map("promotion_redemptions")
+}
+
+model DriverRating {
+  id         Uuid                 @id
+  orderId    Uuid                 @map("order_id")
+  customerId Uuid                 @map("customer_id")
+  driverId   Uuid                 @map("driver_id")
+  score      SmallInt
+  comment    String?
+  createdAt  TimestamptzString(6) @default(now()) @map("created_at")
+
+  order    Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  customer CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  driver   DriverProfile   @relation(fields: [driverId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, customerId], unique: true, name: "driver_ratings_order_customer")
+  @@index([driverId, createdAt], name: "driver_ratings_driver_created")
+  @@check(expression: "score >= 1 AND score <= 5", name: "driver_ratings_score_range")
+  @@map("driver_ratings")
+}
+
+model MerchantRating {
+  id         Uuid                 @id
+  orderId    Uuid                 @map("order_id")
+  customerId Uuid                 @map("customer_id")
+  merchantId Uuid                 @map("merchant_id")
+  score      SmallInt
+  comment    String?
+  createdAt  TimestamptzString(6) @default(now()) @map("created_at")
+
+  order    Order           @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  customer CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  merchant Merchant        @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+
+  @@index([orderId, customerId], unique: true, name: "merchant_ratings_order_customer")
+  @@index([merchantId, createdAt], name: "merchant_ratings_merchant_created")
+  @@check(expression: "score >= 1 AND score <= 5", name: "merchant_ratings_score_range")
+  @@map("merchant_ratings")
+}
+
+// ---------------------------------------------------------------------------
+// 14. Notifications
+// ---------------------------------------------------------------------------
+
+model DeviceToken {
+  id        Uuid                 @id
+  accountId Uuid                 @map("account_id")
+  deviceId  Uuid?                @map("device_id")
+  token     String               @unique
+  platform  VarChar(32)
+  active    Boolean              @default(true)
+  createdAt TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt TimestamptzString(6) @default(now()) @map("updated_at")
+
+  account Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  device  Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
+
+  @@index([accountId], where: "(active)", name: "device_tokens_account_active")
+  @@index([deviceId], unique: true, where: "(active AND device_id IS NOT NULL)", name: "device_tokens_one_active_per_device")
+  @@map("device_tokens")
+}
+
+model NotificationTemplate {
+  id            Uuid                 @id
+  code          VarChar(128)         @unique
+  audience      VarChar(64)
+  trigger       VarChar(64)
+  channel       VarChar(32)
+  titleTemplate String               @map("title_template")
+  bodyTemplate  String               @map("body_template")
+  active        Boolean
+  createdAt     TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt     TimestamptzString(6) @default(now()) @map("updated_at")
+
+  @@map("notification_templates")
+}
+
+model Notification {
+  id         Uuid                 @id
+  accountId  Uuid                 @map("account_id")
+  templateId Uuid?                @map("template_id")
+  title      String
+  body       String
+  category   VarChar(64)
+  read       Boolean              @default(false)
+  createdAt  TimestamptzString(6) @default(now()) @map("created_at")
+
+  account  Account               @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  template NotificationTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+
+  @@index([accountId, createdAt], name: "notifications_account_created")
+  @@index([accountId], where: "(read = false)", name: "notifications_account_unread")
+  @@map("notifications")
+}
+
+model NotificationDeliveryLog {
+  id                Uuid                  @id
+  notificationId    Uuid                  @map("notification_id")
+  channel           VarChar(32)
+  status            VarChar(64)
+  providerReference VarChar(255)?         @map("provider_reference")
+  sentAt            TimestamptzString(6)? @map("sent_at")
+  createdAt         TimestamptzString(6)  @default(now()) @map("created_at")
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Restrict)
+
+  @@index([notificationId], name: "notification_delivery_logs_notification")
+  @@map("notification_delivery_logs")
+}
+
+// ---------------------------------------------------------------------------
+// 15. Support
+// ---------------------------------------------------------------------------
+
+model SupportTicket {
+  id                 Uuid                 @id
+  publicReference    VarChar(64)          @unique @map("public_reference")
+  createdByAccountId Uuid                 @map("created_by_account_id")
+  orderId            Uuid?                @map("order_id")
+  merchantId         Uuid?                @map("merchant_id")
+  driverId           Uuid?                @map("driver_id")
+  status             VarChar(64)
+  priority           VarChar(32)
+  assignedAdminId    Uuid?                @map("assigned_admin_id")
+  createdAt          TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt          TimestamptzString(6) @default(now()) @map("updated_at")
+
+  createdByAccount Account       @relation(fields: [createdByAccountId], references: [id], onDelete: Restrict)
+  order            Order?        @relation(fields: [orderId], references: [id], onDelete: Restrict)
+  merchant         Merchant?     @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  driver           DriverProfile? @relation(fields: [driverId], references: [id], onDelete: Restrict)
+  assignedAdmin    AdminProfile? @relation(fields: [assignedAdminId], references: [id], onDelete: SetNull)
+
+  @@index([status, createdAt], name: "support_tickets_status_created")
+  @@index([assignedAdminId, status], name: "support_tickets_admin_status")
+  @@map("support_tickets")
+}
+
+model SupportMessage {
+  id               Uuid                 @id
+  ticketId         Uuid                 @map("ticket_id")
+  authorAccountId  Uuid                 @map("author_account_id")
+  body             String
+  createdAt        TimestamptzString(6) @default(now()) @map("created_at")
+
+  ticket        SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  authorAccount Account       @relation(fields: [authorAccountId], references: [id], onDelete: Restrict)
+
+  @@index([ticketId, createdAt], name: "support_messages_ticket_created")
+  @@map("support_messages")
+}
+
+model SupportInternalNote {
+  id        Uuid                 @id
+  ticketId  Uuid                 @map("ticket_id")
+  adminId   Uuid                 @map("admin_id")
+  body      String
+  createdAt TimestamptzString(6) @default(now()) @map("created_at")
+
+  ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Restrict)
+  admin  AdminProfile  @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@map("support_internal_notes")
+}
+
+// ---------------------------------------------------------------------------
+// 16. Audit / settings
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id         Uuid                 @id
+  adminId    Uuid                 @map("admin_id")
+  action     VarChar(128)
+  targetType VarChar(64)          @map("target_type")
+  targetId   Uuid                 @map("target_id")
+  beforeJson Jsonb?               @map("before_json")
+  afterJson  Jsonb?               @map("after_json")
+  ipAddress  Inet?                @map("ip_address")
+  sessionId  Uuid?                @map("session_id")
+  createdAt  TimestamptzString(6) @default(now()) @map("created_at")
+
+  admin AdminProfile @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([adminId, createdAt], name: "audit_logs_admin_created")
+  @@index([targetType, targetId], name: "audit_logs_target")
+  @@index([createdAt], name: "audit_logs_created")
+  @@map("audit_logs")
+}
+
+model PlatformSetting {
+  id               Uuid                 @id
+  key              VarChar(128)         @unique
+  valueJson        Jsonb                @map("value_json")
+  updatedByAdminId Uuid                 @map("updated_by_admin_id")
+  updatedAt        TimestamptzString(6) @default(now()) @map("updated_at")
+
+  updatedByAdmin AdminProfile @relation(fields: [updatedByAdminId], references: [id], onDelete: Restrict)
+
+  @@map("platform_settings")
+}

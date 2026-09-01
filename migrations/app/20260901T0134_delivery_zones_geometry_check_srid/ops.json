@@ -1,0 +1,117 @@
+[
+  {
+    "id": "delivery_zones.geometry.restore_geometry_4326",
+    "label": "Restore delivery_zones.geometry to geometry(Geometry, 4326)",
+    "operationClass": "data",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "delivery_zones.geometry"
+      }
+    },
+    "precheck": [
+      {
+        "description": "pg typmod is not geometry(Geometry,4326)",
+        "sql": "SELECT EXISTS (\n              SELECT 1\n              FROM pg_attribute a\n              JOIN pg_class c ON c.oid = a.attrelid\n              JOIN pg_namespace n ON n.oid = c.relnamespace\n              WHERE n.nspname = 'public'\n                AND c.relname = 'delivery_zones'\n                AND a.attname = 'geometry'\n                AND format_type(a.atttypid, a.atttypmod) <> 'geometry(Geometry,4326)'\n            ) AS \"result\""
+      }
+    ],
+    "execute": [
+      {
+        "description": "alter geometry to geometry(Geometry, 4326)",
+        "sql": "ALTER TABLE \"public\".\"delivery_zones\"\nALTER COLUMN \"geometry\"\nTYPE geometry(Geometry, 4326)\nUSING \"geometry\"::geometry(Geometry, 4326)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "pg typmod is geometry(Geometry,4326)",
+        "sql": "SELECT EXISTS (\n              SELECT 1\n              FROM pg_attribute a\n              JOIN pg_class c ON c.oid = a.attrelid\n              JOIN pg_namespace n ON n.oid = c.relnamespace\n              WHERE n.nspname = 'public'\n                AND c.relname = 'delivery_zones'\n                AND a.attname = 'geometry'\n                AND format_type(a.atttypid, a.atttypmod) = 'geometry(Geometry,4326)'\n            ) AS \"result\""
+      }
+    ]
+  },
+  {
+    "id": "dropCheckConstraint.delivery_zones.delivery_zones_geometry_multipolygon_218a73f6",
+    "label": "Drop check constraint \"delivery_zones_geometry_multipolygon_218a73f6\" on \"delivery_zones\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "delivery_zones_geometry_multipolygon_218a73f6",
+        "table": "delivery_zones"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"delivery_zones_geometry_multipolygon_218a73f6\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "delivery_zones_geometry_multipolygon_218a73f6",
+          "public",
+          "\"public\".\"delivery_zones\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop check constraint \"delivery_zones_geometry_multipolygon_218a73f6\"",
+        "sql": "ALTER TABLE \"public\".\"delivery_zones\" DROP CONSTRAINT \"delivery_zones_geometry_multipolygon_218a73f6\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"delivery_zones_geometry_multipolygon_218a73f6\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "delivery_zones_geometry_multipolygon_218a73f6",
+          "public",
+          "\"public\".\"delivery_zones\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.delivery_zones.delivery_zones_geometry_multipolygon_ff825981",
+    "label": "Add check constraint \"delivery_zones_geometry_multipolygon_ff825981\" on \"delivery_zones\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "delivery_zones_geometry_multipolygon_ff825981",
+        "table": "delivery_zones"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"delivery_zones_geometry_multipolygon_ff825981\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "delivery_zones_geometry_multipolygon_ff825981",
+          "public",
+          "\"public\".\"delivery_zones\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"delivery_zones_geometry_multipolygon_ff825981\"",
+        "sql": "ALTER TABLE \"public\".\"delivery_zones\" ADD CONSTRAINT \"delivery_zones_geometry_multipolygon_ff825981\" CHECK (GeometryType(geometry) = 'MULTIPOLYGON' AND ST_SRID(geometry) = 4326)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"delivery_zones_geometry_multipolygon_ff825981\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "delivery_zones_geometry_multipolygon_ff825981",
+          "public",
+          "\"public\".\"delivery_zones\""
+        ]
+      }
+    ]
+  }
+]
