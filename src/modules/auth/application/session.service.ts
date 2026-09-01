@@ -177,10 +177,28 @@ export class SessionService {
     this.security.emit('session_revoked', { accountId, sessionId });
   }
 
-  async logoutAll(accountId: string): Promise<void> {
-    const sessionIds = await this.accounts.revokeAllSessions(accountId);
-    await Promise.all(sessionIds.map((id) => this.dropCache(id)));
+  /**
+   * Immediate account-wide session invalidation.
+   *
+   * Revokes every active Session for the Account (history kept via
+   * `revoked_at`) and deletes `auth:sess:{sessionId}` cache entries so a
+   * 15s status snapshot cannot outlive the security action.
+   *
+   * Idempotent and account-scoped. Future application flows that set
+   * Account.status to SUSPENDED or DISABLED MUST call this in the same
+   * business operation. There is no Admin suspend endpoint in this foundation.
+   */
+  async revokeAllSessionsForAccount(accountId: string): Promise<string[]> {
+    const revokedIds = await this.accounts.revokeAllSessions(accountId);
+    const owned = await this.accounts.listSessions(accountId);
+    const cacheIds = new Set([...revokedIds, ...owned.map((row) => row.id)]);
+    await Promise.all([...cacheIds].map((id) => this.dropCache(id)));
     this.security.emit('all_sessions_revoked', { accountId });
+    return [...cacheIds];
+  }
+
+  async logoutAll(accountId: string): Promise<void> {
+    await this.revokeAllSessionsForAccount(accountId);
   }
 
   async listOwned(

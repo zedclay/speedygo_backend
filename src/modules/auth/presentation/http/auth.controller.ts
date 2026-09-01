@@ -69,6 +69,8 @@ export class AuthController {
   @HttpCode(200)
   @ApiOperation({
     summary: 'Rotate refresh token and issue a new access token',
+    description:
+      'Strict rotation: reuse or concurrent refresh of the same token revokes the Session. Clients must single-flight refresh. No grace window.',
   })
   async refresh(@Body() body: RefreshDto) {
     return this.auth.refresh(body.refreshToken);

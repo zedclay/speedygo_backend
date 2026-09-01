@@ -95,6 +95,11 @@ export class AuthService {
     };
   }
 
+  /** See SessionService.revokeAllSessionsForAccount — for future admin/status flows. */
+  revokeAllSessionsForAccount(accountId: string): Promise<string[]> {
+    return this.sessions.revokeAllSessionsForAccount(accountId);
+  }
+
   async me(accountId: string) {
     const account = await this.accounts.findById(accountId);
     if (!account) {
