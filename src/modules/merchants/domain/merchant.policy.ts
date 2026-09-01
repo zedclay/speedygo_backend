@@ -41,6 +41,10 @@ export const MERCHANT_CAPABILITIES = {
   MERCHANT_BRANCH_UPDATE: 'MERCHANT_BRANCH_UPDATE',
   MERCHANT_BRANCH_DELETE: 'MERCHANT_BRANCH_DELETE',
   MERCHANT_READ: 'MERCHANT_READ',
+  CATALOG_READ: 'CATALOG_READ',
+  CATEGORY_MANAGE: 'CATEGORY_MANAGE',
+  PRODUCT_MANAGE: 'PRODUCT_MANAGE',
+  PRODUCT_OPTIONS_MANAGE: 'PRODUCT_OPTIONS_MANAGE',
 } as const;
 
 export type MerchantCapability =
@@ -76,12 +80,16 @@ export function roleHasCapability(
 ): boolean {
   switch (capability) {
     case MERCHANT_CAPABILITIES.MERCHANT_READ:
+    case MERCHANT_CAPABILITIES.CATALOG_READ:
       return true;
     case MERCHANT_CAPABILITIES.MERCHANT_PROFILE_UPDATE:
       return role === MERCHANT_MEMBER_ROLE_OWNER;
     case MERCHANT_CAPABILITIES.MERCHANT_BRANCH_CREATE:
     case MERCHANT_CAPABILITIES.MERCHANT_BRANCH_UPDATE:
     case MERCHANT_CAPABILITIES.MERCHANT_BRANCH_DELETE:
+    case MERCHANT_CAPABILITIES.CATEGORY_MANAGE:
+    case MERCHANT_CAPABILITIES.PRODUCT_MANAGE:
+    case MERCHANT_CAPABILITIES.PRODUCT_OPTIONS_MANAGE:
       return (
         role === MERCHANT_MEMBER_ROLE_OWNER ||
         role === MERCHANT_MEMBER_ROLE_MANAGER
@@ -104,6 +112,10 @@ export function statusAllowsBranchMutation(status: MerchantStatus): boolean {
     status === MERCHANT_STATUS_REJECTED ||
     status === MERCHANT_STATUS_ACTIVE
   );
+}
+
+export function statusAllowsCatalogMutation(status: MerchantStatus): boolean {
+  return statusAllowsBranchMutation(status);
 }
 
 export function isMerchantProfileComplete(name: string): boolean {

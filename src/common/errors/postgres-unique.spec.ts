@@ -1,4 +1,5 @@
 import {
+  isPostgresCheckViolation,
   isPostgresForeignKeyViolation,
   isPostgresUniqueViolation,
 } from './postgres-unique';
@@ -14,5 +15,7 @@ describe('postgres SQLSTATE helpers', () => {
     expect(isPostgresUniqueViolation(new Error('nope'))).toBe(false);
     expect(isPostgresForeignKeyViolation({ sqlState: '23503' })).toBe(true);
     expect(isPostgresForeignKeyViolation({ code: '23505' })).toBe(false);
+    expect(isPostgresCheckViolation({ sqlState: '23514' })).toBe(true);
+    expect(isPostgresCheckViolation({ code: '23503' })).toBe(false);
   });
 });

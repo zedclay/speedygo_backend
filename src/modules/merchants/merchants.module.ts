@@ -13,5 +13,6 @@ import { MerchantController } from './presentation/http/merchant.controller';
     MerchantProfileService,
     MerchantBranchService,
   ],
+  exports: [MerchantRepository, MerchantAccessService],
 })
 export class MerchantsModule {}

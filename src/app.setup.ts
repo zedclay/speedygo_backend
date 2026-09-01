@@ -39,7 +39,7 @@ export function configureApp(app: INestApplication): void {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SpeedyGo API')
     .setDescription(
-      'SpeedyGo backend. Authentication, Customer Onboarding, and Merchant Foundation v1.0.',
+      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant Foundation, and Catalog Foundation v1.0.',
     )
     .setVersion('1.0.0')
     .addBearerAuth()

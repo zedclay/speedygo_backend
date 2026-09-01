@@ -62,7 +62,43 @@ describe('Merchant policy', () => {
     ).toBe(true);
   });
 
-  it('grants STAFF read only', () => {
+  it('grants STAFF catalog read only', () => {
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_STAFF,
+        MERCHANT_CAPABILITIES.CATALOG_READ,
+      ),
+    ).toBe(true);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_STAFF,
+        MERCHANT_CAPABILITIES.CATEGORY_MANAGE,
+      ),
+    ).toBe(false);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_STAFF,
+        MERCHANT_CAPABILITIES.PRODUCT_MANAGE,
+      ),
+    ).toBe(false);
+  });
+
+  it('grants OWNER and MANAGER catalog mutation capabilities', () => {
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_OWNER,
+        MERCHANT_CAPABILITIES.PRODUCT_OPTIONS_MANAGE,
+      ),
+    ).toBe(true);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_MANAGER,
+        MERCHANT_CAPABILITIES.CATEGORY_MANAGE,
+      ),
+    ).toBe(true);
+  });
+
+  it('grants STAFF merchant read only', () => {
     expect(
       roleHasCapability(
         MERCHANT_MEMBER_ROLE_STAFF,
