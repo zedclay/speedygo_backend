@@ -2,14 +2,15 @@
 
 Placeholder folders for the SpeedyGo modular monolith.
 
-Each folder will become a NestJS module **after** domain, ERD, and state-machine approval.
+`auth`, `identity`, and `authorization` contain the Authentication Foundation v1.0. Other folders remain empty until their approved domain tasks.
 
-Do not implement business logic in these folders during foundation work.
+Do not implement Customer/Driver/Merchant onboarding or order/payment flows here as part of auth work.
 
 | Module | Responsibility (future) |
 | --- | --- |
-| `auth` | Authentication flows |
-| `identity` | Users, profiles, verification |
+| `auth` | OTP, sessions, JWT access, opaque refresh |
+| `identity` | Account / Device / Session persistence |
+| `authorization` | Admin RBAC guards (no admin login yet) |
 | `customers` | Customer accounts |
 | `drivers` | Driver accounts and availability |
 | `merchants` | Merchant accounts |
@@ -28,6 +29,5 @@ Do not implement business logic in these folders during foundation work.
 | `support` | Support tickets |
 | `reports` | Reporting read models |
 | `admin` | Admin operations |
-| `authorization` | Roles and permissions |
 | `audit` | Audit log |
 | `settings` | System settings |

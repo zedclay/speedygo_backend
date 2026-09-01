@@ -40,6 +40,12 @@ pnpm start:dev
 
 Health: `GET /health` (also available under the global prefix as `GET /api/v1`).
 
+Auth architecture: [AUTHENTICATION.md](../../docs/architecture/AUTHENTICATION.md).
+
+Local OTP: set `OTP_TRANSPORT=console` (development only). Production refuses that transport.
+
+E2E auth tests use isolated `speedygo_test` and Redis DB 15. They never write to `speedygo_dev`. Apply the existing migration history to `speedygo_test` once (`prisma db migrate --db .../speedygo_test`). Jest is launched with `--experimental-vm-modules` because Prisma 8 runtime packages are ESM.
+
 ## Prisma
 
 See `prisma/README.md`. Do not invent tables. Sequence:

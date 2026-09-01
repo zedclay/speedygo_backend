@@ -1,9 +1,9 @@
 import { Global, Module } from '@nestjs/common';
+import { RedisService } from './redis.service';
 
-/**
- * Redis connection will be registered when cache/session/lock usage is needed.
- * Local Redis is provided by docker-compose (port 6379).
- */
 @Global()
-@Module({})
+@Module({
+  providers: [RedisService],
+  exports: [RedisService],
+})
 export class RedisModule {}

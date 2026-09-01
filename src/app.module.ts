@@ -8,6 +8,9 @@ import { DatabaseModule } from './infrastructure/database/database.module';
 import { QueueModule } from './infrastructure/queue/queue.module';
 import { RealtimeModule } from './infrastructure/realtime/realtime.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
+import { AuthModule } from './modules/auth/auth.module';
+import { AuthorizationModule } from './modules/authorization/authorization.module';
+import { IdentityModule } from './modules/identity/identity.module';
 
 @Module({
   imports: [
@@ -21,6 +24,9 @@ import { StorageModule } from './infrastructure/storage/storage.module';
     QueueModule,
     RealtimeModule,
     StorageModule,
+    IdentityModule,
+    AuthModule,
+    AuthorizationModule,
   ],
   controllers: [AppController],
   providers: [AppService],
