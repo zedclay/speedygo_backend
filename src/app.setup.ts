@@ -39,7 +39,7 @@ export function configureApp(app: INestApplication): void {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SpeedyGo API')
     .setDescription(
-      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant, Catalog, Cart, Checkout, Order Foundation, Merchant Order Workflow v1.0, and Delivery Foundation v1.0. Checkout Preview is stateless and non-reserving. Order creation requires Customer-confirmed expected amounts. Merchant workflow uses explicit accept / reject / start-preparation / mark-ready actions (no generic status PATCH). Merchant READY does not create Delivery. Delivery is created internally when Driver Matching starts (SEARCHING_DRIVER, driverSearchStartedAt set, no Driver). There is no public Delivery create or PATCH status. Amounts are integer minor units. Historical Order prices do not change with Catalog.',
+      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant, Catalog, Cart, Checkout, Order Foundation, Merchant Order Workflow v1.0, Delivery Foundation v1.0, and Driver Foundation & Onboarding v1.0. Driver APIs are authenticated self-service only. Merchant READY does not create Delivery. Delivery is created internally when Driver Matching starts. There is no public Delivery create, Driver Matching, or Driver Assignment. Amounts are integer minor units.',
     )
     .setVersion('1.0.0')
     .addBearerAuth()
