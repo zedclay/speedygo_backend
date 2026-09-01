@@ -12,6 +12,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
 import { CartModule } from './modules/cart/cart.module';
+import { CheckoutModule } from './modules/checkout/checkout.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { MerchantsModule } from './modules/merchants/merchants.module';
@@ -35,6 +36,7 @@ import { MerchantsModule } from './modules/merchants/merchants.module';
     MerchantsModule,
     CatalogModule,
     CartModule,
+    CheckoutModule,
   ],
   controllers: [AppController],
   providers: [AppService],

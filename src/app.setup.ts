@@ -39,7 +39,7 @@ export function configureApp(app: INestApplication): void {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SpeedyGo API')
     .setDescription(
-      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant, Catalog, and Cart Foundation v1.0.',
+      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant, Catalog, Cart, and Checkout Foundation v1.0. Checkout Preview is stateless: it creates no Order and no Payment, does not reserve a price, and does not include taxes, tips, or promotions. Payment method is selected later. Delivery Fee is a live flat integer minor-unit amount.',
     )
     .setVersion('1.0.0')
     .addBearerAuth()
