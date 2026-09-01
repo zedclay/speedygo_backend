@@ -5,6 +5,7 @@ import {
   merchantStatusRestricted,
 } from '../domain/merchant.errors';
 import {
+  isMerchantApproved,
   MERCHANT_CAPABILITIES,
   parseMerchantMemberRole,
   parseMerchantStatus,
@@ -63,7 +64,8 @@ export class MerchantAccessService {
     }
     if (
       capability === MERCHANT_CAPABILITIES.MERCHANT_READ ||
-      capability === MERCHANT_CAPABILITIES.CATALOG_READ
+      capability === MERCHANT_CAPABILITIES.CATALOG_READ ||
+      capability === MERCHANT_CAPABILITIES.ORDER_READ
     ) {
       return context;
     }
@@ -72,6 +74,19 @@ export class MerchantAccessService {
       throw merchantStatusRestricted(
         'Merchant status does not allow this action',
       );
+    }
+    if (capability === MERCHANT_CAPABILITIES.ORDER_WORKFLOW_MUTATE) {
+      if (
+        !isMerchantApproved(
+          context.merchant.status,
+          context.merchant.verifiedAt,
+        )
+      ) {
+        throw merchantStatusRestricted(
+          'Merchant is not operational for Order workflow',
+        );
+      }
+      return context;
     }
     if (
       capability === MERCHANT_CAPABILITIES.MERCHANT_PROFILE_UPDATE &&

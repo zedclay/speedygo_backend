@@ -18,6 +18,13 @@ export const ORDER_ERROR_CODES = {
     'ORDER_FINANCIAL_CONFIGURATION_INVALID',
   ORDER_EXPECTED_AMOUNTS_INVALID: 'ORDER_EXPECTED_AMOUNTS_INVALID',
   ORDER_RECONFIRMATION_REQUIRED: 'ORDER_RECONFIRMATION_REQUIRED',
+  MERCHANT_ORDER_NOT_FOUND: 'MERCHANT_ORDER_NOT_FOUND',
+  MERCHANT_ORDER_INVALID_TRANSITION: 'MERCHANT_ORDER_INVALID_TRANSITION',
+  MERCHANT_ORDER_ALREADY_ACCEPTED: 'MERCHANT_ORDER_ALREADY_ACCEPTED',
+  MERCHANT_ORDER_NOT_REJECTABLE: 'MERCHANT_ORDER_NOT_REJECTABLE',
+  MERCHANT_ORDER_PAYMENT_NOT_READY: 'MERCHANT_ORDER_PAYMENT_NOT_READY',
+  MERCHANT_ORDER_REJECTION_REQUIRES_CANCELLATION_FLOW:
+    'MERCHANT_ORDER_REJECTION_REQUIRES_CANCELLATION_FLOW',
 } as const;
 
 export type OrderErrorCode =
@@ -186,5 +193,55 @@ export function orderReconfirmationRequired(input: {
         customerTotalMinor: input.customerTotalMinor,
       },
     },
+  );
+}
+
+export function merchantOrderNotFound(): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.MERCHANT_ORDER_NOT_FOUND,
+    'Order was not found',
+    404,
+  );
+}
+
+export function merchantOrderInvalidTransition(
+  message = 'Order cannot perform this workflow transition',
+): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.MERCHANT_ORDER_INVALID_TRANSITION,
+    message,
+    409,
+  );
+}
+
+export function merchantOrderAlreadyAccepted(): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.MERCHANT_ORDER_ALREADY_ACCEPTED,
+    'Order has already been accepted',
+    409,
+  );
+}
+
+export function merchantOrderNotRejectable(): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.MERCHANT_ORDER_NOT_REJECTABLE,
+    'Order cannot be rejected in its current state',
+    409,
+  );
+}
+
+export function merchantOrderPaymentNotReady(): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.MERCHANT_ORDER_PAYMENT_NOT_READY,
+    'Electronic payment must succeed before preparation can start',
+    409,
+  );
+}
+
+export function merchantOrderRejectionRequiresCancellationFlow(): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.MERCHANT_ORDER_REJECTION_REQUIRES_CANCELLATION_FLOW,
+    'Payment is no longer pending; use a future Cancellation and Refund workflow',
+    409,
   );
 }

@@ -123,6 +123,67 @@ export type OrderListView = {
   total: number;
 };
 
+export type MerchantOrderListQuery = {
+  limit: number;
+  offset: number;
+  branchId?: string;
+  orderStatus?: string;
+  fulfillmentStatus?: string;
+};
+
+export type MerchantOrderFinancialView = {
+  currency: string;
+  grossMerchandiseSubtotalMinor: number;
+  merchantDiscountMinor: number;
+  merchantCommissionRateBps: number;
+  merchantCommissionAmountMinor: number;
+  merchantNetAmountMinor: number;
+  deliveryFeeMinor: number;
+};
+
+export type MerchantOrderPaymentView = {
+  method: string;
+  status: string;
+};
+
+export type MerchantOrderStatusEventView = {
+  eventType: string;
+  actorType: string;
+  fromStatus: string | null;
+  toStatus: string;
+  occurredAt: string;
+};
+
+export type MerchantOrderSummaryView = {
+  id: string;
+  publicReference: string;
+  status: string;
+  fulfillmentStatus: string;
+  merchantBranchId: string;
+  createdAt: string;
+  confirmedAt: string | null;
+  customerFullName: string | null;
+  payment: MerchantOrderPaymentView;
+  financial: MerchantOrderFinancialView;
+};
+
+export type MerchantOrderDetailView = MerchantOrderSummaryView & {
+  items: OrderItemView[];
+  deliveryAddress: OrderAddressSnapshotView;
+  statusHistory: MerchantOrderStatusEventView[];
+  cancellation: {
+    reason: string;
+    cancelledAt: string;
+  } | null;
+};
+
+export type MerchantOrderListView = {
+  items: MerchantOrderSummaryView[];
+  limit: number;
+  offset: number;
+  total: number;
+};
+
 export type PersistCreatedOrderInput = {
   orderId: string;
   publicReference: string;
