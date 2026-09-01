@@ -1,3 +1,5 @@
+import { AppError } from '../../../common/errors/app.error';
+
 export const AUTH_ERROR_CODES = {
   AUTH_INVALID_IDENTIFIER: 'AUTH_INVALID_IDENTIFIER',
   AUTH_INVALID_OTP: 'AUTH_INVALID_OTP',
@@ -16,15 +18,13 @@ export const AUTH_ERROR_CODES = {
 export type AuthErrorCode =
   (typeof AUTH_ERROR_CODES)[keyof typeof AUTH_ERROR_CODES];
 
-export class AuthError extends Error {
-  constructor(
-    readonly code: AuthErrorCode,
-    message: string,
-    readonly httpStatus: number,
-  ) {
-    super(message);
+export class AuthError extends AppError {
+  constructor(code: AuthErrorCode, message: string, httpStatus: number) {
+    super(code, message, httpStatus);
     this.name = 'AuthError';
   }
+
+  declare readonly code: AuthErrorCode;
 }
 
 export function authInvalidIdentifier(

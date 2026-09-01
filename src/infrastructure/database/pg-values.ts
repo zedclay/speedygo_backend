@@ -21,3 +21,15 @@ export function pgTimestamptz(value: string): PgTimestamptz {
 export function pgNow(): PgTimestamptz {
   return pgTimestamptz(new Date().toISOString());
 }
+
+export type PgNumeric<P extends number, S extends number> = string & {
+  readonly __numericPrecision: P;
+  readonly __numericScale: S;
+};
+
+export function pgNumeric<P extends number, S extends number>(
+  value: number,
+  scale: S,
+): PgNumeric<P, S> {
+  return value.toFixed(scale) as PgNumeric<P, S>;
+}

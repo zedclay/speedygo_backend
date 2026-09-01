@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import type { Response } from 'express';
-import { AuthError } from '../../modules/auth/domain/auth.errors';
+import { AppError } from '../errors/app.error';
 
 export type ErrorEnvelope = {
   error: {
@@ -24,7 +24,7 @@ export class AuthExceptionFilter implements ExceptionFilter {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
 
-    if (exception instanceof AuthError) {
+    if (exception instanceof AppError) {
       response.status(exception.httpStatus).json({
         error: { code: exception.code, message: exception.message },
       } satisfies ErrorEnvelope);
