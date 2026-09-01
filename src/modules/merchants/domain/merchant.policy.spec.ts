@@ -81,6 +81,39 @@ describe('Merchant policy', () => {
         MERCHANT_CAPABILITIES.PRODUCT_MANAGE,
       ),
     ).toBe(false);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_STAFF,
+        MERCHANT_CAPABILITIES.ORDER_READ,
+      ),
+    ).toBe(true);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_STAFF,
+        MERCHANT_CAPABILITIES.ORDER_WORKFLOW_MUTATE,
+      ),
+    ).toBe(false);
+  });
+
+  it('grants OWNER and MANAGER Order workflow mutation and STAFF Order read only', () => {
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_OWNER,
+        MERCHANT_CAPABILITIES.ORDER_WORKFLOW_MUTATE,
+      ),
+    ).toBe(true);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_MANAGER,
+        MERCHANT_CAPABILITIES.ORDER_WORKFLOW_MUTATE,
+      ),
+    ).toBe(true);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_STAFF,
+        MERCHANT_CAPABILITIES.ORDER_WORKFLOW_MUTATE,
+      ),
+    ).toBe(false);
   });
 
   it('grants OWNER and MANAGER catalog mutation capabilities', () => {

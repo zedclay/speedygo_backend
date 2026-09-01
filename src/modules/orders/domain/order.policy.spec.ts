@@ -12,6 +12,8 @@ import {
   priceOrderLine,
   requireConfirmedAmountsMatch,
   requireCustomerConfirmedAmounts,
+  inspectMerchantWorkflowTransition,
+  merchantPreparationPaymentReady,
   selectApplicableCommissionRule,
   selectOrderPricingRule,
   subtractMinorUnits,
@@ -442,5 +444,79 @@ describe('Order policy', () => {
         expectedCustomerTotalMinor: 1700,
       }),
     ).not.toThrow();
+  });
+
+  it('inspects Merchant workflow transitions without collapsing Order and Fulfillment', () => {
+    expect(
+      inspectMerchantWorkflowTransition(
+        'ACCEPT',
+        'CREATED',
+        'PENDING_ACCEPTANCE',
+      ),
+    ).toBe('APPLY');
+    expect(
+      inspectMerchantWorkflowTransition('ACCEPT', 'CONFIRMED', 'ACCEPTED'),
+    ).toBe('ALREADY_ACCEPTED');
+    expect(
+      inspectMerchantWorkflowTransition(
+        'START_PREPARATION',
+        'CREATED',
+        'PENDING_ACCEPTANCE',
+      ),
+    ).toBe('INVALID');
+    expect(
+      inspectMerchantWorkflowTransition(
+        'START_PREPARATION',
+        'CONFIRMED',
+        'ACCEPTED',
+      ),
+    ).toBe('APPLY');
+    expect(
+      inspectMerchantWorkflowTransition('MARK_READY', 'CONFIRMED', 'ACCEPTED'),
+    ).toBe('INVALID');
+    expect(
+      inspectMerchantWorkflowTransition('MARK_READY', 'CONFIRMED', 'PREPARING'),
+    ).toBe('INVALID');
+    expect(
+      inspectMerchantWorkflowTransition('MARK_READY', 'ACTIVE', 'PREPARING'),
+    ).toBe('APPLY');
+    expect(
+      inspectMerchantWorkflowTransition('ACCEPT', 'CANCELLED', 'ACCEPTED'),
+    ).toBe('INVALID');
+    expect(
+      inspectMerchantWorkflowTransition('MARK_READY', 'COMPLETED', 'READY'),
+    ).toBe('INVALID');
+    expect(
+      inspectMerchantWorkflowTransition(
+        'REJECT',
+        'CREATED',
+        'PENDING_ACCEPTANCE',
+      ),
+    ).toBe('APPLY');
+    expect(
+      inspectMerchantWorkflowTransition('REJECT', 'CONFIRMED', 'ACCEPTED'),
+    ).toBe('NOT_REJECTABLE');
+    expect(
+      inspectMerchantWorkflowTransition(
+        'REJECT',
+        'CANCELLED',
+        'PENDING_ACCEPTANCE',
+      ),
+    ).toBe('NOT_REJECTABLE');
+  });
+
+  it('gates ELECTRONIC preparation on SUCCEEDED payment and allows COD PENDING', () => {
+    expect(merchantPreparationPaymentReady('COD', 'PENDING')).toBe(true);
+    expect(merchantPreparationPaymentReady('ELECTRONIC', 'PENDING')).toBe(
+      false,
+    );
+    expect(merchantPreparationPaymentReady('ELECTRONIC', 'SUCCEEDED')).toBe(
+      true,
+    );
+    expect(merchantPreparationPaymentReady('ELECTRONIC', 'FAILED')).toBe(false);
+    expect(merchantPreparationPaymentReady('ELECTRONIC', 'CANCELLED')).toBe(
+      false,
+    );
+    expect(merchantPreparationPaymentReady('COD', 'FAILED')).toBe(false);
   });
 });

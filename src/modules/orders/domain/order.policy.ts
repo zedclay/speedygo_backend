@@ -34,11 +34,29 @@ import type {
 } from './order.types';
 
 export const ORDER_STATUS_CREATED = 'CREATED';
+export const ORDER_STATUS_CONFIRMED = 'CONFIRMED';
+export const ORDER_STATUS_ACTIVE = 'ACTIVE';
+export const ORDER_STATUS_COMPLETED = 'COMPLETED';
+export const ORDER_STATUS_CANCELLED = 'CANCELLED';
+export const ORDER_STATUS_FAILED = 'FAILED';
 export const ORDER_FULFILLMENT_PENDING_ACCEPTANCE = 'PENDING_ACCEPTANCE';
+export const ORDER_FULFILLMENT_ACCEPTED = 'ACCEPTED';
+export const ORDER_FULFILLMENT_PREPARING = 'PREPARING';
+export const ORDER_FULFILLMENT_READY = 'READY';
 export const ORDER_STATUS_EVENT_CREATED = 'ORDER_CREATED';
+export const ORDER_STATUS_EVENT_MERCHANT_ACCEPTED = 'MERCHANT_ACCEPTED';
+export const ORDER_STATUS_EVENT_PREPARATION_STARTED = 'PREPARATION_STARTED';
+export const ORDER_STATUS_EVENT_ORDER_READY = 'ORDER_READY';
+export const ORDER_STATUS_EVENT_MERCHANT_REJECTED = 'MERCHANT_REJECTED';
 export const ORDER_STATUS_EVENT_ACTOR_CUSTOMER = 'CUSTOMER';
+export const ORDER_STATUS_EVENT_ACTOR_MERCHANT = 'MERCHANT';
 export const ORDER_CURRENCY_DZD = 'DZD';
 export const PAYMENT_STATUS_PENDING = 'PENDING';
+export const PAYMENT_STATUS_PROCESSING = 'PROCESSING';
+export const PAYMENT_STATUS_SUCCEEDED = 'SUCCEEDED';
+export const PAYMENT_STATUS_FAILED = 'FAILED';
+export const PAYMENT_STATUS_CANCELLED = 'CANCELLED';
+export const MERCHANT_REJECTION_REASON_MAX_LENGTH = 255;
 export const ORDER_PAYMENT_METHOD_COD = 'COD';
 export const ORDER_PAYMENT_METHOD_ELECTRONIC = 'ELECTRONIC';
 export const ORDER_PAYMENT_METHODS = [
@@ -462,4 +480,144 @@ export function uniqueSortedIds(ids: string[]): string[] {
   return [...new Set(ids)].sort((left, right) =>
     left < right ? -1 : left > right ? 1 : 0,
   );
+}
+
+export const ORDER_TERMINAL_STATUSES = [
+  ORDER_STATUS_COMPLETED,
+  ORDER_STATUS_CANCELLED,
+  ORDER_STATUS_FAILED,
+] as const;
+
+export const MERCHANT_ORDER_STATUS_FILTERS = [
+  ORDER_STATUS_CREATED,
+  ORDER_STATUS_CONFIRMED,
+  ORDER_STATUS_ACTIVE,
+  ORDER_STATUS_COMPLETED,
+  ORDER_STATUS_CANCELLED,
+  ORDER_STATUS_FAILED,
+] as const;
+
+export const MERCHANT_FULFILLMENT_STATUS_FILTERS = [
+  ORDER_FULFILLMENT_PENDING_ACCEPTANCE,
+  ORDER_FULFILLMENT_ACCEPTED,
+  ORDER_FULFILLMENT_PREPARING,
+  ORDER_FULFILLMENT_READY,
+] as const;
+
+export type MerchantWorkflowAction =
+  'ACCEPT' | 'REJECT' | 'START_PREPARATION' | 'MARK_READY';
+
+export type MerchantTransitionDecision =
+  'APPLY' | 'ALREADY_ACCEPTED' | 'NOT_REJECTABLE' | 'INVALID';
+
+export function isTerminalOrderStatus(status: string): boolean {
+  return (ORDER_TERMINAL_STATUSES as readonly string[]).includes(status);
+}
+
+/**
+ * Merchant Order Workflow v1.0 transition inspector.
+ *
+ * CREATED/PENDING_ACCEPTANCE → CONFIRMED/ACCEPTED (accept)
+ * CREATED/PENDING_ACCEPTANCE → CANCELLED/PENDING_ACCEPTANCE (reject)
+ * CONFIRMED/ACCEPTED → ACTIVE/PREPARING (start preparation)
+ * ACTIVE/PREPARING → ACTIVE/READY (mark ready)
+ */
+export function inspectMerchantWorkflowTransition(
+  action: MerchantWorkflowAction,
+  status: string,
+  fulfillmentStatus: string,
+): MerchantTransitionDecision {
+  if (action === 'REJECT') {
+    if (
+      !isTerminalOrderStatus(status) &&
+      status === ORDER_STATUS_CREATED &&
+      fulfillmentStatus === ORDER_FULFILLMENT_PENDING_ACCEPTANCE
+    ) {
+      return 'APPLY';
+    }
+    return 'NOT_REJECTABLE';
+  }
+  if (isTerminalOrderStatus(status)) {
+    return 'INVALID';
+  }
+  if (action === 'ACCEPT') {
+    if (
+      status === ORDER_STATUS_CREATED &&
+      fulfillmentStatus === ORDER_FULFILLMENT_PENDING_ACCEPTANCE
+    ) {
+      return 'APPLY';
+    }
+    if (
+      status === ORDER_STATUS_CONFIRMED &&
+      fulfillmentStatus === ORDER_FULFILLMENT_ACCEPTED
+    ) {
+      return 'ALREADY_ACCEPTED';
+    }
+    return 'INVALID';
+  }
+  if (action === 'START_PREPARATION') {
+    if (
+      status === ORDER_STATUS_CONFIRMED &&
+      fulfillmentStatus === ORDER_FULFILLMENT_ACCEPTED
+    ) {
+      return 'APPLY';
+    }
+    return 'INVALID';
+  }
+  if (
+    status === ORDER_STATUS_ACTIVE &&
+    fulfillmentStatus === ORDER_FULFILLMENT_PREPARING
+  ) {
+    return 'APPLY';
+  }
+  return 'INVALID';
+}
+
+export function merchantPreparationPaymentReady(
+  method: string,
+  paymentStatus: string,
+): boolean {
+  if (method === ORDER_PAYMENT_METHOD_COD) {
+    return (
+      paymentStatus !== PAYMENT_STATUS_FAILED &&
+      paymentStatus !== PAYMENT_STATUS_CANCELLED
+    );
+  }
+  if (method === ORDER_PAYMENT_METHOD_ELECTRONIC) {
+    return paymentStatus === PAYMENT_STATUS_SUCCEEDED;
+  }
+  return false;
+}
+
+export function merchantWorkflowEvent(action: MerchantWorkflowAction): {
+  eventType: string;
+  fromStatus: string;
+  toStatus: string;
+} {
+  if (action === 'ACCEPT') {
+    return {
+      eventType: ORDER_STATUS_EVENT_MERCHANT_ACCEPTED,
+      fromStatus: ORDER_STATUS_CREATED,
+      toStatus: ORDER_STATUS_CONFIRMED,
+    };
+  }
+  if (action === 'REJECT') {
+    return {
+      eventType: ORDER_STATUS_EVENT_MERCHANT_REJECTED,
+      fromStatus: ORDER_STATUS_CREATED,
+      toStatus: ORDER_STATUS_CANCELLED,
+    };
+  }
+  if (action === 'START_PREPARATION') {
+    return {
+      eventType: ORDER_STATUS_EVENT_PREPARATION_STARTED,
+      fromStatus: ORDER_STATUS_CONFIRMED,
+      toStatus: ORDER_STATUS_ACTIVE,
+    };
+  }
+  return {
+    eventType: ORDER_STATUS_EVENT_ORDER_READY,
+    fromStatus: ORDER_STATUS_ACTIVE,
+    toStatus: ORDER_STATUS_ACTIVE,
+  };
 }
