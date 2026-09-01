@@ -10,6 +10,7 @@ import { RealtimeModule } from './infrastructure/realtime/realtime.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
+import { CustomersModule } from './modules/customers/customers.module';
 import { IdentityModule } from './modules/identity/identity.module';
 
 @Module({
@@ -27,6 +28,7 @@ import { IdentityModule } from './modules/identity/identity.module';
     IdentityModule,
     AuthModule,
     AuthorizationModule,
+    CustomersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
