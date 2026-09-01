@@ -1,17 +1,23 @@
-import { Global, Injectable, Module } from '@nestjs/common';
+import { Global, Injectable, Module, OnModuleDestroy } from '@nestjs/common';
+import type { SpeedyGoDb } from '../../../prisma/db';
 
-/**
- * Nest wrapper around the Prisma 8 client (`prisma/db.ts`).
- * Contract v1.0 is emitted. Domain repositories are a later task.
- * Call `getDb()` from `prisma/db.ts` when wiring persistence — do not
- * import that file from this module yet (Nest build excludes `prisma/`).
- */
+export type { SpeedyGoDb };
+
 @Injectable()
-export class PrismaService {
-  getDb() {
-    throw new Error(
-      'Call getDb() from prisma/db.ts when adding the first persistence use-case. Schema v1.0 is ready.',
-    );
+export class PrismaService implements OnModuleDestroy {
+  getDb(): SpeedyGoDb {
+    // Lazy load so unit tests that mock the repository never execute Prisma ESM.
+    const loaded =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('../../../prisma/db') as typeof import('../../../prisma/db');
+    return loaded.getDb();
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    const loaded =
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      require('../../../prisma/db') as typeof import('../../../prisma/db');
+    await loaded.closeDb();
   }
 }
 
