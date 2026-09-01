@@ -3,6 +3,7 @@ export class AppError extends Error {
     readonly code: string,
     message: string,
     readonly httpStatus: number,
+    readonly details?: Record<string, unknown>,
   ) {
     super(message);
     this.name = 'AppError';

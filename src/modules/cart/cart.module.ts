@@ -6,6 +6,6 @@ import { CartController } from './presentation/http/cart.controller';
 @Module({
   controllers: [CartController],
   providers: [CartRepository, CartService],
-  exports: [CartService],
+  exports: [CartService, CartRepository],
 })
 export class CartModule {}
