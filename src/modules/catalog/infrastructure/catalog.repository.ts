@@ -261,7 +261,9 @@ export class CatalogRepository {
    * order-insert transaction (UPDATE products.updated_at, or equivalent
    * FOR UPDATE) so an OrderItem cannot appear between this check and
    * the delete. Prisma 8 has no forUpdate helper; row UPDATE is the
-   * current lock pattern.
+   * current lock pattern. Order Foundation also locks selected
+   * ProductOption rows with the same UPDATE pattern; deleteOption takes
+   * that Option lock before delete.
    */
   async deleteProduct(productId: string): Promise<boolean> {
     const db = this.db();
@@ -484,12 +486,20 @@ export class CatalogRepository {
   }
 
   async deleteOption(optionId: string): Promise<boolean> {
-    const existing = await this.findOption(optionId);
-    if (!existing) {
-      return false;
-    }
-    await orm(this.db()).ProductOption.where({ id: optionId }).delete();
-    return true;
+    const db = this.db();
+    return db.transaction(async (tx) => {
+      await orm(tx)
+        .ProductOption.where({ id: optionId })
+        .update({ updatedAt: pgNow() });
+      const locked = await orm(tx)
+        .ProductOption.where({ id: optionId })
+        .first();
+      if (!locked) {
+        return false;
+      }
+      await orm(tx).ProductOption.where({ id: optionId }).delete();
+      return true;
+    });
   }
 
   private toCategory(row: {

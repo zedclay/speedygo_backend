@@ -13,6 +13,12 @@ export type ErrorEnvelope = {
   error: {
     code: string;
     message: string;
+    changes?: string[];
+    current?: {
+      merchandiseSubtotalMinor: number;
+      deliveryFeeMinor: number;
+      customerTotalMinor: number;
+    };
   };
 };
 
@@ -25,8 +31,22 @@ export class AuthExceptionFilter implements ExceptionFilter {
     const response = ctx.getResponse<Response>();
 
     if (exception instanceof AppError) {
+      const details = exception.details;
       response.status(exception.httpStatus).json({
-        error: { code: exception.code, message: exception.message },
+        error: {
+          code: exception.code,
+          message: exception.message,
+          ...(details && 'changes' in details
+            ? {
+                changes: details.changes as string[],
+                current: details.current as {
+                  merchandiseSubtotalMinor: number;
+                  deliveryFeeMinor: number;
+                  customerTotalMinor: number;
+                },
+              }
+            : {}),
+        },
       } satisfies ErrorEnvelope);
       return;
     }

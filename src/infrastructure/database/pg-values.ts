@@ -14,6 +14,14 @@ export function pgVarchar<N extends number>(value: string): PgVarchar<N> {
   return value as PgVarchar<N>;
 }
 
+export type PgChar<N extends number> = string & {
+  readonly __charLength: N;
+};
+
+export function pgChar<N extends number>(value: string): PgChar<N> {
+  return value as PgChar<N>;
+}
+
 export function pgTimestamptz(value: string): PgTimestamptz {
   return value as PgTimestamptz;
 }

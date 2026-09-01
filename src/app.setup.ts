@@ -39,7 +39,7 @@ export function configureApp(app: INestApplication): void {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SpeedyGo API')
     .setDescription(
-      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant, Catalog, Cart, and Checkout Foundation v1.0. Checkout Preview is stateless: it creates no Order and no Payment, does not reserve a price, and does not include taxes, tips, or promotions. Payment method is selected later. Delivery Fee is a live flat integer minor-unit amount.',
+      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant, Catalog, Cart, Checkout, and Order Foundation v1.0. Checkout Preview is stateless and non-reserving. Order creation requires Customer-confirmed expectedMerchandiseSubtotalMinor, expectedDeliveryFeeMinor, and expectedCustomerTotalMinor (comparison-only; expectedCustomerTotalMinor maps to customerPayableMinor). The Backend recalculates all authoritative amounts. Price or Delivery Fee changes return 409 ORDER_RECONFIRMATION_REQUIRED and persist nothing. Payment method is selected at Order creation (COD or ELECTRONIC) and stored on Payment PENDING. No PaymentTransaction, COD collection, Delivery, or Merchant workflow is created. Amounts are integer minor units. Historical Order prices do not change with Catalog.',
     )
     .setVersion('1.0.0')
     .addBearerAuth()
