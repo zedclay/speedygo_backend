@@ -20,6 +20,10 @@
       "model": "AuditLog",
       "namespace": "public"
     },
+    "cart_item_options": {
+      "model": "CartItemOption",
+      "namespace": "public"
+    },
     "cart_items": {
       "model": "CartItem",
       "namespace": "public"
@@ -1209,6 +1213,21 @@
                   "namespace": "public"
                 }
               },
+              "options": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "cartItemId"
+                  ]
+                },
+                "to": {
+                  "model": "CartItemOption",
+                  "namespace": "public"
+                }
+              },
               "product": {
                 "cardinality": "N:1",
                 "on": {
@@ -1251,6 +1270,91 @@
               },
               "namespaceId": "public",
               "table": "cart_items"
+            }
+          },
+          "CartItemOption": {
+            "fields": {
+              "cartItemId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 6
+                  }
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "productOptionId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "cartItem": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "cartItemId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "CartItem",
+                  "namespace": "public"
+                }
+              },
+              "productOption": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "productOptionId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "ProductOption",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "cartItemId": {
+                  "column": "cart_item_id"
+                },
+                "createdAt": {
+                  "column": "created_at"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "productOptionId": {
+                  "column": "product_option_id"
+                }
+              },
+              "namespaceId": "public",
+              "table": "cart_item_options"
             }
           },
           "Category": {
@@ -6786,6 +6890,21 @@
               }
             },
             "relations": {
+              "cartItemOptions": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "productOptionId"
+                  ]
+                },
+                "to": {
+                  "model": "CartItemOption",
+                  "namespace": "public"
+                }
+              },
               "optionGroup": {
                 "cardinality": "N:1",
                 "on": {
@@ -8643,6 +8762,106 @@
                   ],
                   "name": "audit_logs_target_792315bb",
                   "prefix": "audit_logs_target",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
+            "cart_item_options": {
+              "columns": {
+                "cart_item_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "created_at": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 6
+                  }
+                },
+                "id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "product_option_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "onDelete": "cascade",
+                  "source": {
+                    "columns": [
+                      "cart_item_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "cart_item_options"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "cart_items"
+                  }
+                },
+                {
+                  "onDelete": "cascade",
+                  "source": {
+                    "columns": [
+                      "product_option_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "cart_item_options"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "product_options"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "cart_item_id"
+                  ],
+                  "name": "cart_item_options_cart_item_bdbddba5",
+                  "prefix": "cart_item_options_cart_item",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "cart_item_id",
+                    "product_option_id"
+                  ],
+                  "name": "cart_item_options_item_option_uq_17bcb74b",
+                  "prefix": "cart_item_options_item_option_uq",
+                  "unique": true
+                },
+                {
+                  "columns": [
+                    "product_option_id"
+                  ],
+                  "name": "cart_item_options_option_f6695073",
+                  "prefix": "cart_item_options_option",
                   "unique": false
                 }
               ],
@@ -15832,7 +16051,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "a8b431629c40d9058d2c34c6146ff975080866a91990492bb917c83242dd0987"
+    "storageHash": "a80f90422dc1c9d388e0945102991a6126096c823f2c19d4912d7a5b26fe954a"
   },
   "capabilities": {
     "postgres": {
