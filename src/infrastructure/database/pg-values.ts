@@ -22,6 +22,14 @@ export function pgNow(): PgTimestamptz {
   return pgTimestamptz(new Date().toISOString());
 }
 
+export type PgTime = string & {
+  readonly __timeString: true;
+};
+
+export function pgTime(value: string): PgTime {
+  return value as PgTime;
+}
+
 export type PgNumeric<P extends number, S extends number> = string & {
   readonly __numericPrecision: P;
   readonly __numericScale: S;
