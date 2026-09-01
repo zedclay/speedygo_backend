@@ -143,6 +143,26 @@ describe('Merchant foundation (e2e)', () => {
         .orm.public.MerchantBranch.where({ merchantId })
         .all();
       for (const branch of branches) {
+        const products = await prisma
+          .getDb()
+          .orm.public.Product.where({ merchantBranchId: branch.id })
+          .all();
+        for (const product of products) {
+          await prisma
+            .getDb()
+            .orm.public.Product.where({ id: product.id })
+            .delete();
+        }
+        const categories = await prisma
+          .getDb()
+          .orm.public.Category.where({ merchantBranchId: branch.id })
+          .all();
+        for (const category of categories) {
+          await prisma
+            .getDb()
+            .orm.public.Category.where({ id: category.id })
+            .delete();
+        }
         await prisma
           .getDb()
           .orm.public.MerchantBranch.where({ id: branch.id })

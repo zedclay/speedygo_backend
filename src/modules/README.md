@@ -2,9 +2,9 @@
 
 Placeholder folders for the SpeedyGo modular monolith.
 
-`auth`, `identity`, and `authorization` contain the Authentication Foundation v1.0. `customers` contains the Customer Onboarding Foundation v1.0. `merchants` contains the Merchant Foundation v1.0 (organization, membership, branches). Other folders remain empty until their approved domain tasks.
+`auth`, `identity`, and `authorization` contain the Authentication Foundation v1.0. `customers` contains the Customer Onboarding Foundation v1.0. `merchants` contains the Merchant Foundation v1.0. `catalog` contains the Catalog Foundation v1.0 (branch-owned categories, products, and options). Other folders remain empty until their approved domain tasks.
 
-Do not implement Catalog, Driver onboarding, or order/payment flows here as part of merchant foundation.
+Do not implement Cart, Checkout, Orders, or payment flows here as part of catalog foundation.
 
 | Module | Responsibility |
 | --- | --- |

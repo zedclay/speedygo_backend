@@ -21,3 +21,7 @@ export function isPostgresUniqueViolation(error: unknown): boolean {
 export function isPostgresForeignKeyViolation(error: unknown): boolean {
   return isPostgresSqlState(error, '23503');
 }
+
+export function isPostgresCheckViolation(error: unknown): boolean {
+  return isPostgresSqlState(error, '23514');
+}

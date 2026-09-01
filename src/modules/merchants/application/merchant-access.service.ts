@@ -10,6 +10,7 @@ import {
   parseMerchantStatus,
   roleHasCapability,
   statusAllowsBranchMutation,
+  statusAllowsCatalogMutation,
   statusAllowsProfileUpdate,
   type MerchantCapability,
 } from '../domain/merchant.policy';
@@ -60,7 +61,10 @@ export class MerchantAccessService {
     if (!role || !roleHasCapability(role, capability)) {
       throw merchantRoleForbidden();
     }
-    if (capability === MERCHANT_CAPABILITIES.MERCHANT_READ) {
+    if (
+      capability === MERCHANT_CAPABILITIES.MERCHANT_READ ||
+      capability === MERCHANT_CAPABILITIES.CATALOG_READ
+    ) {
       return context;
     }
     const status = parseMerchantStatus(context.merchant.status);
@@ -85,6 +89,16 @@ export class MerchantAccessService {
     ) {
       throw merchantStatusRestricted(
         'Branches cannot be changed in the current Merchant status',
+      );
+    }
+    if (
+      (capability === MERCHANT_CAPABILITIES.CATEGORY_MANAGE ||
+        capability === MERCHANT_CAPABILITIES.PRODUCT_MANAGE ||
+        capability === MERCHANT_CAPABILITIES.PRODUCT_OPTIONS_MANAGE) &&
+      !statusAllowsCatalogMutation(status)
+    ) {
+      throw merchantStatusRestricted(
+        'Catalog cannot be changed in the current Merchant status',
       );
     }
     return context;

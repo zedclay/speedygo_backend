@@ -33,3 +33,7 @@ export function pgNumeric<P extends number, S extends number>(
 ): PgNumeric<P, S> {
   return value.toFixed(scale) as PgNumeric<P, S>;
 }
+
+export function pgBigInt(value: number): bigint {
+  return BigInt(value);
+}
