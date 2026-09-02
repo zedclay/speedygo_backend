@@ -43,6 +43,16 @@ export default () => ({
     redisKeyPrefix: process.env.MATCHING_REDIS_PREFIX ?? 'matching:',
     bullPrefix: process.env.MATCHING_BULL_PREFIX ?? 'bull:matching',
   },
+  driverDelivery: {
+    pickupRadiusMeters: int(
+      process.env.DRIVER_DELIVERY_PICKUP_RADIUS_METERS,
+      300,
+    ),
+    dropoffRadiusMeters: int(
+      process.env.DRIVER_DELIVERY_DROPOFF_RADIUS_METERS,
+      300,
+    ),
+  },
   tracking: {
     locationTtlMs: int(process.env.TRACKING_LOCATION_TTL_MS, 600_000),
     authRevalidationIntervalMs: int(

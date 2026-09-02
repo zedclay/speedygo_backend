@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { API_GLOBAL_PREFIX } from './common/constants/api.constants';
 import { AuthExceptionFilter } from './common/filters/auth-exception.filter';
 import { assertAuthSecurityConfig } from './config/auth-config.validation';
+import { assertDriverDeliveryConfig } from './config/driver-delivery-config.validation';
 import { assertMatchingConfig } from './config/matching-config.validation';
 import { assertTrackingConfig } from './config/tracking-config.validation';
 
@@ -27,6 +28,16 @@ export function configureApp(app: INestApplication): void {
       15_000,
     ),
     recoveryBatchSize: config.get<number>('matching.recoveryBatchSize', 50),
+  });
+  assertDriverDeliveryConfig({
+    pickupRadiusMeters: config.get<number>(
+      'driverDelivery.pickupRadiusMeters',
+      300,
+    ),
+    dropoffRadiusMeters: config.get<number>(
+      'driverDelivery.dropoffRadiusMeters',
+      300,
+    ),
   });
   assertTrackingConfig({
     locationTtlMs: config.get<number>('tracking.locationTtlMs', 600_000),
@@ -77,7 +88,7 @@ export function configureApp(app: INestApplication): void {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SpeedyGo API')
     .setDescription(
-      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant, Catalog, Cart, Checkout, Order Foundation, Merchant Order Workflow v1.0, Delivery Foundation v1.0, Driver Foundation & Onboarding v1.0, Driver Matching v1.0, and Realtime Tracking Foundation v1.0. Matching start is internal. Live location uses the Matching DriverLocationStore. Tracking is assignment-authorized. Amounts are integer minor units.',
+      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant, Catalog, Cart, Checkout, Order Foundation, Merchant Order Workflow v1.0, Delivery Foundation v1.0, Driver Foundation & Onboarding v1.0, Driver Matching v1.0, Realtime Tracking Foundation v1.0, and Driver Delivery Workflow v1.0. Matching start is internal. Live location uses the Matching DriverLocationStore. Tracking is assignment-authorized. Driver Delivery uses explicit current-assignment actions. Amounts are integer minor units.',
     )
     .setVersion('1.0.0')
     .addBearerAuth()

@@ -13,10 +13,13 @@ import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import {
   ORDER_FULFILLMENT_READY,
   ORDER_STATUS_ACTIVE,
+  ORDER_STATUS_COMPLETED,
 } from '../../orders/domain/order.policy';
+import { ASSIGNMENT_STATUS_RELEASED } from '../domain/driver-delivery.policy';
 import {
   DELIVERY_EVENT_CREATED,
   DELIVERY_INITIAL_STATUS,
+  type DeliveryStatus,
 } from '../domain/delivery.policy';
 import type { DeliveryDetailView } from '../domain/delivery.types';
 
@@ -401,5 +404,129 @@ export class DeliveryRepository {
         driverId: event.driverId,
       })),
     };
+  }
+
+  async transitionIfStatus(
+    input: {
+      deliveryId: string;
+      fromStatus: string;
+      toStatus: string;
+      eventType: string;
+      driverId: string;
+      pickedUpAt?: boolean;
+      arrivedCustomerAt?: boolean;
+      deliveredAt?: boolean;
+      occurredAt?: PgTimestamptz;
+    },
+    client: OrmClient,
+  ): Promise<boolean> {
+    const current = await orm(client)
+      .Delivery.where({ id: input.deliveryId })
+      .first();
+    if (!current || current.status !== input.fromStatus) {
+      return false;
+    }
+    const now = input.occurredAt ?? pgNow();
+    await orm(client)
+      .Delivery.where({
+        id: input.deliveryId,
+        status: input.fromStatus,
+      })
+      .update({
+        status: input.toStatus as DeliveryStatus,
+        updatedAt: now,
+        ...(input.pickedUpAt ? { pickedUpAt: now } : {}),
+        ...(input.arrivedCustomerAt ? { arrivedCustomerAt: now } : {}),
+        ...(input.deliveredAt ? { deliveredAt: now } : {}),
+      });
+    const row = await orm(client)
+      .Delivery.where({ id: input.deliveryId })
+      .first();
+    if (!row || row.status !== input.toStatus) {
+      return false;
+    }
+    await this.appendEvent(
+      {
+        deliveryId: input.deliveryId,
+        type: input.eventType,
+        occurredAt: now,
+        driverId: input.driverId,
+      },
+      client,
+    );
+    return true;
+  }
+
+  async releaseAcceptedAssignment(
+    assignmentId: string,
+    client: OrmClient,
+    occurredAt?: PgTimestamptz,
+  ): Promise<boolean> {
+    const now = occurredAt ?? pgNow();
+    await orm(client)
+      .DriverAssignment.where({
+        id: assignmentId,
+        status: pgVarchar<64>('ACCEPTED'),
+        releasedAt: null,
+      })
+      .update({
+        status: pgVarchar<64>(ASSIGNMENT_STATUS_RELEASED),
+        releasedAt: now,
+      });
+    const row = await orm(client)
+      .DriverAssignment.where({ id: assignmentId })
+      .first();
+    return Boolean(
+      row && row.status === ASSIGNMENT_STATUS_RELEASED && row.releasedAt,
+    );
+  }
+
+  async completeActiveOrder(
+    orderId: string,
+    driverId: string,
+    client: OrmClient,
+    occurredAt?: PgTimestamptz,
+  ): Promise<boolean> {
+    const now = occurredAt ?? pgNow();
+    await orm(client)
+      .Order.where({
+        id: orderId,
+        status: ORDER_STATUS_ACTIVE,
+      })
+      .update({
+        status: ORDER_STATUS_COMPLETED,
+        completedAt: now,
+        updatedAt: now,
+      });
+    const row = await orm(client).Order.where({ id: orderId }).first();
+    if (!row || row.status !== ORDER_STATUS_COMPLETED) {
+      return false;
+    }
+    await orm(client).OrderStatusEvent.create({
+      id: createUuidV7(),
+      orderId,
+      eventType: pgVarchar<64>('ORDER_COMPLETED'),
+      actorType: pgVarchar<32>('DRIVER'),
+      actorId: driverId,
+      fromStatus: pgVarchar<32>(ORDER_STATUS_ACTIVE),
+      toStatus: pgVarchar<32>(ORDER_STATUS_COMPLETED),
+      occurredAt: now,
+      metadataJson: null,
+    });
+    return true;
+  }
+
+  async countDeliveryEvents(
+    deliveryId: string,
+    eventType: string,
+    client?: OrmClient,
+  ): Promise<number> {
+    const rows = await orm(client ?? this.db())
+      .DeliveryEvent.where({
+        deliveryId,
+        type: pgVarchar<64>(eventType),
+      })
+      .all();
+    return rows.length;
   }
 }

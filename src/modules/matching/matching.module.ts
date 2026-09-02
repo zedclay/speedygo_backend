@@ -1,5 +1,5 @@
 import { BullModule } from '@nestjs/bullmq';
-import { Module } from '@nestjs/common';
+import { Module, forwardRef } from '@nestjs/common';
 import { DeliveryModule } from '../delivery/delivery.module';
 import { DriversModule } from '../drivers/drivers.module';
 import { MatchingService } from './application/matching.service';
@@ -14,7 +14,7 @@ import { DriverAssignmentController } from './presentation/http/driver-assignmen
 
 @Module({
   imports: [
-    DeliveryModule,
+    forwardRef(() => DeliveryModule),
     DriversModule,
     BullModule.registerQueue({ name: MATCHING_QUEUE_NAME }),
   ],
