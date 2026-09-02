@@ -9,6 +9,6 @@ import { MerchantDeliveryController } from './presentation/http/merchant-deliver
   imports: [MerchantsModule],
   controllers: [CustomerDeliveryController, MerchantDeliveryController],
   providers: [DeliveryRepository, DeliveryService],
-  exports: [DeliveryService],
+  exports: [DeliveryService, DeliveryRepository],
 })
 export class DeliveryModule {}

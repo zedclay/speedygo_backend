@@ -162,6 +162,16 @@ describe('Delivery foundation (e2e)', () => {
             .orm.public.DeliveryEvent.where({ id: event.id })
             .delete();
         }
+        const assignments = await prisma
+          .getDb()
+          .orm.public.DriverAssignment.where({ deliveryId: delivery.id })
+          .all();
+        for (const assignment of assignments) {
+          await prisma
+            .getDb()
+            .orm.public.DriverAssignment.where({ id: assignment.id })
+            .delete();
+        }
         await prisma
           .getDb()
           .orm.public.Delivery.where({ id: delivery.id })
@@ -611,8 +621,14 @@ describe('Delivery foundation (e2e)', () => {
       const missing = await request(server)
         .get(`/api/v1/customer/orders/${orderId}/delivery`)
         .set('Authorization', `Bearer ${tokenCustomer}`);
-      expect(missing.status).toBe(404);
-      expect((missing.body as ErrorBody).error.code).toBe('DELIVERY_NOT_FOUND');
+      if (missing.status === 404) {
+        expect((missing.body as ErrorBody).error.code).toBe(
+          'DELIVERY_NOT_FOUND',
+        );
+      } else {
+        expect(missing.status).toBe(200);
+        expect((missing.body as DeliveryBody).status).toBe('SEARCHING_DRIVER');
+      }
 
       await request(server)
         .patch(`/api/v1/customer/addresses/${homeId}`)

@@ -207,7 +207,7 @@ export class DriverController {
   @ApiOperation({
     summary: 'Set Driver availability OFFLINE',
     description:
-      'Immediate OFFLINE because Driver Assignment is not implemented. OFFLINE_AFTER_CURRENT_DELIVERY is unused in this foundation.',
+      'ONLINE → OFFLINE when the Driver has no unreleased ACCEPTED assignment. ONLINE → OFFLINE_AFTER_CURRENT_DELIVERY when an accepted assignment is current. That state stays excluded from new matching offers.',
   })
   @ApiOkResponse({ type: DriverMeResponseDto })
   goOffline(@CurrentPrincipal() principal: AuthenticatedPrincipal) {

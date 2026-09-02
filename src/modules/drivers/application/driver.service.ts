@@ -18,6 +18,7 @@ import {
   canParticipateInMatching,
   canSubmitVerification,
   DRIVER_AVAILABILITY_OFFLINE,
+  DRIVER_AVAILABILITY_OFFLINE_AFTER_CURRENT_DELIVERY,
   DRIVER_AVAILABILITY_ONLINE,
   DRIVER_AVAILABILITY_SUSPENDED,
   DRIVER_DOCUMENT_DRIVING_LICENSE,
@@ -323,10 +324,23 @@ export class DriverService {
       if (availability.status === DRIVER_AVAILABILITY_SUSPENDED) {
         throw driverAvailabilityInvalidTransition();
       }
+      if (
+        availability.status ===
+        DRIVER_AVAILABILITY_OFFLINE_AFTER_CURRENT_DELIVERY
+      ) {
+        throw driverAvailabilityInvalidTransition();
+      }
+      const accepted = await this.drivers.findOpenAcceptedAssignment(
+        locked.id,
+        tx,
+      );
+      const nextStatus = accepted
+        ? DRIVER_AVAILABILITY_OFFLINE_AFTER_CURRENT_DELIVERY
+        : DRIVER_AVAILABILITY_OFFLINE;
       const moved = await this.drivers.setAvailabilityStatus(
         locked.id,
         availability.status,
-        DRIVER_AVAILABILITY_OFFLINE,
+        nextStatus,
         tx,
       );
       if (!moved) {

@@ -85,6 +85,12 @@ describe('MerchantOrderService', () => {
     applyStartPreparation: jest.Mock;
     applyMarkReady: jest.Mock;
   };
+  let matchingJobs: {
+    enqueueStart: jest.Mock;
+    enqueueTimeout: jest.Mock;
+    enqueueRetry: jest.Mock;
+    scheduleAfterMatch: jest.Mock;
+  };
   let service: MerchantOrderService;
   let current: MerchantOrderDetailView;
 
@@ -189,7 +195,17 @@ describe('MerchantOrderService', () => {
         return true;
       }),
     };
-    service = new MerchantOrderService(access as never, orders as never);
+    matchingJobs = {
+      enqueueStart: jest.fn().mockResolvedValue(undefined),
+      enqueueTimeout: jest.fn().mockResolvedValue(undefined),
+      enqueueRetry: jest.fn().mockResolvedValue(undefined),
+      scheduleAfterMatch: jest.fn().mockResolvedValue(undefined),
+    };
+    service = new MerchantOrderService(
+      access as never,
+      orders as never,
+      matchingJobs,
+    );
   });
 
   it('lists Orders for an authorized membership without mutating', async () => {
@@ -339,6 +355,8 @@ describe('MerchantOrderService', () => {
     const ready = await service.markReady(ACCOUNT, MERCHANT, ORDER_ID);
     expect(ready.fulfillmentStatus).toBe('READY');
     expect(ready.status).toBe('ACTIVE');
+    expect(matchingJobs.enqueueStart).toHaveBeenCalledWith(ORDER_ID);
+    expect(orders.applyMarkReady).toHaveBeenCalled();
   });
 
   it('blocks terminal Orders', async () => {

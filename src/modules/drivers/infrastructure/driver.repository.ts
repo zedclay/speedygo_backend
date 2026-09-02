@@ -291,6 +291,22 @@ export class DriverRepository {
     return row ? this.toVehicle(row) : null;
   }
 
+  async findOpenAcceptedAssignment(
+    driverId: string,
+    client?: OrmClient,
+  ): Promise<{ id: string; deliveryId: string; status: string } | null> {
+    const row = await orm(client ?? this.db())
+      .DriverAssignment.where({
+        driverId,
+        status: pgVarchar<64>('ACCEPTED'),
+        releasedAt: null,
+      })
+      .first();
+    return row
+      ? { id: row.id, deliveryId: row.deliveryId, status: row.status }
+      : null;
+  }
+
   async findAvailability(
     driverId: string,
     client?: OrmClient,
@@ -315,7 +331,8 @@ export class DriverRepository {
       })
       .update({
         status: asAvailabilityStatus(toStatus),
-        offlineAfterCurrentDelivery: false,
+        offlineAfterCurrentDelivery:
+          toStatus === 'OFFLINE_AFTER_CURRENT_DELIVERY',
         updatedAt: now,
       });
     const row = await orm(client)

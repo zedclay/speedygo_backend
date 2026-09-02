@@ -232,6 +232,19 @@ class MemoryDriverRepository {
     return Promise.resolve(null);
   }
 
+  acceptedAssignments = new Map<string, { id: string; deliveryId: string }>();
+
+  findOpenAcceptedAssignment(
+    driverId: string,
+  ): Promise<{ id: string; deliveryId: string; status: string } | null> {
+    const row = this.acceptedAssignments.get(driverId);
+    return Promise.resolve(
+      row
+        ? { id: row.id, deliveryId: row.deliveryId, status: 'ACCEPTED' }
+        : null,
+    );
+  }
+
   findAvailability(driverId: string): Promise<DriverAvailabilityRecord | null> {
     return Promise.resolve(this.availability.get(driverId) ?? null);
   }
@@ -403,6 +416,20 @@ describe('DriverService', () => {
     const offline = await service.goOffline(ACCOUNT_A);
     expect(offline.availability?.status).toBe(DRIVER_AVAILABILITY_OFFLINE);
     expect(offline.matchingEligible).toBe(false);
+  });
+
+  it('goes OFFLINE_AFTER_CURRENT_DELIVERY when an accepted assignment exists', async () => {
+    const driverId = await onboard();
+    await service.submitVerification(ACCOUNT_A);
+    await review.approve(driverId);
+    await service.goOnline(ACCOUNT_A);
+    repo.acceptedAssignments.set(driverId, {
+      id: 'asg-1',
+      deliveryId: 'del-1',
+    });
+    const after = await service.goOffline(ACCOUNT_A);
+    expect(after.availability?.status).toBe('OFFLINE_AFTER_CURRENT_DELIVERY');
+    expect(after.matchingEligible).toBe(false);
   });
 
   it('blocks go-online for unapproved, rejected, and suspended drivers', async () => {
