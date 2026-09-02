@@ -4,10 +4,12 @@ import { NestFactory } from '@nestjs/core';
 import { APP_NAME } from './common/constants/api.constants';
 import { AppModule } from './app.module';
 import { configureApp } from './app.setup';
+import { attachRedisIoAdapter } from './infrastructure/realtime/redis-io.adapter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   configureApp(app);
+  attachRedisIoAdapter(app);
   const config = app.get(ConfigService);
   const logger = new Logger('Bootstrap');
   const port = config.get<number>('port', 3000);

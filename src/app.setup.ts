@@ -6,6 +6,7 @@ import { API_GLOBAL_PREFIX } from './common/constants/api.constants';
 import { AuthExceptionFilter } from './common/filters/auth-exception.filter';
 import { assertAuthSecurityConfig } from './config/auth-config.validation';
 import { assertMatchingConfig } from './config/matching-config.validation';
+import { assertTrackingConfig } from './config/tracking-config.validation';
 
 export function configureApp(app: INestApplication): void {
   const config = app.get(ConfigService);
@@ -26,6 +27,30 @@ export function configureApp(app: INestApplication): void {
       15_000,
     ),
     recoveryBatchSize: config.get<number>('matching.recoveryBatchSize', 50),
+  });
+  assertTrackingConfig({
+    locationTtlMs: config.get<number>('tracking.locationTtlMs', 600_000),
+    staleCleanupIntervalMs: config.get<number>(
+      'tracking.staleCleanupIntervalMs',
+      30_000,
+    ),
+    staleCleanupMaxAgeMs: config.get<number>(
+      'tracking.staleCleanupMaxAgeMs',
+      300_000,
+    ),
+    staleCleanupBatchSize: config.get<number>(
+      'tracking.staleCleanupBatchSize',
+      100,
+    ),
+    minUpdateIntervalMs: config.get<number>(
+      'tracking.minUpdateIntervalMs',
+      1000,
+    ),
+    authRevalidationIntervalMs: config.get<number>(
+      'tracking.authRevalidationIntervalMs',
+      15_000,
+    ),
+    locationMaxAgeMs: config.get<number>('matching.locationMaxAgeMs', 45_000),
   });
 
   app.use(helmet());
@@ -52,7 +77,7 @@ export function configureApp(app: INestApplication): void {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SpeedyGo API')
     .setDescription(
-      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant, Catalog, Cart, Checkout, Order Foundation, Merchant Order Workflow v1.0, Delivery Foundation v1.0, Driver Foundation & Onboarding v1.0, and Driver Matching v1.0. Matching start is internal. Driver assignment APIs are authenticated self-service for the offered Driver only. Merchant READY does not create Delivery. Amounts are integer minor units.',
+      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant, Catalog, Cart, Checkout, Order Foundation, Merchant Order Workflow v1.0, Delivery Foundation v1.0, Driver Foundation & Onboarding v1.0, Driver Matching v1.0, and Realtime Tracking Foundation v1.0. Matching start is internal. Live location uses the Matching DriverLocationStore. Tracking is assignment-authorized. Amounts are integer minor units.',
     )
     .setVersion('1.0.0')
     .addBearerAuth()

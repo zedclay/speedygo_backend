@@ -17,6 +17,7 @@ import { CustomersModule } from './modules/customers/customers.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
 import { DriversModule } from './modules/drivers/drivers.module';
 import { MatchingModule } from './modules/matching/matching.module';
+import { TrackingModule } from './modules/tracking/tracking.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { MerchantsModule } from './modules/merchants/merchants.module';
 import { OrdersModule } from './modules/orders/orders.module';
@@ -45,6 +46,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     DeliveryModule,
     DriversModule,
     MatchingModule,
+    TrackingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

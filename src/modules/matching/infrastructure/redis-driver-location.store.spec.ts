@@ -34,4 +34,43 @@ describe('RedisDriverLocationStore', () => {
       20,
     );
   });
+
+  it('skips older authoritative writes and removes stale GEO members', async () => {
+    const evalFn = jest.fn().mockResolvedValue(0);
+    const hgetall = jest.fn().mockResolvedValue({
+      latitude: '36.75',
+      longitude: '3.05',
+      recordedAt: '2026-09-02T00:00:10.000Z',
+    });
+    const zrange = jest.fn().mockResolvedValue(['drv-old']);
+    const zrem = jest.fn().mockResolvedValue(1);
+    const store = new RedisDriverLocationStore(
+      {
+        getClient: () => ({ eval: evalFn, hgetall, zrange, zrem }),
+      } as unknown as RedisService,
+      {
+        get: (key: string, fallback: number | string) => {
+          if (key === 'matching.redisKeyPrefix') {
+            return 'matching:test:';
+          }
+          if (key === 'tracking.locationTtlMs') {
+            return 600_000;
+          }
+          return fallback;
+        },
+      } as unknown as ConfigService,
+    );
+    const skipped = await store.upsertIfNewer(
+      'drv-1',
+      36.75,
+      3.05,
+      '2026-09-02T00:00:01.000Z',
+    );
+    expect(skipped.applied).toBe(false);
+    expect(evalFn).toHaveBeenCalled();
+    expect(evalFn.mock.calls[0]).toContain('600000');
+    const removed = await store.removeStaleGeoMembers(45_000, 20);
+    expect(removed).toBe(1);
+    expect(zrem).toHaveBeenCalledWith('matching:test:geo', 'drv-old');
+  });
 });
