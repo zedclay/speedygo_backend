@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { API_GLOBAL_PREFIX } from './common/constants/api.constants';
 import { AuthExceptionFilter } from './common/filters/auth-exception.filter';
 import { assertAuthSecurityConfig } from './config/auth-config.validation';
+import { assertMatchingConfig } from './config/matching-config.validation';
 
 export function configureApp(app: INestApplication): void {
   const config = app.get(ConfigService);
@@ -13,6 +14,18 @@ export function configureApp(app: INestApplication): void {
     jwtAccessSecret: config.get<string>('auth.jwtAccessSecret', ''),
     otpHmacSecret: config.get<string>('auth.otpHmacSecret', ''),
     otpTransport: config.get<string>('auth.otpTransport', 'disabled'),
+  });
+  assertMatchingConfig({
+    locationMaxAgeMs: config.get<number>('matching.locationMaxAgeMs', 45_000),
+    pickupRadiusMeters: config.get<number>('matching.pickupRadiusMeters', 5000),
+    candidateLimit: config.get<number>('matching.candidateLimit', 20),
+    offerTimeoutMs: config.get<number>('matching.offerTimeoutMs', 30_000),
+    retryDelayMs: config.get<number>('matching.retryDelayMs', 15_000),
+    recoveryIntervalMs: config.get<number>(
+      'matching.recoveryIntervalMs',
+      15_000,
+    ),
+    recoveryBatchSize: config.get<number>('matching.recoveryBatchSize', 50),
   });
 
   app.use(helmet());
@@ -39,7 +52,7 @@ export function configureApp(app: INestApplication): void {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SpeedyGo API')
     .setDescription(
-      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant, Catalog, Cart, Checkout, Order Foundation, Merchant Order Workflow v1.0, Delivery Foundation v1.0, and Driver Foundation & Onboarding v1.0. Driver APIs are authenticated self-service only. Merchant READY does not create Delivery. Delivery is created internally when Driver Matching starts. There is no public Delivery create, Driver Matching, or Driver Assignment. Amounts are integer minor units.',
+      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant, Catalog, Cart, Checkout, Order Foundation, Merchant Order Workflow v1.0, Delivery Foundation v1.0, Driver Foundation & Onboarding v1.0, and Driver Matching v1.0. Matching start is internal. Driver assignment APIs are authenticated self-service for the offered Driver only. Merchant READY does not create Delivery. Amounts are integer minor units.',
     )
     .setVersion('1.0.0')
     .addBearerAuth()

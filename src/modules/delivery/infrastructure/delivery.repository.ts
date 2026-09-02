@@ -11,6 +11,10 @@ import {
 } from '../../../infrastructure/database/pg-values';
 import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import {
+  ORDER_FULFILLMENT_READY,
+  ORDER_STATUS_ACTIVE,
+} from '../../orders/domain/order.policy';
+import {
   DELIVERY_EVENT_CREATED,
   DELIVERY_INITIAL_STATUS,
 } from '../domain/delivery.policy';
@@ -214,6 +218,120 @@ export class DeliveryRepository {
     return { id: row.id, orderId: row.orderId, status: row.status };
   }
 
+  async findDeliveryById(
+    deliveryId: string,
+    client?: OrmClient,
+  ): Promise<{ id: string; orderId: string; status: string } | null> {
+    const row = await orm(client ?? this.db())
+      .Delivery.where({ id: deliveryId })
+      .first();
+    return row
+      ? { id: row.id, orderId: row.orderId, status: row.status }
+      : null;
+  }
+
+  async listReadyOrderIdsMissingDelivery(limit: number): Promise<string[]> {
+    const sqlClient = this.db();
+    const plan = sqlClient.raw.sql`
+      SELECT o.id
+      FROM orders o
+      WHERE o.status = ${ORDER_STATUS_ACTIVE}
+        AND o.fulfillment_status = ${ORDER_FULFILLMENT_READY}
+        AND NOT EXISTS (
+          SELECT 1 FROM deliveries d WHERE d.order_id = o.id
+        )
+      ORDER BY o.updated_at DESC
+      LIMIT ${limit}
+    `
+      .returnsRow({
+        id: 'pg/uuid@1',
+      })
+      .build();
+    const rows = await sqlClient.runtime().query(plan);
+    return rows.map((row) => row.id);
+  }
+
+  async listSearchingDeliveryIds(limit: number): Promise<string[]> {
+    const rows = await orm(this.db())
+      .Delivery.where({ status: DELIVERY_INITIAL_STATUS })
+      .orderBy((delivery) => delivery.updatedAt.asc())
+      .limit(limit)
+      .all();
+    return rows.map((row) => row.id);
+  }
+
+  async findMatchingContext(deliveryId: string): Promise<{
+    deliveryId: string;
+    orderId: string;
+    publicReference: string;
+    deliveryStatus: string;
+    orderStatus: string;
+    fulfillmentStatus: string;
+    pickup: {
+      merchantBranchId: string;
+      name: string;
+      addressText: string;
+      latitude: number;
+      longitude: number;
+    };
+    dropoff: {
+      addressText: string;
+      latitude: number;
+      longitude: number;
+    };
+    driverRemunerationMinor: number;
+  } | null> {
+    const delivery = await orm(this.db())
+      .Delivery.where({ id: deliveryId })
+      .first();
+    if (!delivery) {
+      return null;
+    }
+    const order = await orm(this.db())
+      .Order.where({ id: delivery.orderId })
+      .first();
+    if (!order) {
+      return null;
+    }
+    const [branch, address, financial] = await Promise.all([
+      orm(this.db())
+        .MerchantBranch.where({ id: order.merchantBranchId })
+        .first(),
+      orm(this.db())
+        .OrderDeliveryAddressSnapshot.where({ orderId: order.id })
+        .first(),
+      orm(this.db())
+        .OrderFinancialSnapshot.where({ orderId: order.id })
+        .first(),
+    ]);
+    if (!branch || !address || !financial) {
+      return null;
+    }
+    return {
+      deliveryId: delivery.id,
+      orderId: order.id,
+      publicReference: order.publicReference,
+      deliveryStatus: delivery.status,
+      orderStatus: order.status,
+      fulfillmentStatus: order.fulfillmentStatus,
+      pickup: {
+        merchantBranchId: branch.id,
+        name: branch.name,
+        addressText: branch.addressText,
+        latitude: parseCoordinate(branch.latitude),
+        longitude: parseCoordinate(branch.longitude),
+      },
+      dropoff: {
+        addressText: address.addressText,
+        latitude: parseCoordinate(address.latitude),
+        longitude: parseCoordinate(address.longitude),
+      },
+      driverRemunerationMinor: parseMinorUnits(
+        financial.driverRemunerationMinor,
+      ),
+    };
+  }
+
   async findDeliveryDetail(
     orderId: string,
   ): Promise<DeliveryDetailView | null> {
@@ -238,6 +356,13 @@ export class DeliveryRepository {
     if (!branch || !address) {
       return null;
     }
+    const accepted = await orm(db)
+      .DriverAssignment.where({
+        deliveryId: delivery.id,
+        status: pgVarchar<64>('ACCEPTED'),
+        releasedAt: null,
+      })
+      .first();
     return {
       id: delivery.id,
       orderId: order.id,
@@ -245,7 +370,7 @@ export class DeliveryRepository {
       status: delivery.status,
       orderStatus: order.status,
       fulfillmentStatus: order.fulfillmentStatus,
-      assignedDriverId: null,
+      assignedDriverId: accepted?.driverId ?? null,
       driverSearchStartedAt: delivery.driverSearchStartedAt,
       pickedUpAt: delivery.pickedUpAt,
       estimatedArrivalAt: delivery.estimatedArrivalAt,

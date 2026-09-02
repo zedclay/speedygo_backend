@@ -1,4 +1,8 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  MATCHING_JOBS,
+  type MatchingJobs,
+} from '../../matching/domain/matching.jobs';
 import { MerchantAccessService } from '../../merchants/application/merchant-access.service';
 import {
   merchantBranchNotFound,
@@ -32,9 +36,12 @@ import { OrderRepository } from '../infrastructure/order.repository';
 
 @Injectable()
 export class MerchantOrderService {
+  private readonly logger = new Logger(MerchantOrderService.name);
+
   constructor(
     private readonly access: MerchantAccessService,
     private readonly orders: OrderRepository,
+    @Inject(MATCHING_JOBS) private readonly matchingJobs: MatchingJobs,
   ) {}
 
   async listOrders(
@@ -236,6 +243,15 @@ export class MerchantOrderService {
     );
     if (!detail) {
       throw merchantOrderNotFound();
+    }
+    if (action === 'MARK_READY') {
+      try {
+        await this.matchingJobs.enqueueStart(orderId);
+      } catch (error) {
+        this.logger.warn(
+          `Matching start enqueue failed for order ${orderId}: ${error instanceof Error ? error.message : String(error)}`,
+        );
+      }
     }
     return detail;
   }

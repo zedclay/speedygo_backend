@@ -14,6 +14,14 @@ process.env.DATABASE_URL =
 process.env.REDIS_URL =
   process.env.TEST_REDIS_URL ?? 'redis://localhost:6379/15';
 process.env.AUTH_REDIS_PREFIX = 'auth:test:';
+process.env.MATCHING_REDIS_PREFIX = 'matching:test:';
+process.env.MATCHING_BULL_PREFIX = 'bull:matching:test';
+process.env.MATCHING_LOCATION_MAX_AGE_MS = '45000';
+process.env.MATCHING_PICKUP_RADIUS_METERS = '5000';
+process.env.MATCHING_CANDIDATE_LIMIT = '20';
+process.env.MATCHING_OFFER_TIMEOUT_MS = '30000';
+process.env.MATCHING_RETRY_DELAY_MS = '15000';
+process.env.MATCHING_RECOVERY_INTERVAL_MS = '15000';
 process.env.AUTH_DEFAULT_COUNTRY = 'DZ';
 process.env.OTP_MAX_REQUESTS_PER_IP_PER_HOUR = '1000';
 process.env.OTP_MAX_REQUESTS_PER_HOUR = '20';

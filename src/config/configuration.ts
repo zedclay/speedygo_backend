@@ -32,4 +32,15 @@ export default () => ({
       15,
     ),
   },
+  matching: {
+    locationMaxAgeMs: int(process.env.MATCHING_LOCATION_MAX_AGE_MS, 45_000),
+    pickupRadiusMeters: int(process.env.MATCHING_PICKUP_RADIUS_METERS, 5000),
+    candidateLimit: int(process.env.MATCHING_CANDIDATE_LIMIT, 20),
+    offerTimeoutMs: int(process.env.MATCHING_OFFER_TIMEOUT_MS, 30_000),
+    retryDelayMs: int(process.env.MATCHING_RETRY_DELAY_MS, 15_000),
+    recoveryIntervalMs: int(process.env.MATCHING_RECOVERY_INTERVAL_MS, 15_000),
+    recoveryBatchSize: int(process.env.MATCHING_RECOVERY_BATCH_SIZE, 50),
+    redisKeyPrefix: process.env.MATCHING_REDIS_PREFIX ?? 'matching:',
+    bullPrefix: process.env.MATCHING_BULL_PREFIX ?? 'bull:matching',
+  },
 });

@@ -27,7 +27,7 @@ export type DeliveryDetailView = {
   status: string;
   orderStatus: string;
   fulfillmentStatus: string;
-  assignedDriverId: null;
+  assignedDriverId: string | null;
   driverSearchStartedAt: string | null;
   pickedUpAt: string | null;
   estimatedArrivalAt: string | null;

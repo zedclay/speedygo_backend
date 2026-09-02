@@ -7,6 +7,6 @@ import { DriverController } from './presentation/http/driver.controller';
 @Module({
   controllers: [DriverController],
   providers: [DriverRepository, DriverService, DriverReviewService],
-  exports: [DriverService, DriverReviewService],
+  exports: [DriverService, DriverReviewService, DriverRepository],
 })
 export class DriversModule {}

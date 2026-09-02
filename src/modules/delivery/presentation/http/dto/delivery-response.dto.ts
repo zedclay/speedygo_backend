@@ -76,9 +76,10 @@ export class CustomerDeliveryResponseDto {
   @ApiProperty({
     nullable: true,
     type: String,
-    description: 'Always null in Delivery Foundation v1.0. No Driver assigned.',
+    description:
+      'Accepted DriverProfile.id when Delivery is DRIVER_ASSIGNED. Null before acceptance. No Driver documents or contact.',
   })
-  assignedDriverId!: null;
+  assignedDriverId!: string | null;
 
   @ApiProperty({
     nullable: true,
@@ -142,8 +143,13 @@ export class MerchantDeliveryResponseDto {
   @ApiProperty()
   fulfillmentStatus!: string;
 
-  @ApiProperty({ nullable: true, type: String })
-  assignedDriverId!: null;
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description:
+      'Accepted DriverProfile.id when Delivery is DRIVER_ASSIGNED. Null before acceptance.',
+  })
+  assignedDriverId!: string | null;
 
   @ApiProperty({
     nullable: true,
