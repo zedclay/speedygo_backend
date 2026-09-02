@@ -43,4 +43,27 @@ export default () => ({
     redisKeyPrefix: process.env.MATCHING_REDIS_PREFIX ?? 'matching:',
     bullPrefix: process.env.MATCHING_BULL_PREFIX ?? 'bull:matching',
   },
+  tracking: {
+    locationTtlMs: int(process.env.TRACKING_LOCATION_TTL_MS, 600_000),
+    authRevalidationIntervalMs: int(
+      process.env.TRACKING_AUTH_REVALIDATION_INTERVAL_MS,
+      15_000,
+    ),
+    staleCleanupIntervalMs: int(
+      process.env.TRACKING_STALE_CLEANUP_INTERVAL_MS,
+      30_000,
+    ),
+    staleCleanupMaxAgeMs: int(
+      process.env.TRACKING_STALE_CLEANUP_MAX_AGE_MS,
+      300_000,
+    ),
+    staleCleanupBatchSize: int(
+      process.env.TRACKING_STALE_CLEANUP_BATCH_SIZE,
+      100,
+    ),
+    minUpdateIntervalMs: int(process.env.TRACKING_MIN_UPDATE_INTERVAL_MS, 1000),
+    redisKeyPrefix: process.env.TRACKING_REDIS_PREFIX ?? 'tracking:',
+    socketAdapterPrefix:
+      process.env.TRACKING_SOCKET_ADAPTER_PREFIX ?? 'socket.io:tracking',
+  },
 });
