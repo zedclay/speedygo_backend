@@ -302,6 +302,49 @@ describe('TrackingService', () => {
     expect(snapshot.driverAssigned).toBe(true);
   });
 
+  it('still broadcasts while Delivery is TO_PICKUP on an accepted assignment', async () => {
+    drivers.findOpenAcceptedAssignment.mockResolvedValue({
+      id: 'asg-1',
+      deliveryId: DELIVERY_ID,
+      status: 'ACCEPTED',
+    });
+    deliveryRows.findDeliveryById.mockResolvedValue({
+      id: DELIVERY_ID,
+      orderId: ORDER_ID,
+      status: 'TO_PICKUP',
+    });
+    const result = await service.publishDriverLocation(ACCOUNT, {
+      latitude: 36.75,
+      longitude: 3.05,
+    });
+    expect(result.broadcast).toBe(true);
+    expect(result.deliveryId).toBe(DELIVERY_ID);
+  });
+
+  it('stops broadcast after the accepted assignment is released', async () => {
+    drivers.findOpenAcceptedAssignment.mockResolvedValue(null);
+    const result = await service.publishDriverLocation(ACCOUNT, {
+      latitude: 36.75,
+      longitude: 3.05,
+    });
+    expect(result.broadcast).toBe(false);
+    expect(result.deliveryId).toBeNull();
+  });
+
+  it('returns NO_DRIVER after Delivery is DELIVERED and assignment is gone', async () => {
+    deliveries.getCustomerDelivery.mockResolvedValue({
+      id: DELIVERY_ID,
+      orderId: ORDER_ID,
+      status: 'DELIVERED',
+      assignedDriverId: null,
+    });
+    drivers.findOpenAcceptedAssignment.mockResolvedValue(null);
+    const snapshot = await service.snapshotForCustomer(ACCOUNT, ORDER_ID);
+    expect(snapshot.status).toBe('NO_DRIVER');
+    expect(snapshot.driverAssigned).toBe(false);
+    expect(snapshot.location).toBeNull();
+  });
+
   it('authorizes Merchant ORDER_READ snapshots as LIVE', async () => {
     deliveries.getMerchantDelivery.mockResolvedValue({
       id: DELIVERY_ID,
