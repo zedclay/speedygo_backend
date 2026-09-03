@@ -19,6 +19,7 @@ import {
 import { OTP_SENDER } from '../src/modules/auth/domain/ports/otp-sender.port';
 import { TestOtpSender } from '../src/modules/auth/infrastructure/otp/test-otp.sender';
 import { DriverReviewService } from '../src/modules/drivers/application/driver-review.service';
+import { CodFoundationService } from '../src/modules/cod/application/cod-foundation.service';
 import { MatchingService } from '../src/modules/matching/application/matching.service';
 import { MATCHING_QUEUE_NAME } from '../src/modules/matching/domain/matching.jobs';
 import { MatchingProcessor } from '../src/modules/matching/infrastructure/matching.processor';
@@ -79,6 +80,7 @@ describe('Driver Delivery Workflow (e2e)', () => {
   let review: DriverReviewService;
   let locations: DriverLocationStore;
   let queue: Queue;
+  let cod: CodFoundationService;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -94,6 +96,7 @@ describe('Driver Delivery Workflow (e2e)', () => {
     review = app.get(DriverReviewService);
     locations = app.get(DRIVER_LOCATION_STORE);
     queue = app.get<Queue>(getQueueToken(MATCHING_QUEUE_NAME));
+    cod = app.get(CodFoundationService);
     await queue.obliterate({ force: true });
     for (const pattern of [
       'auth:test:*',
@@ -193,6 +196,38 @@ describe('Driver Delivery Workflow (e2e)', () => {
       .orm.public.DriverProfile.where({ accountId: account.id })
       .first();
     if (driver) {
+      const remittances = await prisma
+        .getDb()
+        .orm.public.CodRemittance.where({ driverId: driver.id })
+        .all();
+      for (const remittance of remittances) {
+        const discrepancy = await prisma
+          .getDb()
+          .orm.public.CodDiscrepancy.where({ remittanceId: remittance.id })
+          .first();
+        if (discrepancy) {
+          await prisma
+            .getDb()
+            .orm.public.CodDiscrepancy.where({ id: discrepancy.id })
+            .delete();
+        }
+        const allocations = await prisma
+          .getDb()
+          .orm.public.CodRemittanceAllocation.where({
+            remittanceId: remittance.id,
+          })
+          .all();
+        for (const allocation of allocations) {
+          await prisma
+            .getDb()
+            .orm.public.CodRemittanceAllocation.where({ id: allocation.id })
+            .delete();
+        }
+        await prisma
+          .getDb()
+          .orm.public.CodRemittance.where({ id: remittance.id })
+          .delete();
+      }
       const collections = await prisma
         .getDb()
         .orm.public.CodCollection.where({ driverId: driver.id })
@@ -313,6 +348,16 @@ describe('Driver Delivery Workflow (e2e)', () => {
           .orm.public.CodCollection.where({ orderId: order.id })
           .all();
         for (const row of collections) {
+          const allocs = await prisma
+            .getDb()
+            .orm.public.CodRemittanceAllocation.where({ collectionId: row.id })
+            .all();
+          for (const allocation of allocs) {
+            await prisma
+              .getDb()
+              .orm.public.CodRemittanceAllocation.where({ id: allocation.id })
+              .delete();
+          }
           await prisma
             .getDb()
             .orm.public.CodCollection.where({ id: row.id })
@@ -489,11 +534,12 @@ describe('Driver Delivery Workflow (e2e)', () => {
   }
 
   async function countFinancials(orderId: string, deliveryId: string) {
-    const [cod, earnings, txs, proofs] = await Promise.all([
+    const [cod, earnings, txs, proofs, settlements] = await Promise.all([
       prisma.getDb().orm.public.CodCollection.where({ orderId }).all(),
       prisma.getDb().orm.public.DriverEarning.where({ deliveryId }).all(),
       prisma.getDb().orm.public.Payment.where({ orderId }).all(),
       prisma.getDb().orm.public.DeliveryProof.where({ deliveryId }).all(),
+      prisma.getDb().orm.public.MerchantSettlementLine.where({ orderId }).all(),
     ]);
     const paymentIds = txs.map((row) => row.id);
     const transactions =
@@ -514,6 +560,7 @@ describe('Driver Delivery Workflow (e2e)', () => {
       earnings: earnings.length,
       transactions: transactions.length,
       proofs: proofs.length,
+      settlements: settlements.length,
     };
   }
 
@@ -955,6 +1002,171 @@ describe('Driver Delivery Workflow (e2e)', () => {
         events.every((event) => !event.driverId || event.driverId === driverA),
       ).toBe(true);
 
+      const payment = await prisma
+        .getDb()
+        .orm.public.Payment.where({ orderId: codOrder })
+        .first();
+      expect(payment).not.toBeNull();
+      const collectedMinor = Number(payment!.amountMinor);
+      const under = await request(server)
+        .post('/api/v1/driver/deliveries/current/collect-cod')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ collectedAmountMinor: collectedMinor - 1 });
+      expect(under.status).toBe(409);
+      const over = await request(server)
+        .post('/api/v1/driver/deliveries/current/collect-cod')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ collectedAmountMinor: collectedMinor + 1 });
+      expect(over.status).toBe(409);
+      expect(
+        (
+          await prisma
+            .getDb()
+            .orm.public.Payment.where({ orderId: codOrder })
+            .first()
+        )?.status,
+      ).toBe('PENDING');
+      const [firstCollect, secondCollect] = await Promise.all([
+        request(server)
+          .post('/api/v1/driver/deliveries/current/collect-cod')
+          .set('Authorization', `Bearer ${tokenA}`)
+          .send({ collectedAmountMinor: collectedMinor }),
+        request(server)
+          .post('/api/v1/driver/deliveries/current/collect-cod')
+          .set('Authorization', `Bearer ${tokenA}`)
+          .send({ collectedAmountMinor: collectedMinor }),
+      ]);
+      expect(firstCollect.status).toBe(200);
+      expect(secondCollect.status).toBe(200);
+      const replay = await request(server)
+        .post('/api/v1/driver/deliveries/current/collect-cod')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ collectedAmountMinor: collectedMinor });
+      expect(replay.status).toBe(200);
+      expect(
+        (
+          await prisma
+            .getDb()
+            .orm.public.CodCollection.where({ orderId: codOrder })
+            .all()
+        ).length,
+      ).toBe(1);
+      const stillArrivedAfterCollect = await prisma
+        .getDb()
+        .orm.public.Delivery.where({ id: deliveryId })
+        .first();
+      expect(stillArrivedAfterCollect?.status).toBe('ARRIVED_CUSTOMER');
+
+      const completed = await request(server)
+        .post('/api/v1/driver/deliveries/current/complete-delivery')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({});
+      expect(completed.status).toBe(200);
+
+      const afterCompleteDelivery = await prisma
+        .getDb()
+        .orm.public.Delivery.where({ id: deliveryId })
+        .first();
+      expect(afterCompleteDelivery?.status).toBe('DELIVERED');
+
+      const afterCompleteOrder = await prisma
+        .getDb()
+        .orm.public.Order.where({ id: codOrder })
+        .first();
+      expect(afterCompleteOrder?.status).toBe('COMPLETED');
+      expect(afterCompleteOrder?.fulfillmentStatus).toBe('READY');
+      const collectedRow = await prisma
+        .getDb()
+        .orm.public.CodCollection.where({ orderId: codOrder })
+        .first();
+      expect(collectedRow?.collectedAt).toBeTruthy();
+      expect(afterCompleteDelivery?.deliveredAt).toBeTruthy();
+
+      const paymentAfter = await prisma
+        .getDb()
+        .orm.public.Payment.where({ orderId: codOrder })
+        .first();
+      expect(paymentAfter?.status).toBe('SUCCEEDED');
+
+      const financialsAfter = await countFinancials(codOrder, deliveryId);
+      expect(financialsAfter.cod).toBe(1);
+      expect(financialsAfter.earnings).toBe(0);
+      expect(financialsAfter.transactions).toBe(0);
+      expect(financialsAfter.proofs).toBe(0);
+      expect(financialsAfter.settlements).toBe(0);
+
+      const afterEvents = await prisma
+        .getDb()
+        .orm.public.DeliveryEvent.where({ deliveryId })
+        .all();
+      expect(afterEvents.map((e) => e.type)).toContain('DELIVERY_COMPLETED');
+      const afterAssignment = await prisma
+        .getDb()
+        .orm.public.DriverAssignment.where({ deliveryId })
+        .first();
+      expect(afterAssignment?.status).toBe('RELEASED');
+
+      const summary = await request(server)
+        .get('/api/v1/driver/cod/summary')
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(summary.status).toBe(200);
+      expect(
+        (summary.body as { outstandingCustodyMinor: number })
+          .outstandingCustodyMinor,
+      ).toBe(collectedMinor);
+      const declared = await request(server)
+        .post('/api/v1/driver/cod/remittances')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ submittedAmountMinor: 500 });
+      expect(declared.status).toBe(200);
+      expect((declared.body as { status: string }).status).toBe('DECLARED');
+      const afterDeclare = await request(server)
+        .get('/api/v1/driver/cod/summary')
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(
+        (afterDeclare.body as { outstandingCustodyMinor: number })
+          .outstandingCustodyMinor,
+      ).toBe(collectedMinor);
+      const confirmed = await cod.confirmCodRemittance(
+        (declared.body as { remittanceId: string }).remittanceId,
+        400,
+      );
+      expect(confirmed.status).toBe('CONFIRMED');
+      expect(
+        (
+          await prisma
+            .getDb()
+            .orm.public.CodDiscrepancy.where({
+              remittanceId: (declared.body as { remittanceId: string })
+                .remittanceId,
+            })
+            .all()
+        ).length,
+      ).toBe(1);
+      const afterConfirm = await request(server)
+        .get('/api/v1/driver/cod/summary')
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(
+        (afterConfirm.body as { outstandingCustodyMinor: number })
+          .outstandingCustodyMinor,
+      ).toBe(collectedMinor - 400);
+      expect(
+        (
+          await prisma
+            .getDb()
+            .orm.public.Payment.where({ orderId: codOrder })
+            .first()
+        )?.status,
+      ).toBe('SUCCEEDED');
+      expect(
+        (
+          await prisma
+            .getDb()
+            .orm.public.Delivery.where({ id: deliveryId })
+            .first()
+        )?.status,
+      ).toBe('DELIVERED');
+
       const electronicOrder = await addReadyOrder('ELECTRONIC');
       await locations.upsert(
         driverA,
@@ -973,8 +1185,8 @@ describe('Driver Delivery Workflow (e2e)', () => {
         .getDb()
         .orm.public.DriverAssignment.where({ deliveryId })
         .first();
-      expect(assignmentStillOpen?.status).toBe('ACCEPTED');
-      expect(assignmentStillOpen?.releasedAt).toBeNull();
+      expect(assignmentStillOpen?.status).toBe('RELEASED');
+      expect(assignmentStillOpen?.releasedAt).not.toBeNull();
     } finally {
       if (e164[0]) {
         await cleanupByPhone(e164[0]);
@@ -1400,6 +1612,14 @@ describe('Driver Delivery Workflow (e2e)', () => {
           .send({});
         expect(step.status).toBe(200);
       }
+      const electronicCollect = await request(server)
+        .post('/api/v1/driver/deliveries/current/collect-cod')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ collectedAmountMinor: 1700 });
+      expect(electronicCollect.status).toBe(409);
+      expect((electronicCollect.body as ErrorBody).error.code).toBe(
+        'DRIVER_COD_COLLECTION_METHOD_NOT_COD',
+      );
       const finished = await request(server)
         .post('/api/v1/driver/deliveries/current/complete-delivery')
         .set('Authorization', `Bearer ${tokenA}`)

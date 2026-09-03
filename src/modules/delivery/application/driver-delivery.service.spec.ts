@@ -26,6 +26,7 @@ describe('DriverDeliveryService', () => {
     lockDelivery: jest.Mock;
     lockOrder: jest.Mock;
     lockPayment: jest.Mock;
+    findSnapshotCustomerPayable: jest.Mock;
     transitionIfStatus: jest.Mock;
     releaseAcceptedAssignment: jest.Mock;
     completeActiveOrder: jest.Mock;
@@ -39,6 +40,7 @@ describe('DriverDeliveryService', () => {
     findAvailability: jest.Mock;
     setAvailabilityStatus: jest.Mock;
   };
+  let codCollections: { findByOrderId: jest.Mock };
   let locations: { get: jest.Mock };
   let config: { get: jest.Mock };
   let service: DriverDeliveryService;
@@ -64,6 +66,11 @@ describe('DriverDeliveryService', () => {
       lockPayment: jest.fn().mockResolvedValue({
         method: 'ELECTRONIC',
         status: 'SUCCEEDED',
+        amountMinor: 1700,
+      }),
+      findSnapshotCustomerPayable: jest.fn().mockResolvedValue({
+        customerPayableMinor: 1700,
+        currency: 'DZD',
       }),
       transitionIfStatus: jest.fn().mockResolvedValue(true),
       releaseAcceptedAssignment: jest.fn().mockResolvedValue(true),
@@ -102,6 +109,9 @@ describe('DriverDeliveryService', () => {
       findAvailability: jest.fn().mockResolvedValue({ status: 'ONLINE' }),
       setAvailabilityStatus: jest.fn().mockResolvedValue({ status: 'OFFLINE' }),
     };
+    codCollections = {
+      findByOrderId: jest.fn().mockResolvedValue(null),
+    };
     locations = {
       get: jest.fn().mockResolvedValue(freshNear(PICKUP)),
     };
@@ -124,6 +134,7 @@ describe('DriverDeliveryService', () => {
       drivers as never,
       locations as never,
       config as never,
+      codCollections as never,
     );
   });
 
@@ -296,6 +307,7 @@ describe('DriverDeliveryService', () => {
     deliveries.lockPayment.mockResolvedValue({
       method: 'COD',
       status: 'PENDING',
+      amountMinor: 1700,
     });
     await expect(
       service.performAction(ACCOUNT, 'complete-delivery'),
@@ -305,6 +317,64 @@ describe('DriverDeliveryService', () => {
     expect(deliveries.transitionIfStatus).not.toHaveBeenCalled();
     expect(deliveries.releaseAcceptedAssignment).not.toHaveBeenCalled();
     expect(deliveries.completeActiveOrder).not.toHaveBeenCalled();
+  });
+
+  it('completes COD delivery after authoritative COLLECTED collection', async () => {
+    deliveryStatus = 'ARRIVED_CUSTOMER';
+    deliveries.lockPayment.mockResolvedValue({
+      method: 'COD',
+      status: 'SUCCEEDED',
+      amountMinor: 1700,
+    });
+    codCollections.findByOrderId.mockResolvedValue({
+      id: 'cod-1',
+      orderId: ORDER_ID,
+      driverId: DRIVER_ID,
+      expectedAmountMinor: 1700,
+      collectedAmountMinor: 1700,
+      collectedAt: 't',
+      status: 'COLLECTED',
+    });
+    deliveries.findDeliveryDetail.mockResolvedValue({
+      id: DELIVERY_ID,
+      status: 'DELIVERED',
+      orderStatus: 'COMPLETED',
+      fulfillmentStatus: 'READY',
+      pickedUpAt: 't1',
+      arrivedCustomerAt: 't2',
+      deliveredAt: 't3',
+    });
+    const view = await service.performAction(ACCOUNT, 'complete-delivery');
+    expect(view.assignmentStatus).toBe('RELEASED');
+    expect(deliveries.completeActiveOrder).toHaveBeenCalled();
+  });
+
+  it('blocks COD completion when collection amount does not match snapshot', async () => {
+    deliveryStatus = 'ARRIVED_CUSTOMER';
+    deliveries.lockPayment.mockResolvedValue({
+      method: 'COD',
+      status: 'SUCCEEDED',
+      amountMinor: 1700,
+    });
+    deliveries.findSnapshotCustomerPayable.mockResolvedValue({
+      customerPayableMinor: 1800,
+      currency: 'DZD',
+    });
+    codCollections.findByOrderId.mockResolvedValue({
+      id: 'cod-1',
+      orderId: ORDER_ID,
+      driverId: DRIVER_ID,
+      expectedAmountMinor: 1700,
+      collectedAmountMinor: 1700,
+      collectedAt: 't',
+      status: 'COLLECTED',
+    });
+    await expect(
+      service.performAction(ACCOUNT, 'complete-delivery'),
+    ).rejects.toMatchObject({
+      code: DRIVER_DELIVERY_ERROR_CODES.DRIVER_DELIVERY_COD_COMPLETION_NOT_READY,
+    });
+    expect(deliveries.transitionIfStatus).not.toHaveBeenCalled();
   });
 
   it('completes ELECTRONIC delivery without DeliveryProof and keeps ONLINE', async () => {
