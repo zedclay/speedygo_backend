@@ -110,7 +110,7 @@ export class DriverDeliveryController {
   @ApiOperation({
     summary: 'ARRIVED_CUSTOMER → DELIVERED when completion is eligible',
     description:
-      'COD is blocked until COD Foundation. ELECTRONIC requires a current SUCCEEDED Payment. Proofless MVP: no DeliveryProof row. No CodCollection, DriverEarning, or Payment mutation. Releases the assignment. Fulfillment stays READY. No second GPS gate.',
+      'COD requires Payment SUCCEEDED plus CodCollection COLLECTED (exact amount match). ELECTRONIC requires SUCCEEDED Payment. Proofless MVP: no DeliveryProof. No DriverEarning. Releases the assignment. Fulfillment stays READY.',
   })
   @ApiOkResponse({ type: DriverCurrentDeliveryResponseDto })
   completeDelivery(@CurrentPrincipal() principal: AuthenticatedPrincipal) {

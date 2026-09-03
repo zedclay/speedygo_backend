@@ -2,6 +2,11 @@ import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { pgNow } from '../../../infrastructure/database/pg-values';
 import { DriverRepository } from '../../drivers/infrastructure/driver.repository';
+import { CodCollectionRepository } from '../../cod/infrastructure/cod-collection.repository';
+import {
+  COD_COLLECTION_STATUS_COLLECTED,
+  COD_CURRENCY_DZD,
+} from '../../cod/domain/cod.policy';
 import {
   DRIVER_AVAILABILITY_OFFLINE,
   DRIVER_AVAILABILITY_OFFLINE_AFTER_CURRENT_DELIVERY,
@@ -65,6 +70,7 @@ export class DriverDeliveryService {
     @Inject(DRIVER_LOCATION_STORE)
     private readonly locations: DriverLocationStore,
     private readonly config: ConfigService,
+    private readonly codCollections: CodCollectionRepository,
   ) {}
 
   async getCurrent(
@@ -192,9 +198,28 @@ export class DriverDeliveryService {
         throw driverDeliveryPaymentNotReady();
       }
       if (payment.method === ORDER_PAYMENT_METHOD_COD) {
-        throw driverDeliveryCodCompletionNotReady();
-      }
-      if (
+        const collection = await this.codCollections.findByOrderId(
+          context.orderId,
+          tx,
+        );
+        const snapshot = await this.deliveries.findSnapshotCustomerPayable(
+          context.orderId,
+          tx,
+        );
+        if (
+          !collection ||
+          !snapshot ||
+          snapshot.currency !== COD_CURRENCY_DZD ||
+          collection.status !== COD_COLLECTION_STATUS_COLLECTED ||
+          payment.status !== PAYMENT_STATUS_SUCCEEDED ||
+          collection.driverId !== context.driverId ||
+          collection.collectedAmountMinor !== collection.expectedAmountMinor ||
+          collection.collectedAmountMinor !== payment.amountMinor ||
+          collection.collectedAmountMinor !== snapshot.customerPayableMinor
+        ) {
+          throw driverDeliveryCodCompletionNotReady();
+        }
+      } else if (
         payment.method !== ORDER_PAYMENT_METHOD_ELECTRONIC ||
         payment.status !== PAYMENT_STATUS_SUCCEEDED
       ) {

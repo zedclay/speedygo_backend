@@ -118,7 +118,7 @@ export class DeliveryRepository {
   async lockPayment(
     orderId: string,
     client: OrmClient,
-  ): Promise<{ method: string; status: string } | null> {
+  ): Promise<{ method: string; status: string; amountMinor: number } | null> {
     await orm(client).Payment.where({ orderId }).update({
       updatedAt: pgNow(),
     });
@@ -126,7 +126,27 @@ export class DeliveryRepository {
     if (!row) {
       return null;
     }
-    return { method: row.method, status: row.status };
+    return {
+      method: row.method,
+      status: row.status,
+      amountMinor: parseMinorUnits(row.amountMinor),
+    };
+  }
+
+  async findSnapshotCustomerPayable(
+    orderId: string,
+    client: OrmClient,
+  ): Promise<{ customerPayableMinor: number; currency: string } | null> {
+    const row = await orm(client)
+      .OrderFinancialSnapshot.where({ orderId })
+      .first();
+    if (!row) {
+      return null;
+    }
+    return {
+      customerPayableMinor: parseMinorUnits(row.customerPayableMinor),
+      currency: row.currency,
+    };
   }
 
   async findAddressSnapshot(

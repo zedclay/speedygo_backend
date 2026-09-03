@@ -22,6 +22,7 @@ import { IdentityModule } from './modules/identity/identity.module';
 import { MerchantsModule } from './modules/merchants/merchants.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { CodModule } from './modules/cod/cod.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
     DriversModule,
     MatchingModule,
     TrackingModule,
+    CodModule,
   ],
   controllers: [AppController],
   providers: [AppService],
