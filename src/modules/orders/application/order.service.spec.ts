@@ -10,7 +10,6 @@ import { OrderService } from './order.service';
 import { ORDER_ERROR_CODES } from '../domain/order.errors';
 import type {
   OrderAddressRecord,
-  OrderCommissionRuleRecord,
   OrderDetailView,
   PersistCreatedOrderInput,
 } from '../domain/order.types';
@@ -115,21 +114,6 @@ function pricing(
   };
 }
 
-function commission(
-  overrides: Partial<OrderCommissionRuleRecord> = {},
-): OrderCommissionRuleRecord {
-  return {
-    id: 'comm-1',
-    scope: 'GLOBAL_DEFAULT',
-    merchantId: null,
-    rateBps: 700,
-    effectiveFrom: '2020-01-01T00:00:00.000Z',
-    effectiveTo: null,
-    active: true,
-    ...overrides,
-  };
-}
-
 function expectCode(error: unknown, code: string): void {
   expect((error as { code: string }).code).toBe(code);
 }
@@ -170,7 +154,6 @@ describe('OrderService.createOrder', () => {
     lockProductOption: jest.Mock;
     findCoveringZones: jest.Mock;
     listActivePricingRules: jest.Mock;
-    listActiveCommissionRules: jest.Mock;
     persistCreatedOrder: jest.Mock;
     listOwnedOrders: jest.Mock;
     findOwnedOrderDetail: jest.Mock;
@@ -245,7 +228,6 @@ describe('OrderService.createOrder', () => {
         .fn()
         .mockResolvedValue([{ id: 'zone-1', name: 'Algiers' }]),
       listActivePricingRules: jest.fn().mockResolvedValue([pricing()]),
-      listActiveCommissionRules: jest.fn().mockResolvedValue([commission()]),
       persistCreatedOrder: jest
         .fn()
         .mockImplementation((input: PersistCreatedOrderInput) => {
@@ -259,9 +241,23 @@ describe('OrderService.createOrder', () => {
           persisted ? detailFromPersist(persisted) : null,
         ),
     };
-    service = new OrderService(carts as never, orders as never, {
-      now: () => instant,
-    });
+    const commission = {
+      readCommissionDecisionAt: jest.fn().mockResolvedValue(instant),
+      resolveApplicable: jest.fn().mockResolvedValue({
+        ruleId: 'comm-global',
+        scope: 'GLOBAL_DEFAULT',
+        merchantId: null,
+        rateBps: 700,
+      }),
+    };
+    service = new OrderService(
+      carts as never,
+      orders as never,
+      commission as never,
+      {
+        now: () => instant,
+      },
+    );
   });
 
   it('creates an Order from live Catalog prices and converts the Cart', async () => {
@@ -716,9 +712,17 @@ describe('OrderService reads', () => {
         },
       }),
     };
-    service = new OrderService(carts as never, orders as never, {
-      now: () => new Date(),
-    });
+    service = new OrderService(
+      carts as never,
+      orders as never,
+      {
+        readCommissionDecisionAt: jest.fn(),
+        resolveApplicable: jest.fn(),
+      } as never,
+      {
+        now: () => new Date(),
+      },
+    );
   });
 
   it('lists only the authenticated Customer Orders, paginated newest-first by repository query', async () => {

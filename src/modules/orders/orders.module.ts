@@ -5,6 +5,7 @@ import {
   SystemCheckoutClock,
 } from '../checkout/domain/checkout.clock';
 import { MatchingModule } from '../matching/matching.module';
+import { MerchantCommissionsModule } from '../merchant-commissions/merchant-commissions.module';
 import { MerchantsModule } from '../merchants/merchants.module';
 import { MerchantOrderService } from './application/merchant-order.service';
 import { OrderService } from './application/order.service';
@@ -13,7 +14,12 @@ import { MerchantOrderController } from './presentation/http/merchant-order.cont
 import { OrderController } from './presentation/http/order.controller';
 
 @Module({
-  imports: [CartModule, MatchingModule, MerchantsModule],
+  imports: [
+    CartModule,
+    MatchingModule,
+    MerchantsModule,
+    MerchantCommissionsModule,
+  ],
   controllers: [OrderController, MerchantOrderController],
   providers: [
     OrderRepository,

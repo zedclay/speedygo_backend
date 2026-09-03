@@ -44,7 +44,6 @@ import type {
   MerchantOrderStatusEventView,
   MerchantOrderSummaryView,
   OrderAddressRecord,
-  OrderCommissionRuleRecord,
   OrderDetailView,
   OrderItemView,
   OrderListQuery,
@@ -158,36 +157,6 @@ export class OrderRepository {
       endLocalTime: row.endLocalTime,
       customerDeliveryFeeMinor: parseMinorUnits(row.customerDeliveryFeeMinor),
       driverRemunerationMinor: parseMinorUnits(row.driverRemunerationMinor),
-      effectiveFrom: row.effectiveFrom,
-      effectiveTo: row.effectiveTo,
-      active: row.active,
-    }));
-  }
-
-  async listActiveCommissionRules(
-    merchantId: string,
-    client: OrmClient,
-  ): Promise<OrderCommissionRuleRecord[]> {
-    const [overrides, globals] = await Promise.all([
-      orm(client)
-        .MerchantCommissionRule.where({
-          merchantId,
-          active: true,
-          scope: 'MERCHANT_OVERRIDE',
-        })
-        .all(),
-      orm(client)
-        .MerchantCommissionRule.where({
-          active: true,
-          scope: 'GLOBAL_DEFAULT',
-        })
-        .all(),
-    ]);
-    return [...overrides, ...globals].map((row) => ({
-      id: row.id,
-      scope: row.scope,
-      merchantId: row.merchantId,
-      rateBps: row.rateBps,
       effectiveFrom: row.effectiveFrom,
       effectiveTo: row.effectiveTo,
       active: row.active,
