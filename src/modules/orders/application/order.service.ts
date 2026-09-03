@@ -10,6 +10,8 @@ import {
 } from '../../checkout/domain/checkout.clock';
 import { customerProfileNotFound } from '../../customers/domain/customer.errors';
 import { hasValidCoordinates } from '../../customers/domain/customer.types';
+import { MerchantCommissionService } from '../../merchant-commissions/application/merchant-commission.service';
+import { MerchantCommissionError } from '../../merchant-commissions/domain/merchant-commission.errors';
 import {
   isBranchOperationallyActive,
   isMerchantApproved,
@@ -24,6 +26,7 @@ import {
   orderCartNotReady,
   orderCartRequired,
   orderDeliveryZoneAmbiguous,
+  orderFinancialConfigurationInvalid,
   orderMerchantNotOperational,
   orderNotFound,
 } from '../domain/order.errors';
@@ -36,7 +39,6 @@ import {
   priceOrderLine,
   requireConfirmedAmountsMatch,
   requireCustomerConfirmedAmounts,
-  selectApplicableCommissionRule,
   selectOrderPricingRule,
   uniqueSortedIds,
 } from '../domain/order.policy';
@@ -53,6 +55,7 @@ export class OrderService {
   constructor(
     private readonly carts: CartRepository,
     private readonly orders: OrderRepository,
+    private readonly commission: MerchantCommissionService,
     @Inject(CHECKOUT_CLOCK) private readonly clock: CheckoutClock,
   ) {}
 
@@ -179,23 +182,33 @@ export class OrderService {
         throw orderDeliveryZoneAmbiguous();
       }
       const zone = zones[0];
-      const instant = this.clock.now();
+      const pricingInstant = this.clock.now();
       const pricingRule = selectOrderPricingRule(
         await this.orders.listActivePricingRules(zone.id, tx),
-        instant,
+        pricingInstant,
       );
-      const commissionRule = selectApplicableCommissionRule(
-        await this.orders.listActiveCommissionRules(first.merchantId, tx),
-        first.merchantId,
-        instant,
-      );
+      let commissionRule;
+      try {
+        const commissionDecisionAt =
+          await this.commission.readCommissionDecisionAt(tx);
+        commissionRule = await this.commission.resolveApplicable(
+          first.merchantId,
+          commissionDecisionAt,
+          tx,
+        );
+      } catch (error) {
+        if (error instanceof MerchantCommissionError) {
+          throw orderFinancialConfigurationInvalid(error.message);
+        }
+        throw error;
+      }
 
       const financial = buildOrderFinancialSnapshot({
         grossMerchandiseSubtotalMinor: merchandiseSubtotalMinor(lines),
         customerDeliveryFeeMinor: pricingRule.customerDeliveryFeeMinor,
         driverRemunerationMinor: pricingRule.driverRemunerationMinor,
         merchantCommissionRateBps: commissionRule.rateBps,
-        commissionRuleId: commissionRule.id,
+        commissionRuleId: commissionRule.ruleId,
         pricingRuleId: pricingRule.id,
       });
 

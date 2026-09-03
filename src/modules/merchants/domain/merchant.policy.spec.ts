@@ -114,6 +114,24 @@ describe('Merchant policy', () => {
         MERCHANT_CAPABILITIES.ORDER_WORKFLOW_MUTATE,
       ),
     ).toBe(false);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_OWNER,
+        MERCHANT_CAPABILITIES.COMMISSION_READ,
+      ),
+    ).toBe(true);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_MANAGER,
+        MERCHANT_CAPABILITIES.COMMISSION_READ,
+      ),
+    ).toBe(true);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_STAFF,
+        MERCHANT_CAPABILITIES.COMMISSION_READ,
+      ),
+    ).toBe(false);
   });
 
   it('grants OWNER and MANAGER catalog mutation capabilities', () => {

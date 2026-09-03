@@ -11,11 +11,13 @@ import {
 } from '../../cart/domain/cart.policy';
 import type { CartProductSnapshot } from '../../cart/domain/cart.types';
 import { CHECKOUT_ERROR_CODES } from '../../checkout/domain/checkout.errors';
-import {
-  isRuleEffectiveAt,
-  selectApplicablePricingRules,
-} from '../../checkout/domain/checkout.policy';
+import { selectApplicablePricingRules } from '../../checkout/domain/checkout.policy';
 import type { CheckoutPricingRuleRecord } from '../../checkout/domain/checkout.types';
+import { MerchantCommissionError } from '../../merchant-commissions/domain/merchant-commission.errors';
+import {
+  calculateMerchantCommissionAmountMinor,
+  selectApplicableMerchantCommissionRule,
+} from '../../merchant-commissions/domain/merchant-commission.policy';
 import {
   orderCartNotReady,
   orderExpectedAmountsInvalid,
@@ -240,30 +242,21 @@ export function subtractMinorUnits(left: number, right: number): number {
 
 /**
  * Integer floor: (baseMinor * rateBps) / 10_000.
- * Example: 7% = 700 bps.
+ * Delegates to Merchant Commission Foundation. Order creation maps
+ * commission errors to ORDER_FINANCIAL_CONFIGURATION_INVALID.
  */
 export function commissionAmountMinor(
   baseMinor: number,
   rateBps: number,
 ): number {
-  if (
-    !Number.isInteger(baseMinor) ||
-    !Number.isInteger(rateBps) ||
-    baseMinor < 0 ||
-    rateBps < 0 ||
-    rateBps > 10_000
-  ) {
-    throw orderFinancialConfigurationInvalid(
-      'Commission rate or base is invalid',
-    );
+  try {
+    return calculateMerchantCommissionAmountMinor(baseMinor, rateBps);
+  } catch (error) {
+    if (error instanceof MerchantCommissionError) {
+      throw orderFinancialConfigurationInvalid(error.message);
+    }
+    throw error;
   }
-  const amount = (BigInt(baseMinor) * BigInt(rateBps)) / 10000n;
-  if (amount > BigInt(Number.MAX_SAFE_INTEGER)) {
-    throw orderFinancialConfigurationInvalid(
-      'Commission amount exceeds the safe integer range',
-    );
-  }
-  return Number(amount);
 }
 
 export function selectApplicableCommissionRule(
@@ -271,33 +264,25 @@ export function selectApplicableCommissionRule(
   merchantId: string,
   instant: Date,
 ): OrderCommissionRuleRecord {
-  const effective = rules.filter((rule) => isRuleEffectiveAt(rule, instant));
-  const overrides = effective.filter(
-    (rule) =>
-      rule.scope === 'MERCHANT_OVERRIDE' && rule.merchantId === merchantId,
-  );
-  if (overrides.length > 1) {
-    throw orderFinancialConfigurationInvalid(
-      'Multiple applicable merchant commission overrides',
+  try {
+    const selected = selectApplicableMerchantCommissionRule(
+      rules,
+      merchantId,
+      instant,
     );
+    const match = rules.find((rule) => rule.id === selected.ruleId);
+    if (!match) {
+      throw orderFinancialConfigurationInvalid(
+        'No applicable merchant commission rule',
+      );
+    }
+    return match;
+  } catch (error) {
+    if (error instanceof MerchantCommissionError) {
+      throw orderFinancialConfigurationInvalid(error.message);
+    }
+    throw error;
   }
-  if (overrides.length === 1) {
-    return overrides[0];
-  }
-  const globals = effective.filter(
-    (rule) => rule.scope === 'GLOBAL_DEFAULT' && rule.merchantId === null,
-  );
-  if (globals.length === 0) {
-    throw orderFinancialConfigurationInvalid(
-      'No applicable merchant commission rule',
-    );
-  }
-  if (globals.length > 1) {
-    throw orderFinancialConfigurationInvalid(
-      'Multiple applicable global commission defaults',
-    );
-  }
-  return globals[0];
 }
 
 export function selectOrderPricingRule(

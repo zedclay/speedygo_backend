@@ -65,7 +65,8 @@ export class MerchantAccessService {
     if (
       capability === MERCHANT_CAPABILITIES.MERCHANT_READ ||
       capability === MERCHANT_CAPABILITIES.CATALOG_READ ||
-      capability === MERCHANT_CAPABILITIES.ORDER_READ
+      capability === MERCHANT_CAPABILITIES.ORDER_READ ||
+      capability === MERCHANT_CAPABILITIES.COMMISSION_READ
     ) {
       return context;
     }

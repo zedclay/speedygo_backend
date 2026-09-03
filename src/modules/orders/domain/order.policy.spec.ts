@@ -324,6 +324,30 @@ describe('Order policy', () => {
     expect(financial.customerPayableMinor).toBe(1700);
   });
 
+  it('does not include Customer delivery fee in Merchant commission', () => {
+    const base = {
+      grossMerchandiseSubtotalMinor: 1200,
+      driverRemunerationMinor: 300,
+      merchantCommissionRateBps: 700,
+      commissionRuleId: 'comm-global',
+      pricingRuleId: 'rule-1',
+    };
+    const withLowerFee = buildOrderFinancialSnapshot({
+      ...base,
+      customerDeliveryFeeMinor: 500,
+    });
+    const withHigherFee = buildOrderFinancialSnapshot({
+      ...base,
+      customerDeliveryFeeMinor: 900,
+      driverRemunerationMinor: 300,
+    });
+    expect(withLowerFee.merchantCommissionAmountMinor).toBe(84);
+    expect(withHigherFee.merchantCommissionAmountMinor).toBe(84);
+    expect(withLowerFee.merchantNetAmountMinor).toBe(
+      withHigherFee.merchantNetAmountMinor,
+    );
+  });
+
   it('rejects a Delivery Fee lower than driver remuneration', () => {
     try {
       buildOrderFinancialSnapshot({
