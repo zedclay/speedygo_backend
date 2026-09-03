@@ -35,3 +35,9 @@ process.env.TRACKING_SOCKET_ADAPTER_PREFIX = 'socket.io:tracking:test';
 process.env.AUTH_DEFAULT_COUNTRY = 'DZ';
 process.env.OTP_MAX_REQUESTS_PER_IP_PER_HOUR = '1000';
 process.env.OTP_MAX_REQUESTS_PER_HOUR = '20';
+process.env.PAYMENT_PROVIDER = 'test';
+process.env.PAYMENT_TEST_WEBHOOK_SECRET =
+  process.env.PAYMENT_TEST_WEBHOOK_SECRET &&
+  process.env.PAYMENT_TEST_WEBHOOK_SECRET.length >= 16
+    ? process.env.PAYMENT_TEST_WEBHOOK_SECRET
+    : 'test-payment-webhook-secret';

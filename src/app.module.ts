@@ -21,6 +21,7 @@ import { TrackingModule } from './modules/tracking/tracking.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { MerchantsModule } from './modules/merchants/merchants.module';
 import { OrdersModule } from './modules/orders/orders.module';
+import { PaymentsModule } from './modules/payments/payments.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { OrdersModule } from './modules/orders/orders.module';
     CartModule,
     CheckoutModule,
     OrdersModule,
+    PaymentsModule,
     DeliveryModule,
     DriversModule,
     MatchingModule,

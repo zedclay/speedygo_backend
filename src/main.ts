@@ -7,7 +7,7 @@ import { configureApp } from './app.setup';
 import { attachRedisIoAdapter } from './infrastructure/realtime/redis-io.adapter';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   configureApp(app);
   attachRedisIoAdapter(app);
   const config = app.get(ConfigService);

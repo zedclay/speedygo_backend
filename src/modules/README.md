@@ -2,9 +2,9 @@
 
 Placeholder folders for the SpeedyGo modular monolith.
 
-`auth`, `identity`, and `authorization` contain the Authentication Foundation v1.0. `customers` contains the Customer Onboarding Foundation v1.0. `merchants` contains the Merchant Foundation v1.0. `catalog` contains the Catalog Foundation v1.0 (branch-owned categories, products, and options). `cart` contains the Cart Foundation v1.0 (Customer Active Cart). `checkout` contains Checkout Foundation v1.0 (live preview only; no Order creation). `orders` contains Order Foundation v1.0 (Customer Order creation and historical reads) and Merchant Order Workflow v1.0 (accept / reject / prepare / ready). `delivery` contains Delivery Foundation v1.0 (internal Delivery aggregate when Driver Matching starts; Customer/Merchant reads) and Driver Delivery Workflow v1.0 (explicit assigned-Driver logistics actions after Matching accept). `drivers` contains Driver Foundation & Onboarding v1.0. `matching` contains Driver Matching v1.0 (sequential offers, BullMQ orchestration/recovery, accept/reject/timeout). `tracking` contains Realtime Tracking Foundation v1.0 (authenticated location ingest, assignment-authorized Socket.IO rooms). Other folders remain empty until their approved domain tasks.
+`auth`, `identity`, and `authorization` contain the Authentication Foundation v1.0. `customers` contains the Customer Onboarding Foundation v1.0. `merchants` contains the Merchant Foundation v1.0. `catalog` contains the Catalog Foundation v1.0 (branch-owned categories, products, and options). `cart` contains the Cart Foundation v1.0 (Customer Active Cart). `checkout` contains Checkout Foundation v1.0 (live preview only; no Order creation). `orders` contains Order Foundation v1.0 (Customer Order creation and historical reads) and Merchant Order Workflow v1.0 (accept / reject / prepare / ready). `delivery` contains Delivery Foundation v1.0 (internal Delivery aggregate when Driver Matching starts; Customer/Merchant reads) and Driver Delivery Workflow v1.0 (explicit assigned-Driver logistics actions after Matching accept). `drivers` contains Driver Foundation & Onboarding v1.0. `matching` contains Driver Matching v1.0 (sequential offers, BullMQ orchestration/recovery, accept/reject/timeout). `tracking` contains Realtime Tracking Foundation v1.0 (authenticated location ingest, assignment-authorized Socket.IO rooms). `payments` contains Payments Foundation v1.0 **FINAL FREEZE** (Chargily Pay V2 production adapter, ELECTRONIC Payment execution, PaymentTransaction history, verified webhooks). Other folders remain empty until their approved domain tasks.
 
-Do not implement payment provider integration, COD collection, or Driver remuneration as part of Driver Delivery Workflow.
+Do not implement COD collection, Refund execution, or Driver remuneration as part of Payments Foundation.
 
 | Module | Responsibility |
 | --- | --- |
@@ -25,7 +25,7 @@ Do not implement payment provider integration, COD collection, or Driver remuner
 | `pricing` | Delivery pricing versions |
 | `merchant-commissions` | Commission configuration (future orders only) |
 | `driver-remuneration` | Driver pay (not COD cash) |
-| `payments` | Payment intents and status |
+| `payments` | ELECTRONIC Payment initiation, Chargily Pay V2 adapter, verified webhooks, PaymentTransaction history |
 | `cod` | Cash-on-delivery collection and reconciliation |
 | `refunds` | Refund lifecycle (not cancellation) |
 | `promotions` | Promotions and discounts |
