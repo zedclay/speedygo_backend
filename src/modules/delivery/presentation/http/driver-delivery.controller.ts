@@ -110,7 +110,7 @@ export class DriverDeliveryController {
   @ApiOperation({
     summary: 'ARRIVED_CUSTOMER → DELIVERED when completion is eligible',
     description:
-      'COD requires Payment SUCCEEDED plus CodCollection COLLECTED (exact amount match). ELECTRONIC requires SUCCEEDED Payment. Proofless MVP: no DeliveryProof. No DriverEarning. Releases the assignment. Fulfillment stays READY.',
+      'COD requires Payment SUCCEEDED plus CodCollection COLLECTED (exact amount match). ELECTRONIC requires SUCCEEDED Payment. Proofless MVP: no DeliveryProof. Creates exactly one DriverEarning (EARNED, unpaid) from OrderFinancialSnapshot.driverRemunerationMinor. Releases the assignment. Fulfillment stays READY.',
   })
   @ApiOkResponse({ type: DriverCurrentDeliveryResponseDto })
   completeDelivery(@CurrentPrincipal() principal: AuthenticatedPrincipal) {

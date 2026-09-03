@@ -47,6 +47,7 @@ import {
   type DriverDeliveryAction,
 } from '../domain/driver-delivery.policy';
 import { DeliveryRepository } from '../infrastructure/delivery.repository';
+import { DriverRemunerationService } from '../../driver-remuneration/application/driver-remuneration.service';
 
 export type DriverCurrentDeliveryView = {
   assignmentId: string;
@@ -71,6 +72,7 @@ export class DriverDeliveryService {
     private readonly locations: DriverLocationStore,
     private readonly config: ConfigService,
     private readonly codCollections: CodCollectionRepository,
+    private readonly remuneration: DriverRemunerationService,
   ) {}
 
   async getCurrent(
@@ -258,6 +260,15 @@ export class DriverDeliveryService {
       if (!completed) {
         throw driverDeliveryInvalidState();
       }
+      await this.remuneration.createForCompletedDelivery(
+        {
+          deliveryId: context.deliveryId,
+          orderId: context.orderId,
+          driverId: context.driverId,
+          occurredAt: now,
+        },
+        tx,
+      );
       const availability = await this.drivers.findAvailability(
         context.driverId,
         tx,

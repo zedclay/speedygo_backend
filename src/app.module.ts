@@ -21,6 +21,7 @@ import { TrackingModule } from './modules/tracking/tracking.module';
 import { IdentityModule } from './modules/identity/identity.module';
 import { MerchantsModule } from './modules/merchants/merchants.module';
 import { MerchantCommissionsModule } from './modules/merchant-commissions/merchant-commissions.module';
+import { DriverRemunerationModule } from './modules/driver-remuneration/driver-remuneration.module';
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { CodModule } from './modules/cod/cod.module';
@@ -46,6 +47,7 @@ import { CodModule } from './modules/cod/cod.module';
     CartModule,
     CheckoutModule,
     MerchantCommissionsModule,
+    DriverRemunerationModule,
     OrdersModule,
     PaymentsModule,
     DeliveryModule,
