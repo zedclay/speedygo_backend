@@ -43,6 +43,16 @@ export default () => ({
     redisKeyPrefix: process.env.MATCHING_REDIS_PREFIX ?? 'matching:',
     bullPrefix: process.env.MATCHING_BULL_PREFIX ?? 'bull:matching',
   },
+  payments: {
+    provider: process.env.PAYMENT_PROVIDER ?? '',
+    returnUrl: process.env.PAYMENT_RETURN_URL ?? '',
+    cancelUrl: process.env.PAYMENT_CANCEL_URL ?? '',
+    webhookUrl: process.env.PAYMENT_WEBHOOK_URL ?? '',
+    testWebhookSecret: process.env.PAYMENT_TEST_WEBHOOK_SECRET ?? '',
+    chargilySecretKey: process.env.CHARGILY_SECRET_KEY ?? '',
+    chargilyMode: process.env.CHARGILY_MODE ?? '',
+    chargilyLocale: process.env.CHARGILY_LOCALE ?? 'ar',
+  },
   driverDelivery: {
     pickupRadiusMeters: int(
       process.env.DRIVER_DELIVERY_PICKUP_RADIUS_METERS,

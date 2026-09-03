@@ -7,6 +7,7 @@ import { AuthExceptionFilter } from './common/filters/auth-exception.filter';
 import { assertAuthSecurityConfig } from './config/auth-config.validation';
 import { assertDriverDeliveryConfig } from './config/driver-delivery-config.validation';
 import { assertMatchingConfig } from './config/matching-config.validation';
+import { assertPaymentConfig } from './config/payment-config.validation';
 import { assertTrackingConfig } from './config/tracking-config.validation';
 
 export function configureApp(app: INestApplication): void {
@@ -38,6 +39,15 @@ export function configureApp(app: INestApplication): void {
       'driverDelivery.dropoffRadiusMeters',
       300,
     ),
+  });
+  assertPaymentConfig({
+    nodeEnv: config.get<string>('nodeEnv', 'development'),
+    provider: config.get<string>('payments.provider', ''),
+    chargilySecretKey: config.get<string>('payments.chargilySecretKey', ''),
+    chargilyMode: config.get<string>('payments.chargilyMode', ''),
+    returnUrl: config.get<string>('payments.returnUrl', ''),
+    cancelUrl: config.get<string>('payments.cancelUrl', ''),
+    webhookUrl: config.get<string>('payments.webhookUrl', ''),
   });
   assertTrackingConfig({
     locationTtlMs: config.get<number>('tracking.locationTtlMs', 600_000),
@@ -88,7 +98,7 @@ export function configureApp(app: INestApplication): void {
   const swaggerConfig = new DocumentBuilder()
     .setTitle('SpeedyGo API')
     .setDescription(
-      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant, Catalog, Cart, Checkout, Order Foundation, Merchant Order Workflow v1.0, Delivery Foundation v1.0, Driver Foundation & Onboarding v1.0, Driver Matching v1.0, Realtime Tracking Foundation v1.0, and Driver Delivery Workflow v1.0. Matching start is internal. Live location uses the Matching DriverLocationStore. Tracking is assignment-authorized. Driver Delivery uses explicit current-assignment actions. Amounts are integer minor units.',
+      'SpeedyGo backend. Authentication, Customer Onboarding, Merchant, Catalog, Cart, Checkout, Order Foundation, Merchant Order Workflow v1.0, Delivery Foundation v1.0, Driver Foundation & Onboarding v1.0, Driver Matching v1.0, Realtime Tracking Foundation v1.0, Driver Delivery Workflow v1.0, and Payments Foundation v1.0. Matching start is internal. Live location uses the Matching DriverLocationStore. Tracking is assignment-authorized. Driver Delivery uses explicit current-assignment actions. Production electronic Payment is Chargily Pay V2. Amounts are integer minor units.',
     )
     .setVersion('1.0.0')
     .addBearerAuth()
