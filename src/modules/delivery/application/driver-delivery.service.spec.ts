@@ -41,6 +41,7 @@ describe('DriverDeliveryService', () => {
     setAvailabilityStatus: jest.Mock;
   };
   let codCollections: { findByOrderId: jest.Mock };
+  let remuneration: { createForCompletedDelivery: jest.Mock };
   let locations: { get: jest.Mock };
   let config: { get: jest.Mock };
   let service: DriverDeliveryService;
@@ -112,6 +113,15 @@ describe('DriverDeliveryService', () => {
     codCollections = {
       findByOrderId: jest.fn().mockResolvedValue(null),
     };
+    remuneration = {
+      createForCompletedDelivery: jest.fn().mockResolvedValue({
+        id: 'earn-1',
+        deliveryId: DELIVERY_ID,
+        driverId: DRIVER_ID,
+        netEarningMinor: 300,
+        status: 'EARNED',
+      }),
+    };
     locations = {
       get: jest.fn().mockResolvedValue(freshNear(PICKUP)),
     };
@@ -135,6 +145,7 @@ describe('DriverDeliveryService', () => {
       locations as never,
       config as never,
       codCollections as never,
+      remuneration as never,
     );
   });
 
@@ -347,6 +358,14 @@ describe('DriverDeliveryService', () => {
     const view = await service.performAction(ACCOUNT, 'complete-delivery');
     expect(view.assignmentStatus).toBe('RELEASED');
     expect(deliveries.completeActiveOrder).toHaveBeenCalled();
+    expect(remuneration.createForCompletedDelivery).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deliveryId: DELIVERY_ID,
+        orderId: ORDER_ID,
+        driverId: DRIVER_ID,
+      }),
+      {},
+    );
   });
 
   it('blocks COD completion when collection amount does not match snapshot', async () => {
@@ -391,6 +410,7 @@ describe('DriverDeliveryService', () => {
     const view = await service.performAction(ACCOUNT, 'complete-delivery');
     expect(deliveries.releaseAcceptedAssignment).toHaveBeenCalled();
     expect(deliveries.completeActiveOrder).toHaveBeenCalled();
+    expect(remuneration.createForCompletedDelivery).toHaveBeenCalled();
     expect(drivers.setAvailabilityStatus).not.toHaveBeenCalled();
     expect(view.assignmentStatus).toBe('RELEASED');
     expect(view.fulfillmentStatus).toBe('READY');

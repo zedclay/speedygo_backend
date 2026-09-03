@@ -1090,10 +1090,25 @@ describe('Driver Delivery Workflow (e2e)', () => {
 
       const financialsAfter = await countFinancials(codOrder, deliveryId);
       expect(financialsAfter.cod).toBe(1);
-      expect(financialsAfter.earnings).toBe(0);
+      expect(financialsAfter.earnings).toBe(1);
       expect(financialsAfter.transactions).toBe(0);
       expect(financialsAfter.proofs).toBe(0);
       expect(financialsAfter.settlements).toBe(0);
+
+      const earning = await prisma
+        .getDb()
+        .orm.public.DriverEarning.where({ deliveryId })
+        .first();
+      const snapshot = await prisma
+        .getDb()
+        .orm.public.OrderFinancialSnapshot.where({ orderId: codOrder })
+        .first();
+      expect(earning?.status).toBe('EARNED');
+      expect(Number(earning?.netEarningMinor)).toBe(
+        Number(snapshot?.driverRemunerationMinor),
+      );
+      expect(Number(earning?.bonusMinor)).toBe(0);
+      expect(earning?.driverId).toBe(driverA);
 
       const afterEvents = await prisma
         .getDb()
@@ -1531,7 +1546,7 @@ describe('Driver Delivery Workflow (e2e)', () => {
       expect(paymentAfter?.method).toBe('ELECTRONIC');
       const financials = await countFinancials(firstOrder, deliveryId);
       expect(financials.cod).toBe(0);
-      expect(financials.earnings).toBe(0);
+      expect(financials.earnings).toBe(1);
       expect(financials.transactions).toBe(0);
       expect(financials.proofs).toBe(0);
 
