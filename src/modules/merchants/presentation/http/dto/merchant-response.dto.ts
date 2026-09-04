@@ -69,11 +69,36 @@ export class MerchantDocumentResponseDto {
   @ApiProperty()
   id!: string;
 
+  @ApiProperty({
+    description:
+      'Application vocabulary: BUSINESS_IDENTITY, BUSINESS_REGISTRATION, SUPPORTING_DOCUMENT.',
+  })
+  type!: string;
+
+  @ApiProperty({
+    description: 'Application vocabulary: PENDING, SUBMITTED.',
+  })
+  status!: string;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  expiryDate!: string | null;
+}
+
+export class MerchantEvidenceChecklistItemDto {
   @ApiProperty()
   type!: string;
 
   @ApiProperty()
-  status!: string;
+  required!: boolean;
+
+  @ApiProperty()
+  present!: boolean;
+
+  @ApiProperty()
+  complete!: boolean;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  status!: string | null;
 
   @ApiPropertyOptional({ nullable: true, type: String })
   expiryDate!: string | null;
@@ -120,6 +145,24 @@ export class MerchantMembershipResponseDto {
   })
   operationalReady!: boolean;
 
+  @ApiProperty({
+    description:
+      'Derived server readiness for verification submission: profile + required evidence valid. Not client-writable.',
+  })
+  verificationReady!: boolean;
+
+  @ApiProperty({
+    description:
+      'Derived: required documents are formally SUBMITTED. Distinguishes incomplete PENDING_REVIEW Merchants from review-ready packages.',
+  })
+  verificationSubmitted!: boolean;
+
+  @ApiProperty({
+    description:
+      'Derived: ACTIVE Merchant with required evidence missing or expired. Does not auto-suspend. Future compliance may act.',
+  })
+  verificationAttentionRequired!: boolean;
+
   @ApiProperty({ type: MerchantProfileResponseDto })
   merchant!: MerchantProfileResponseDto;
 
@@ -129,8 +172,44 @@ export class MerchantMembershipResponseDto {
   @ApiProperty({
     type: [MerchantDocumentResponseDto],
     description:
-      'Read-only summaries. fileUrl is not exposed. No upload in this foundation.',
+      'OWNER only. Read-only summaries. fileUrl / storage keys are never exposed. Metadata-only registration in this foundation.',
   })
+  documents!: MerchantDocumentResponseDto[];
+
+  @ApiProperty({
+    type: [MerchantEvidenceChecklistItemDto],
+    description:
+      'OWNER full detail only. MANAGER and STAFF receive empty checklist (status/readiness flags only).',
+  })
+  evidenceChecklist!: MerchantEvidenceChecklistItemDto[];
+}
+
+export class MerchantVerificationPackageResponseDto {
+  @ApiProperty()
+  merchantId!: string;
+
+  @ApiProperty()
+  status!: string;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  verifiedAt!: string | null;
+
+  @ApiProperty()
+  verificationReady!: boolean;
+
+  @ApiProperty()
+  verificationSubmitted!: boolean;
+
+  @ApiProperty()
+  verificationAttentionRequired!: boolean;
+
+  @ApiProperty()
+  evidenceEditable!: boolean;
+
+  @ApiProperty({ type: [MerchantEvidenceChecklistItemDto] })
+  evidenceChecklist!: MerchantEvidenceChecklistItemDto[];
+
+  @ApiProperty({ type: [MerchantDocumentResponseDto] })
   documents!: MerchantDocumentResponseDto[];
 }
 

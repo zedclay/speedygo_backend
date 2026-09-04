@@ -1,5 +1,10 @@
 import {
   MERCHANT_CAPABILITIES,
+  MERCHANT_DOCUMENT_BUSINESS_IDENTITY,
+  MERCHANT_DOCUMENT_BUSINESS_REGISTRATION,
+  MERCHANT_DOCUMENT_STATUS_PENDING,
+  MERCHANT_DOCUMENT_STATUS_SUBMITTED,
+  MERCHANT_DOCUMENT_SUPPORTING,
   MERCHANT_MEMBER_ROLE_MANAGER,
   MERCHANT_MEMBER_ROLE_OWNER,
   MERCHANT_MEMBER_ROLE_STAFF,
@@ -7,7 +12,11 @@ import {
   MERCHANT_STATUS_PENDING_REVIEW,
   MERCHANT_STATUS_REJECTED,
   MERCHANT_STATUS_SUSPENDED,
+  canEditVerificationEvidence,
   deriveMerchantReadiness,
+  isRequiredDocumentExpiredAttention,
+  isVerificationFormallySubmitted,
+  isVerificationReady,
   parseMerchantMemberRole,
   parseMerchantStatus,
   roleHasCapability,
@@ -287,5 +296,218 @@ describe('Merchant policy', () => {
     });
     expect(readiness.approved).toBe(false);
     expect(readiness.operationalReady).toBe(false);
+  });
+
+  it('grants OWNER verification mutate and OWNER/MANAGER verification read', () => {
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_OWNER,
+        MERCHANT_CAPABILITIES.MERCHANT_VERIFICATION_MUTATE,
+      ),
+    ).toBe(true);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_MANAGER,
+        MERCHANT_CAPABILITIES.MERCHANT_VERIFICATION_MUTATE,
+      ),
+    ).toBe(false);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_STAFF,
+        MERCHANT_CAPABILITIES.MERCHANT_VERIFICATION_READ,
+      ),
+    ).toBe(false);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_MANAGER,
+        MERCHANT_CAPABILITIES.MERCHANT_VERIFICATION_READ,
+      ),
+    ).toBe(true);
+  });
+
+  it('derives verification readiness from required evidence only', () => {
+    expect(
+      isVerificationReady({
+        name: 'Cafe',
+        documents: [],
+      }),
+    ).toBe(false);
+    expect(
+      isVerificationReady({
+        name: 'Cafe',
+        documents: [
+          {
+            type: MERCHANT_DOCUMENT_BUSINESS_IDENTITY,
+            status: MERCHANT_DOCUMENT_STATUS_PENDING,
+            expiryDate: null,
+          },
+          {
+            type: MERCHANT_DOCUMENT_BUSINESS_REGISTRATION,
+            status: MERCHANT_DOCUMENT_STATUS_PENDING,
+            expiryDate: '2099-01-01',
+          },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      isVerificationReady({
+        name: 'Cafe',
+        documents: [
+          {
+            type: MERCHANT_DOCUMENT_BUSINESS_IDENTITY,
+            status: MERCHANT_DOCUMENT_STATUS_PENDING,
+            expiryDate: null,
+          },
+          {
+            type: MERCHANT_DOCUMENT_BUSINESS_REGISTRATION,
+            status: MERCHANT_DOCUMENT_STATUS_PENDING,
+            expiryDate: null,
+          },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      isVerificationReady({
+        name: 'Cafe',
+        documents: [
+          {
+            type: MERCHANT_DOCUMENT_BUSINESS_IDENTITY,
+            status: MERCHANT_DOCUMENT_STATUS_PENDING,
+            expiryDate: null,
+          },
+          {
+            type: MERCHANT_DOCUMENT_BUSINESS_REGISTRATION,
+            status: MERCHANT_DOCUMENT_STATUS_PENDING,
+            expiryDate: '2020-01-01',
+          },
+        ],
+        today: '2026-09-04',
+      }),
+    ).toBe(false);
+    expect(
+      isVerificationReady({
+        name: 'Cafe',
+        documents: [
+          {
+            type: MERCHANT_DOCUMENT_BUSINESS_IDENTITY,
+            status: MERCHANT_DOCUMENT_STATUS_PENDING,
+            expiryDate: null,
+          },
+          {
+            type: MERCHANT_DOCUMENT_BUSINESS_REGISTRATION,
+            status: MERCHANT_DOCUMENT_STATUS_PENDING,
+            expiryDate: '2099-01-01',
+          },
+          {
+            type: MERCHANT_DOCUMENT_SUPPORTING,
+            status: MERCHANT_DOCUMENT_STATUS_PENDING,
+            expiryDate: null,
+          },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      isVerificationReady({
+        name: 'Cafe',
+        documents: [
+          {
+            type: MERCHANT_DOCUMENT_BUSINESS_IDENTITY,
+            status: MERCHANT_DOCUMENT_STATUS_PENDING,
+            expiryDate: null,
+          },
+          {
+            type: MERCHANT_DOCUMENT_SUPPORTING,
+            status: MERCHANT_DOCUMENT_STATUS_PENDING,
+            expiryDate: null,
+          },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it('treats formal submission as required docs SUBMITTED independent of Merchant.status', () => {
+    expect(
+      isVerificationFormallySubmitted([
+        {
+          type: MERCHANT_DOCUMENT_BUSINESS_IDENTITY,
+          status: MERCHANT_DOCUMENT_STATUS_PENDING,
+          expiryDate: null,
+        },
+        {
+          type: MERCHANT_DOCUMENT_BUSINESS_REGISTRATION,
+          status: MERCHANT_DOCUMENT_STATUS_PENDING,
+          expiryDate: '2099-01-01',
+        },
+      ]),
+    ).toBe(false);
+    expect(
+      isVerificationFormallySubmitted([
+        {
+          type: MERCHANT_DOCUMENT_BUSINESS_IDENTITY,
+          status: MERCHANT_DOCUMENT_STATUS_SUBMITTED,
+          expiryDate: null,
+        },
+        {
+          type: MERCHANT_DOCUMENT_BUSINESS_REGISTRATION,
+          status: MERCHANT_DOCUMENT_STATUS_SUBMITTED,
+          expiryDate: '2099-01-01',
+        },
+      ]),
+    ).toBe(true);
+  });
+
+  it('locks evidence edit while formally submitted under PENDING_REVIEW', () => {
+    const submitted = [
+      {
+        type: MERCHANT_DOCUMENT_BUSINESS_IDENTITY,
+        status: MERCHANT_DOCUMENT_STATUS_SUBMITTED,
+        expiryDate: null,
+      },
+      {
+        type: MERCHANT_DOCUMENT_BUSINESS_REGISTRATION,
+        status: MERCHANT_DOCUMENT_STATUS_SUBMITTED,
+        expiryDate: '2099-01-01',
+      },
+    ];
+    expect(
+      canEditVerificationEvidence({
+        status: MERCHANT_STATUS_PENDING_REVIEW,
+        documents: submitted,
+      }),
+    ).toBe(false);
+    expect(
+      canEditVerificationEvidence({
+        status: MERCHANT_STATUS_REJECTED,
+        documents: submitted,
+      }),
+    ).toBe(true);
+    expect(
+      canEditVerificationEvidence({
+        status: MERCHANT_STATUS_ACTIVE,
+        documents: submitted,
+      }),
+    ).toBe(false);
+  });
+
+  it('surfaces expiry attention for ACTIVE Merchants without auto-status change', () => {
+    expect(
+      isRequiredDocumentExpiredAttention({
+        status: MERCHANT_STATUS_ACTIVE,
+        verifiedAt: '2026-01-01T00:00:00.000Z',
+        documents: [
+          {
+            type: MERCHANT_DOCUMENT_BUSINESS_IDENTITY,
+            status: MERCHANT_DOCUMENT_STATUS_SUBMITTED,
+            expiryDate: null,
+          },
+          {
+            type: MERCHANT_DOCUMENT_BUSINESS_REGISTRATION,
+            status: MERCHANT_DOCUMENT_STATUS_SUBMITTED,
+            expiryDate: '2020-01-01',
+          },
+        ],
+        today: '2026-09-04',
+      }),
+    ).toBe(true);
   });
 });

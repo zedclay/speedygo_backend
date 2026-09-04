@@ -6,7 +6,9 @@ import {
 } from '../domain/merchant.errors';
 import {
   isMerchantApproved,
+  isVerificationFormallySubmitted,
   MERCHANT_CAPABILITIES,
+  MERCHANT_STATUS_PENDING_REVIEW,
   parseMerchantMemberRole,
   parseMerchantStatus,
   roleHasCapability,
@@ -67,7 +69,8 @@ export class MerchantAccessService {
       capability === MERCHANT_CAPABILITIES.CATALOG_READ ||
       capability === MERCHANT_CAPABILITIES.ORDER_READ ||
       capability === MERCHANT_CAPABILITIES.COMMISSION_READ ||
-      capability === MERCHANT_CAPABILITIES.SETTLEMENT_READ
+      capability === MERCHANT_CAPABILITIES.SETTLEMENT_READ ||
+      capability === MERCHANT_CAPABILITIES.MERCHANT_VERIFICATION_READ
     ) {
       return context;
     }
@@ -90,13 +93,25 @@ export class MerchantAccessService {
       }
       return context;
     }
-    if (
-      capability === MERCHANT_CAPABILITIES.MERCHANT_PROFILE_UPDATE &&
-      !statusAllowsProfileUpdate(status)
-    ) {
-      throw merchantStatusRestricted(
-        'Merchant identity cannot be changed in the current status',
-      );
+    if (capability === MERCHANT_CAPABILITIES.MERCHANT_PROFILE_UPDATE) {
+      if (!statusAllowsProfileUpdate(status)) {
+        throw merchantStatusRestricted(
+          'Merchant identity cannot be changed in the current status',
+        );
+      }
+      const documents = await this.merchants.listDocumentSummaries(merchantId);
+      if (
+        status === MERCHANT_STATUS_PENDING_REVIEW &&
+        isVerificationFormallySubmitted(documents)
+      ) {
+        throw merchantStatusRestricted(
+          'Merchant identity cannot be changed while verification is under review',
+        );
+      }
+      return context;
+    }
+    if (capability === MERCHANT_CAPABILITIES.MERCHANT_VERIFICATION_MUTATE) {
+      return context;
     }
     if (
       (capability === MERCHANT_CAPABILITIES.MERCHANT_BRANCH_CREATE ||
