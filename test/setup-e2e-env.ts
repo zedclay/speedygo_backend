@@ -1,3 +1,5 @@
+import { execSync } from 'node:child_process';
+
 process.env.NODE_ENV = 'test';
 process.env.OTP_TRANSPORT = 'test';
 process.env.JWT_ACCESS_SECRET =
@@ -44,3 +46,12 @@ process.env.PAYMENT_TEST_WEBHOOK_SECRET =
   process.env.PAYMENT_TEST_WEBHOOK_SECRET.length >= 16
     ? process.env.PAYMENT_TEST_WEBHOOK_SECRET
     : 'test-payment-webhook-secret';
+
+// Deterministic e2e isolation: Redis DB15 is the frozen test Redis database.
+// Flush once per Jest process so leftover auth/matching/tracking keys cannot
+// poison later files in a full suite run.
+try {
+  execSync('redis-cli -n 15 FLUSHDB', { stdio: 'ignore' });
+} catch {
+  // Redis may be unavailable in unit-only environments; e2e fails clearly later.
+}
