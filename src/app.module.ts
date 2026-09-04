@@ -25,6 +25,7 @@ import { DriverRemunerationModule } from './modules/driver-remuneration/driver-r
 import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { CodModule } from './modules/cod/cod.module';
+import { RefundsModule } from './modules/refunds/refunds.module';
 
 @Module({
   imports: [
@@ -55,6 +56,7 @@ import { CodModule } from './modules/cod/cod.module';
     MatchingModule,
     TrackingModule,
     CodModule,
+    RefundsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
