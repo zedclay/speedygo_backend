@@ -98,6 +98,8 @@ describe('Admin authorization policy (permission-first)', () => {
     const cod = ADMIN_PERMISSIONS.COD_REMITTANCE_CONFIRM;
     const merchantsVerify = ADMIN_PERMISSIONS.MERCHANTS_VERIFY;
     const driversVerify = ADMIN_PERMISSIONS.DRIVERS_VERIFY;
+    const supportManage = ADMIN_PERMISSIONS.SUPPORT_MANAGE;
+    const supportRead = ADMIN_PERMISSIONS.SUPPORT_READ;
 
     expect(ledger).not.toBe(refunds);
     expect(ledger).not.toBe(settlements);
@@ -108,11 +110,17 @@ describe('Admin authorization policy (permission-first)', () => {
     expect(refunds).not.toBe(merchantsVerify);
     expect(settlements).not.toBe(cod);
     expect(merchantsVerify).not.toBe(driversVerify);
+    expect(supportManage).not.toBe(refunds);
+    expect(supportManage).not.toBe(settlements);
+    expect(supportManage).not.toBe(cod);
+    expect(supportRead).not.toBe(ledger);
 
     const financeMutations = new Set([refunds, settlements, cod]);
     expect(financeMutations.has(ledger)).toBe(false);
     expect(financeMutations.has(merchantsVerify)).toBe(false);
     expect(financeMutations.has(ADMIN_PERMISSIONS.ORDERS_READ)).toBe(false);
     expect(financeMutations.has(ADMIN_PERMISSIONS.PAYMENTS_READ)).toBe(false);
+    expect(financeMutations.has(supportManage)).toBe(false);
+    expect(financeMutations.has(supportRead)).toBe(false);
   });
 });

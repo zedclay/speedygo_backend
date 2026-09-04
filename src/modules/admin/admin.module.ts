@@ -69,6 +69,6 @@ import { AdminSettlementController } from './presentation/http/controllers/admin
     AdminPromotionCommandsService,
     AdminGuard,
   ],
-  exports: [AdminProfileService, AdminAuditService],
+  exports: [AdminProfileService, AdminAuditService, AdminGuard],
 })
 export class AdminModule {}

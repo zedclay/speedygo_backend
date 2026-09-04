@@ -31,6 +31,7 @@ import { MerchantSettlementsModule } from './modules/merchant-settlements/mercha
 import { FinancialLedgerModule } from './modules/financial-ledger/financial-ledger.module';
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
+import { SupportModule } from './modules/support/support.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     FinancialLedgerModule,
     PromotionsModule,
     NotificationsModule,
+    SupportModule,
   ],
   controllers: [AppController],
   providers: [AppService],
