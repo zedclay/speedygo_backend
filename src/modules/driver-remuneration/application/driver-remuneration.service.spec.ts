@@ -104,6 +104,9 @@ describe('DriverRemunerationService', () => {
     service = new DriverRemunerationService(
       earnings as never,
       drivers as never,
+      {
+        postDriverEarning: jest.fn().mockResolvedValue({}),
+      } as never,
     );
   });
 

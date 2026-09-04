@@ -6,6 +6,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
+import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
 import { createUuidV7 } from '../src/common/utils/uuid-v7';
 import { RedisService } from '../src/infrastructure/cache/redis.service';
 import { PrismaService } from '../src/infrastructure/database/database.module';
@@ -100,6 +101,7 @@ describe('Driver Remuneration Foundation (e2e)', () => {
 
     sender = app.get(OTP_SENDER);
     prisma = app.get(PrismaService);
+    await deactivateAllDeliveryZones(prisma);
     redis = app.get(RedisService);
     matching = app.get(MatchingService);
     review = app.get(DriverReviewService);
@@ -203,6 +205,11 @@ describe('Driver Remuneration Foundation (e2e)', () => {
       accountId: account.id,
     }).first();
     if (driver) {
+      for (const entry of await db.FinancialLedgerEntry.where({
+        driverId: driver.id,
+      }).all()) {
+        await db.FinancialLedgerEntry.where({ id: entry.id }).delete();
+      }
       const remittances = await db.CodRemittance.where({
         driverId: driver.id,
       }).all();
@@ -245,6 +252,11 @@ describe('Driver Remuneration Foundation (e2e)', () => {
       }
       for (const row of await db.Vehicle.where({ driverId: driver.id }).all()) {
         await db.Vehicle.where({ id: row.id }).delete();
+      }
+      for (const entry of await db.FinancialLedgerEntry.where({
+        driverId: driver.id,
+      }).all()) {
+        await db.FinancialLedgerEntry.where({ id: entry.id }).delete();
       }
       await db.DriverProfile.where({ id: driver.id }).delete();
     }
@@ -330,6 +342,11 @@ describe('Driver Remuneration Foundation (e2e)', () => {
         await db.OrderDeliveryAddressSnapshot.where({
           orderId: order.id,
         }).delete();
+        for (const entry of await db.FinancialLedgerEntry.where({
+          orderId: order.id,
+        }).all()) {
+          await db.FinancialLedgerEntry.where({ id: entry.id }).delete();
+        }
         await db.Order.where({ id: order.id }).delete();
       }
       for (const cart of await db.Cart.where({
@@ -412,175 +429,197 @@ describe('Driver Remuneration Foundation (e2e)', () => {
     suffix: string,
     includeForeign: boolean,
   ): Promise<Fixture> {
-    const server = app.getHttpServer();
-    const rawPhones = [
-      `0571${suffix}`,
-      `0572${suffix}`,
-      `0573${suffix}`,
-      ...(includeForeign ? [`0574${suffix}`] : []),
-    ];
-    const tokens: string[] = [];
-    for (const phone of rawPhones) {
-      // TestOtpSender exposes one lastCode, so OTP exchanges must stay serial.
-      tokens.push(await authenticate(phone));
-    }
-    const [customerToken, ownerToken, driverToken, foreignToken] = tokens;
-    const accounts = await Promise.all(
-      [customerToken, ownerToken, driverToken, foreignToken]
-        .filter((token): token is string => Boolean(token))
-        .map(authMe),
-    );
+    await deactivateAllDeliveryZones(prisma);
+    let zoneId: string | undefined;
+    let phones: string[] = [];
+    try {
+      const server = app.getHttpServer();
+      const rawPhones = [
+        `0571${suffix}`,
+        `0572${suffix}`,
+        `0573${suffix}`,
+        ...(includeForeign ? [`0574${suffix}`] : []),
+      ];
+      const tokens: string[] = [];
+      for (const phone of rawPhones) {
+        // TestOtpSender exposes one lastCode, so OTP exchanges must stay serial.
+        tokens.push(await authenticate(phone));
+      }
+      const [customerToken, ownerToken, driverToken, foreignToken] = tokens;
+      const accounts = await Promise.all(
+        [customerToken, ownerToken, driverToken, foreignToken]
+          .filter((token): token is string => Boolean(token))
+          .map(authMe),
+      );
+      phones = accounts.map((account) => account.phone);
 
-    await request(server)
-      .post('/api/v1/customer/profile')
-      .set('Authorization', `Bearer ${customerToken}`)
-      .send({ fullName: 'Remuneration Customer' });
-    const address = await request(server)
-      .post('/api/v1/customer/addresses')
-      .set('Authorization', `Bearer ${customerToken}`)
-      .send({
-        label: 'Home',
-        addressText: 'Remuneration dropoff',
-        latitude: INSIDE[0],
-        longitude: INSIDE[1],
-      });
-    expect(address.status).toBe(201);
+      await request(server)
+        .post('/api/v1/customer/profile')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({ fullName: 'Remuneration Customer' });
+      const address = await request(server)
+        .post('/api/v1/customer/addresses')
+        .set('Authorization', `Bearer ${customerToken}`)
+        .send({
+          label: 'Home',
+          addressText: 'Remuneration dropoff',
+          latitude: INSIDE[0],
+          longitude: INSIDE[1],
+        });
+      expect(address.status).toBe(201);
 
-    const merchant = await request(server)
-      .post('/api/v1/merchant/profile')
-      .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ name: `Remuneration Cafe ${suffix}` });
-    const merchantId = (merchant.body as { merchantId: string }).merchantId;
-    const branch = await request(server)
-      .post(`/api/v1/merchant/${merchantId}/branches`)
-      .set('Authorization', `Bearer ${ownerToken}`)
-      .send({
-        name: 'Main',
-        phone: `0550${suffix}`,
-        addressText: 'Pickup',
-        latitude: INSIDE[0],
-        longitude: INSIDE[1],
+      const merchant = await request(server)
+        .post('/api/v1/merchant/profile')
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ name: `Remuneration Cafe ${suffix}` });
+      const merchantId = (merchant.body as { merchantId: string }).merchantId;
+      const branch = await request(server)
+        .post(`/api/v1/merchant/${merchantId}/branches`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          name: 'Main',
+          phone: `0550${suffix}`,
+          addressText: 'Pickup',
+          latitude: INSIDE[0],
+          longitude: INSIDE[1],
+        });
+      const branchId = (branch.body as { id: string }).id;
+      await prisma
+        .getDb()
+        .orm.public.Merchant.where({ id: merchantId })
+        .update({
+          status: pgVarchar<64>('ACTIVE'),
+          verifiedAt: pgNow(),
+          updatedAt: pgNow(),
+        });
+      const category = await request(server)
+        .post(`/api/v1/merchant/${merchantId}/categories`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({ branchId, name: 'Meals' });
+      const product = await request(server)
+        .post(`/api/v1/merchant/${merchantId}/products`)
+        .set('Authorization', `Bearer ${ownerToken}`)
+        .send({
+          branchId,
+          categoryId: (category.body as { id: string }).id,
+          name: 'Foundation meal',
+          priceMinor: 1200,
+        });
+
+      const now = pgNow();
+      zoneId = createUuidV7();
+      await prisma.getDb().orm.public.DeliveryZone.create({
+        id: zoneId,
+        name: pgVarchar<255>(`Remuneration zone ${suffix}`),
+        geometry: {
+          type: 'MultiPolygon',
+          coordinates: [[COVERING_RING]],
+          srid: 4326,
+        },
+        active: true,
+        createdAt: now,
+        updatedAt: now,
       });
-    const branchId = (branch.body as { id: string }).id;
-    await prisma
-      .getDb()
-      .orm.public.Merchant.where({ id: merchantId })
-      .update({
-        status: pgVarchar<64>('ACTIVE'),
-        verifiedAt: pgNow(),
-        updatedAt: pgNow(),
+      await prisma.getDb().orm.public.DeliveryPricingRule.create({
+        id: createUuidV7(),
+        zoneId,
+        name: pgVarchar<255>('All day'),
+        timeBand: 'DAY',
+        startLocalTime: null,
+        endLocalTime: null,
+        customerDeliveryFeeMinor: pgBigInt(500),
+        driverRemunerationMinor: pgBigInt(300),
+        effectiveFrom: pgTimestamptz('2020-01-01T00:00:00.000Z'),
+        effectiveTo: null,
+        active: true,
+        createdAt: now,
+        updatedAt: now,
       });
-    const category = await request(server)
-      .post(`/api/v1/merchant/${merchantId}/categories`)
-      .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ branchId, name: 'Meals' });
-    const product = await request(server)
-      .post(`/api/v1/merchant/${merchantId}/products`)
-      .set('Authorization', `Bearer ${ownerToken}`)
-      .send({
-        branchId,
-        categoryId: (category.body as { id: string }).id,
-        name: 'Foundation meal',
-        priceMinor: 1200,
+      const roleId = createUuidV7();
+      await prisma.getDb().orm.public.Role.create({
+        id: roleId,
+        name: pgVarchar<128>(`remuneration-e2e-${suffix}`),
+        description: null,
+        active: true,
+      });
+      const adminId = createUuidV7();
+      await prisma.getDb().orm.public.AdminProfile.create({
+        id: adminId,
+        accountId: accounts[1].id,
+        roleId,
+        displayName: pgVarchar<255>('Remuneration Admin'),
+        twoFactorEnabled: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await prisma.getDb().orm.public.MerchantCommissionRule.create({
+        id: createUuidV7(),
+        scope: 'GLOBAL_DEFAULT',
+        merchantId: null,
+        rateBps: 700,
+        effectiveFrom: pgTimestamptz('2020-01-01T00:00:00.000Z'),
+        effectiveTo: null,
+        changeReason: null,
+        changedByAdminId: adminId,
+        active: true,
+        createdAt: now,
       });
 
-    const now = pgNow();
-    const zoneId = createUuidV7();
-    await prisma.getDb().orm.public.DeliveryZone.create({
-      id: zoneId,
-      name: pgVarchar<255>(`Remuneration zone ${suffix}`),
-      geometry: {
-        type: 'MultiPolygon',
-        coordinates: [[COVERING_RING]],
-        srid: 4326,
-      },
-      active: true,
-      createdAt: now,
-      updatedAt: now,
-    });
-    await prisma.getDb().orm.public.DeliveryPricingRule.create({
-      id: createUuidV7(),
-      zoneId,
-      name: pgVarchar<255>('All day'),
-      timeBand: 'DAY',
-      startLocalTime: null,
-      endLocalTime: null,
-      customerDeliveryFeeMinor: pgBigInt(500),
-      driverRemunerationMinor: pgBigInt(300),
-      effectiveFrom: pgTimestamptz('2020-01-01T00:00:00.000Z'),
-      effectiveTo: null,
-      active: true,
-      createdAt: now,
-      updatedAt: now,
-    });
-    const roleId = createUuidV7();
-    await prisma.getDb().orm.public.Role.create({
-      id: roleId,
-      name: pgVarchar<128>(`remuneration-e2e-${suffix}`),
-      description: null,
-      active: true,
-    });
-    const adminId = createUuidV7();
-    await prisma.getDb().orm.public.AdminProfile.create({
-      id: adminId,
-      accountId: accounts[1].id,
-      roleId,
-      displayName: pgVarchar<255>('Remuneration Admin'),
-      twoFactorEnabled: false,
-      createdAt: now,
-      updatedAt: now,
-    });
-    await prisma.getDb().orm.public.MerchantCommissionRule.create({
-      id: createUuidV7(),
-      scope: 'GLOBAL_DEFAULT',
-      merchantId: null,
-      rateBps: 700,
-      effectiveFrom: pgTimestamptz('2020-01-01T00:00:00.000Z'),
-      effectiveTo: null,
-      changeReason: null,
-      changedByAdminId: adminId,
-      active: true,
-      createdAt: now,
-    });
-
-    const driverId = await onboardApprovedDriver(
-      driverToken,
-      'Foundation Driver',
-      `RD${suffix}`,
-    );
-    const foreignDriverId = foreignToken
-      ? await onboardApprovedDriver(
-          foreignToken,
-          'Foreign Foundation Driver',
-          `RF${suffix}`,
-        )
-      : undefined;
-    await locations.upsert(driverId, 36.7504, 3.0504, new Date().toISOString());
-    if (foreignDriverId) {
+      const driverId = await onboardApprovedDriver(
+        driverToken,
+        'Foundation Driver',
+        `RD${suffix}`,
+      );
+      const foreignDriverId = foreignToken
+        ? await onboardApprovedDriver(
+            foreignToken,
+            'Foreign Foundation Driver',
+            `RF${suffix}`,
+          )
+        : undefined;
       await locations.upsert(
-        foreignDriverId,
-        36.79,
-        3.09,
+        driverId,
+        36.7504,
+        3.0504,
         new Date().toISOString(),
       );
-    }
+      if (foreignDriverId) {
+        await locations.upsert(
+          foreignDriverId,
+          36.79,
+          3.09,
+          new Date().toISOString(),
+        );
+      }
 
-    return {
-      suffix,
-      customerToken,
-      ownerToken,
-      driverToken,
-      foreignToken,
-      driverId,
-      foreignDriverId,
-      merchantId,
-      productId: (product.body as { id: string }).id,
-      addressId: (address.body as { id: string }).id,
-      phones: accounts.map((account) => account.phone),
-      zoneId,
-      adminId,
-      roleId,
-    };
+      return {
+        suffix,
+        customerToken,
+        ownerToken,
+        driverToken,
+        foreignToken,
+        driverId,
+        foreignDriverId,
+        merchantId,
+        productId: (product.body as { id: string }).id,
+        addressId: (address.body as { id: string }).id,
+        phones,
+        zoneId,
+        adminId,
+        roleId,
+      };
+    } catch (error) {
+      if (zoneId) {
+        await prisma
+          .getDb()
+          .orm.public.DeliveryZone.where({ id: zoneId })
+          .update({ active: false, updatedAt: pgNow() });
+      }
+      for (const phone of phones) {
+        await cleanupByPhone(phone).catch(() => undefined);
+      }
+      throw error;
+    }
   }
 
   async function cleanupFixture(fixture: Fixture): Promise<void> {

@@ -6,6 +6,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
+import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
 import { createUuidV7 } from '../src/common/utils/uuid-v7';
 import { RedisService } from '../src/infrastructure/cache/redis.service';
 import { PrismaService } from '../src/infrastructure/database/database.module';
@@ -94,6 +95,7 @@ describe('Refunds Foundation (e2e)', () => {
 
     sender = app.get(OTP_SENDER);
     prisma = app.get(PrismaService);
+    await deactivateAllDeliveryZones(prisma);
     redis = app.get(RedisService);
     matching = app.get(MatchingService);
     review = app.get(DriverReviewService);
@@ -197,6 +199,11 @@ describe('Refunds Foundation (e2e)', () => {
       accountId: account.id,
     }).first();
     if (driver) {
+      for (const entry of await db.FinancialLedgerEntry.where({
+        driverId: driver.id,
+      }).all()) {
+        await db.FinancialLedgerEntry.where({ id: entry.id }).delete();
+      }
       const remittances = await db.CodRemittance.where({
         driverId: driver.id,
       }).all();
@@ -239,6 +246,11 @@ describe('Refunds Foundation (e2e)', () => {
       }
       for (const row of await db.Vehicle.where({ driverId: driver.id }).all()) {
         await db.Vehicle.where({ id: row.id }).delete();
+      }
+      for (const entry of await db.FinancialLedgerEntry.where({
+        driverId: driver.id,
+      }).all()) {
+        await db.FinancialLedgerEntry.where({ id: entry.id }).delete();
       }
       await db.DriverProfile.where({ id: driver.id }).delete();
     }
@@ -329,6 +341,11 @@ describe('Refunds Foundation (e2e)', () => {
         await db.OrderDeliveryAddressSnapshot.where({
           orderId: order.id,
         }).delete();
+        for (const entry of await db.FinancialLedgerEntry.where({
+          orderId: order.id,
+        }).all()) {
+          await db.FinancialLedgerEntry.where({ id: entry.id }).delete();
+        }
         await db.Order.where({ id: order.id }).delete();
       }
       for (const cart of await db.Cart.where({

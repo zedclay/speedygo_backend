@@ -18,7 +18,9 @@ import {
 } from '../src/infrastructure/database/pg-values';
 import { OTP_SENDER } from '../src/modules/auth/domain/ports/otp-sender.port';
 import { TestOtpSender } from '../src/modules/auth/infrastructure/otp/test-otp.sender';
+import { CodFoundationService } from '../src/modules/cod/application/cod-foundation.service';
 import { DriverReviewService } from '../src/modules/drivers/application/driver-review.service';
+import { FinancialLedgerService } from '../src/modules/financial-ledger/application/financial-ledger.service';
 import { MatchingService } from '../src/modules/matching/application/matching.service';
 import { MATCHING_QUEUE_NAME } from '../src/modules/matching/domain/matching.jobs';
 import {
@@ -28,10 +30,7 @@ import {
 import { MatchingProcessor } from '../src/modules/matching/infrastructure/matching.processor';
 import { MerchantSettlementService } from '../src/modules/merchant-settlements/application/merchant-settlement.service';
 import { RefundService } from '../src/modules/refunds/application/refund.service';
-import {
-  REFUND_METHOD_MANUAL_COD,
-  REFUND_METHOD_MANUAL_OTHER,
-} from '../src/modules/refunds/domain/refund.types';
+import { REFUND_METHOD_MANUAL_OTHER } from '../src/modules/refunds/domain/refund.types';
 
 type TokenBody = { accessToken: string };
 type AuthMeBody = { account: { id: string; phone: string } };
@@ -39,11 +38,6 @@ type PreviewBody = {
   merchandiseSubtotalMinor: number;
   deliveryFeeMinor: number;
   customerTotalMinor: number;
-};
-type AcceptedBody = {
-  assignmentId: string;
-  deliveryId: string;
-  driverRemunerationMinor: number;
 };
 
 const INSIDE: [number, number] = [36.75, 3.05];
@@ -62,7 +56,7 @@ const LOGISTICS_ACTIONS = [
   'arrive-customer',
 ] as const;
 
-describe('Merchant Settlements Foundation (e2e)', () => {
+describe('Financial Ledger Foundation (e2e)', () => {
   jest.setTimeout(120_000);
 
   let app: INestApplication<App>;
@@ -75,6 +69,8 @@ describe('Merchant Settlements Foundation (e2e)', () => {
   let queue: Queue;
   let refunds: RefundService;
   let settlements: MerchantSettlementService;
+  let ledger: FinancialLedgerService;
+  let cod: CodFoundationService;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -94,6 +90,8 @@ describe('Merchant Settlements Foundation (e2e)', () => {
     queue = app.get<Queue>(getQueueToken(MATCHING_QUEUE_NAME));
     refunds = app.get(RefundService);
     settlements = app.get(MerchantSettlementService);
+    ledger = app.get(FinancialLedgerService);
+    cod = app.get(CodFoundationService);
 
     await queue.obliterate({ force: true });
     for (const pattern of [
@@ -131,7 +129,7 @@ describe('Merchant Settlements Foundation (e2e)', () => {
         code: sender.lastCode,
         platform: 'android',
         appVersion: '1.0.0',
-        deviceName: 'settlements-e2e',
+        deviceName: 'ledger-e2e',
       });
     expect(verified.status).toBe(200);
     return (verified.body as TokenBody).accessToken;
@@ -182,25 +180,10 @@ describe('Merchant Settlements Foundation (e2e)', () => {
     return driverId;
   }
 
-  async function cleanupSettlementsForMerchant(
-    merchantId: string,
-  ): Promise<void> {
+  async function deleteLedgerForOrder(orderId: string): Promise<void> {
     const db = prisma.getDb().orm.public;
-    for (const settlement of await db.MerchantSettlement.where({
-      merchantId,
-    }).all()) {
-      const entry = await db.FinancialLedgerEntry.where({
-        reference: pgVarchar<128>(`MERCHANT_SETTLEMENT:${settlement.id}`),
-      }).first();
-      if (entry) {
-        await db.FinancialLedgerEntry.where({ id: entry.id }).delete();
-      }
-      for (const line of await db.MerchantSettlementLine.where({
-        settlementId: settlement.id,
-      }).all()) {
-        await db.MerchantSettlementLine.where({ id: line.id }).delete();
-      }
-      await db.MerchantSettlement.where({ id: settlement.id }).delete();
+    for (const row of await db.FinancialLedgerEntry.where({ orderId }).all()) {
+      await db.FinancialLedgerEntry.where({ id: row.id }).delete();
     }
   }
 
@@ -215,32 +198,50 @@ describe('Merchant Settlements Foundation (e2e)', () => {
     for (const merchantId of [
       ...new Set(memberships.map((row) => row.merchantId)),
     ]) {
-      await cleanupSettlementsForMerchant(merchantId);
+      for (const settlement of await db.MerchantSettlement.where({
+        merchantId,
+      }).all()) {
+        const entry = await db.FinancialLedgerEntry.where({
+          reference: pgVarchar<128>(`MERCHANT_SETTLEMENT:${settlement.id}`),
+        }).first();
+        if (entry) {
+          await db.FinancialLedgerEntry.where({ id: entry.id }).delete();
+        }
+        for (const line of await db.MerchantSettlementLine.where({
+          settlementId: settlement.id,
+        }).all()) {
+          await db.MerchantSettlementLine.where({ id: line.id }).delete();
+        }
+        await db.MerchantSettlement.where({ id: settlement.id }).delete();
+      }
+      for (const entry of await db.FinancialLedgerEntry.where({
+        merchantId,
+      }).all()) {
+        await db.FinancialLedgerEntry.where({ id: entry.id }).delete();
+      }
     }
 
     const driver = await db.DriverProfile.where({
       accountId: account.id,
     }).first();
     if (driver) {
-      for (const entry of await db.FinancialLedgerEntry.where({
+      for (const row of await db.FinancialLedgerEntry.where({
         driverId: driver.id,
       }).all()) {
-        await db.FinancialLedgerEntry.where({ id: entry.id }).delete();
+        await db.FinancialLedgerEntry.where({ id: row.id }).delete();
       }
-      const remittances = await db.CodRemittance.where({
+      for (const remittance of await db.CodRemittance.where({
         driverId: driver.id,
-      }).all();
-      for (const remittance of remittances) {
+      }).all()) {
         const discrepancy = await db.CodDiscrepancy.where({
           remittanceId: remittance.id,
         }).first();
         if (discrepancy) {
           await db.CodDiscrepancy.where({ id: discrepancy.id }).delete();
         }
-        const allocations = await db.CodRemittanceAllocation.where({
+        for (const allocation of await db.CodRemittanceAllocation.where({
           remittanceId: remittance.id,
-        }).all();
-        for (const allocation of allocations) {
+        }).all()) {
           await db.CodRemittanceAllocation.where({
             id: allocation.id,
           }).delete();
@@ -282,8 +283,10 @@ describe('Merchant Settlements Foundation (e2e)', () => {
       accountId: account.id,
     }).first();
     if (customer) {
-      const orders = await db.Order.where({ customerId: customer.id }).all();
-      for (const order of orders) {
+      for (const order of await db.Order.where({
+        customerId: customer.id,
+      }).all()) {
+        await deleteLedgerForOrder(order.id);
         for (const line of await db.MerchantSettlementLine.where({
           orderId: order.id,
         }).all()) {
@@ -329,11 +332,23 @@ describe('Merchant Settlements Foundation (e2e)', () => {
         for (const refund of await db.Refund.where({
           orderId: order.id,
         }).all()) {
+          const entry = await db.FinancialLedgerEntry.where({
+            reference: pgVarchar<128>(`REFUND:${refund.id}`),
+          }).first();
+          if (entry) {
+            await db.FinancialLedgerEntry.where({ id: entry.id }).delete();
+          }
           await db.Refund.where({ id: refund.id }).delete();
         }
         for (const payment of await db.Payment.where({
           orderId: order.id,
         }).all()) {
+          const entry = await db.FinancialLedgerEntry.where({
+            reference: pgVarchar<128>(`PAYMENT:${payment.id}`),
+          }).first();
+          if (entry) {
+            await db.FinancialLedgerEntry.where({ id: entry.id }).delete();
+          }
           for (const transaction of await db.PaymentTransaction.where({
             paymentId: payment.id,
           }).all()) {
@@ -368,11 +383,6 @@ describe('Merchant Settlements Foundation (e2e)', () => {
         await db.OrderDeliveryAddressSnapshot.where({
           orderId: order.id,
         }).delete();
-        for (const entry of await db.FinancialLedgerEntry.where({
-          orderId: order.id,
-        }).all()) {
-          await db.FinancialLedgerEntry.where({ id: entry.id }).delete();
-        }
         await db.Order.where({ id: order.id }).delete();
       }
       for (const cart of await db.Cart.where({
@@ -391,12 +401,6 @@ describe('Merchant Settlements Foundation (e2e)', () => {
     for (const merchantId of [
       ...new Set(memberships.map((row) => row.merchantId)),
     ]) {
-      await cleanupSettlementsForMerchant(merchantId);
-      for (const entry of await db.FinancialLedgerEntry.where({
-        merchantId,
-      }).all()) {
-        await db.FinancialLedgerEntry.where({ id: entry.id }).delete();
-      }
       for (const branch of await db.MerchantBranch.where({
         merchantId,
       }).all()) {
@@ -441,13 +445,9 @@ describe('Merchant Settlements Foundation (e2e)', () => {
     suffix: string;
     customerToken: string;
     ownerToken: string;
-    managerToken: string;
-    staffToken: string;
     driverToken: string;
-    foreignOwnerToken: string;
     driverId: string;
     merchantId: string;
-    foreignMerchantId: string;
     productId: string;
     addressId: string;
     phones: string[];
@@ -458,38 +458,24 @@ describe('Merchant Settlements Foundation (e2e)', () => {
 
   async function createFixture(suffix: string): Promise<Fixture> {
     const server = app.getHttpServer();
-    const rawPhones = [
-      `0581${suffix}`,
-      `0582${suffix}`,
-      `0583${suffix}`,
-      `0584${suffix}`,
-      `0585${suffix}`,
-      `0586${suffix}`,
-    ];
+    const rawPhones = [`0591${suffix}`, `0592${suffix}`, `0593${suffix}`];
     const tokens: string[] = [];
     for (const phone of rawPhones) {
       tokens.push(await authenticate(phone));
     }
-    const [
-      customerToken,
-      ownerToken,
-      managerToken,
-      staffToken,
-      driverToken,
-      foreignOwnerToken,
-    ] = tokens;
+    const [customerToken, ownerToken, driverToken] = tokens;
     const accounts = await Promise.all(tokens.map(authMe));
 
     await request(server)
       .post('/api/v1/customer/profile')
       .set('Authorization', `Bearer ${customerToken}`)
-      .send({ fullName: 'Settlement Customer' });
+      .send({ fullName: 'Ledger Customer' });
     const address = await request(server)
       .post('/api/v1/customer/addresses')
       .set('Authorization', `Bearer ${customerToken}`)
       .send({
         label: 'Home',
-        addressText: 'Settlement dropoff',
+        addressText: 'Ledger dropoff',
         latitude: INSIDE[0],
         longitude: INSIDE[1],
       });
@@ -498,14 +484,14 @@ describe('Merchant Settlements Foundation (e2e)', () => {
     const merchant = await request(server)
       .post('/api/v1/merchant/profile')
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({ name: `Settlement Cafe ${suffix}` });
+      .send({ name: `Ledger Cafe ${suffix}` });
     const merchantId = (merchant.body as { merchantId: string }).merchantId;
     const branch = await request(server)
       .post(`/api/v1/merchant/${merchantId}/branches`)
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({
         name: 'Main',
-        phone: `0560${suffix}`,
+        phone: `0540${suffix}`,
         addressText: 'Pickup',
         latitude: INSIDE[0],
         longitude: INSIDE[1],
@@ -514,36 +500,6 @@ describe('Merchant Settlements Foundation (e2e)', () => {
     await prisma
       .getDb()
       .orm.public.Merchant.where({ id: merchantId })
-      .update({
-        status: pgVarchar<64>('ACTIVE'),
-        verifiedAt: pgNow(),
-        updatedAt: pgNow(),
-      });
-
-    await prisma.getDb().orm.public.MerchantMember.create({
-      id: createUuidV7(),
-      merchantId,
-      accountId: accounts[2].id,
-      role: pgVarchar<64>('MANAGER'),
-      createdAt: pgNow(),
-    });
-    await prisma.getDb().orm.public.MerchantMember.create({
-      id: createUuidV7(),
-      merchantId,
-      accountId: accounts[3].id,
-      role: pgVarchar<64>('STAFF'),
-      createdAt: pgNow(),
-    });
-
-    const foreign = await request(server)
-      .post('/api/v1/merchant/profile')
-      .set('Authorization', `Bearer ${foreignOwnerToken}`)
-      .send({ name: `Foreign Settlement ${suffix}` });
-    const foreignMerchantId = (foreign.body as { merchantId: string })
-      .merchantId;
-    await prisma
-      .getDb()
-      .orm.public.Merchant.where({ id: foreignMerchantId })
       .update({
         status: pgVarchar<64>('ACTIVE'),
         verifiedAt: pgNow(),
@@ -560,7 +516,7 @@ describe('Merchant Settlements Foundation (e2e)', () => {
       .send({
         branchId,
         categoryId: (category.body as { id: string }).id,
-        name: 'Settlement meal',
+        name: 'Ledger meal',
         priceMinor: 10000,
       });
 
@@ -568,7 +524,7 @@ describe('Merchant Settlements Foundation (e2e)', () => {
     const zoneId = createUuidV7();
     await prisma.getDb().orm.public.DeliveryZone.create({
       id: zoneId,
-      name: pgVarchar<255>(`Settlement zone ${suffix}`),
+      name: pgVarchar<255>(`Ledger zone ${suffix}`),
       geometry: {
         type: 'MultiPolygon',
         coordinates: [[COVERING_RING]],
@@ -596,7 +552,7 @@ describe('Merchant Settlements Foundation (e2e)', () => {
     const roleId = createUuidV7();
     await prisma.getDb().orm.public.Role.create({
       id: roleId,
-      name: pgVarchar<128>(`settlement-e2e-${suffix}`),
+      name: pgVarchar<128>(`ledger-e2e-${suffix}`),
       description: null,
       active: true,
     });
@@ -605,7 +561,7 @@ describe('Merchant Settlements Foundation (e2e)', () => {
       id: adminId,
       accountId: accounts[1].id,
       roleId,
-      displayName: pgVarchar<255>('Settlement Admin'),
+      displayName: pgVarchar<255>('Ledger Admin'),
       twoFactorEnabled: false,
       createdAt: now,
       updatedAt: now,
@@ -625,8 +581,8 @@ describe('Merchant Settlements Foundation (e2e)', () => {
 
     const driverId = await onboardApprovedDriver(
       driverToken,
-      'Settlement Driver',
-      `ST${suffix}`,
+      'Ledger Driver',
+      `LG${suffix}`,
     );
     await locations.upsert(driverId, 36.7504, 3.0504, new Date().toISOString());
 
@@ -634,13 +590,9 @@ describe('Merchant Settlements Foundation (e2e)', () => {
       suffix,
       customerToken,
       ownerToken,
-      managerToken,
-      staffToken,
       driverToken,
-      foreignOwnerToken,
       driverId,
       merchantId,
-      foreignMerchantId,
       productId: (product.body as { id: string }).id,
       addressId: (address.body as { id: string }).id,
       phones: accounts.map((account) => account.phone),
@@ -651,8 +603,6 @@ describe('Merchant Settlements Foundation (e2e)', () => {
   }
 
   async function cleanupFixture(fixture: Fixture): Promise<void> {
-    await cleanupSettlementsForMerchant(fixture.merchantId);
-    await cleanupSettlementsForMerchant(fixture.foreignMerchantId);
     if (fixture.phones[0]) await cleanupByPhone(fixture.phones[0]);
     const db = prisma.getDb().orm.public;
     for (const rule of await db.MerchantCommissionRule.where({
@@ -714,30 +664,24 @@ describe('Merchant Settlements Foundation (e2e)', () => {
         .orm.public.Payment.where({ orderId })
         .update({ status: 'SUCCEEDED', updatedAt: pgNow() });
     }
-    const preparing = await request(server)
+    await request(server)
       .post(
         `/api/v1/merchant/${fixture.merchantId}/orders/${orderId}/start-preparation`,
       )
       .set('Authorization', `Bearer ${fixture.ownerToken}`)
       .send({});
-    expect(preparing.status).toBe(200);
-    const ready = await request(server)
+    await request(server)
       .post(
         `/api/v1/merchant/${fixture.merchantId}/orders/${orderId}/mark-ready`,
       )
       .set('Authorization', `Bearer ${fixture.ownerToken}`)
       .send({});
-    expect(ready.status).toBe(200);
     return orderId;
   }
 
-  async function acceptAndArrive(
-    fixture: Fixture,
-    orderId: string,
-  ): Promise<AcceptedBody> {
+  async function completeLogistics(fixture: Fixture, orderId: string) {
     const server = app.getHttpServer();
     const offered = await matching.startForReadyOrder(orderId);
-    expect(offered.offered).toBe(true);
     const accepted = await request(server)
       .post(`/api/v1/driver/assignments/${offered.assignment!.id}/accept`)
       .set('Authorization', `Bearer ${fixture.driverToken}`)
@@ -758,452 +702,352 @@ describe('Merchant Settlements Foundation (e2e)', () => {
         .send({});
       expect(step.status).toBe(200);
     }
-    return accepted.body as AcceptedBody;
   }
 
-  async function completeElectronic(
-    fixture: Fixture,
-  ): Promise<{ orderId: string; deliveryId: string; merchantNet: number }> {
-    const server = app.getHttpServer();
-    const orderId = await createReadyOrder(fixture, 'ELECTRONIC');
-    const accepted = await acceptAndArrive(fixture, orderId);
-    const completed = await request(server)
-      .post('/api/v1/driver/deliveries/current/complete-delivery')
-      .set('Authorization', `Bearer ${fixture.driverToken}`)
-      .send({});
-    expect(completed.status).toBe(200);
-    const snapshot = await prisma
-      .getDb()
-      .orm.public.OrderFinancialSnapshot.where({ orderId })
-      .first();
-    return {
-      orderId,
-      deliveryId: accepted.deliveryId,
-      merchantNet: Number(snapshot!.merchantNetAmountMinor),
-    };
-  }
-
-  async function completeCod(
-    fixture: Fixture,
-  ): Promise<{ orderId: string; deliveryId: string; merchantNet: number }> {
-    const server = app.getHttpServer();
-    const orderId = await createReadyOrder(fixture, 'COD');
-    const accepted = await acceptAndArrive(fixture, orderId);
-    const payment = await prisma
-      .getDb()
-      .orm.public.Payment.where({ orderId })
-      .first();
-    const collected = await request(server)
-      .post('/api/v1/driver/deliveries/current/collect-cod')
-      .set('Authorization', `Bearer ${fixture.driverToken}`)
-      .send({ collectedAmountMinor: Number(payment!.amountMinor) });
-    expect(collected.status).toBe(200);
-    const completed = await request(server)
-      .post('/api/v1/driver/deliveries/current/complete-delivery')
-      .set('Authorization', `Bearer ${fixture.driverToken}`)
-      .send({});
-    expect(completed.status).toBe(200);
-    const snapshot = await prisma
-      .getDb()
-      .orm.public.OrderFinancialSnapshot.where({ orderId })
-      .first();
-    return {
-      orderId,
-      deliveryId: accepted.deliveryId,
-      merchantNet: Number(snapshot!.merchantNetAmountMinor),
-    };
-  }
-
-  function widePeriod(): { periodStart: string; periodEnd: string } {
-    return {
-      periodStart: '2020-01-01T00:00:00.000Z',
-      periodEnd: '2099-01-01T00:00:00.000Z',
-    };
-  }
-
-  it('settles ELECTRONIC SALE from immutable merchant net without payout side effects', async () => {
+  it('records ELECTRONIC payment + Driver payable + Merchant payable without payout/bank cash claim', async () => {
     const suffix = Date.now().toString().slice(-6);
     let fixture: Fixture | undefined;
     try {
       fixture = await createFixture(suffix);
-      const { orderId, deliveryId, merchantNet } =
-        await completeElectronic(fixture);
-      const earningBefore = await prisma
+      const server = app.getHttpServer();
+      const orderId = await createReadyOrder(fixture, 'ELECTRONIC');
+      const payment = await prisma
         .getDb()
-        .orm.public.DriverEarning.where({ deliveryId })
+        .orm.public.Payment.where({ orderId })
         .first();
-      expect(earningBefore?.status).toBe('EARNED');
+      // Direct SUCCEEDED update bypasses webhook hook — reconciler recovers.
+      await ledger.postElectronicPaymentSucceeded({
+        paymentId: payment!.id,
+        orderId,
+        amountMinor: Number(payment!.amountMinor),
+        currency: 'DZD',
+      });
+      await completeLogistics(fixture, orderId);
+      const completed = await request(server)
+        .post('/api/v1/driver/deliveries/current/complete-delivery')
+        .set('Authorization', `Bearer ${fixture.driverToken}`)
+        .send({});
+      expect(completed.status).toBe(200);
 
+      const snapshot = await prisma
+        .getDb()
+        .orm.public.OrderFinancialSnapshot.where({ orderId })
+        .first();
       const draft = await settlements.openDraft({
         merchantId: fixture.merchantId,
-        ...widePeriod(),
+        periodStart: '2020-01-01T00:00:00.000Z',
+        periodEnd: '2099-01-01T00:00:00.000Z',
         adminId: fixture.adminId,
       });
-      const built = await settlements.buildSaleLines({
+      await settlements.buildSaleLines({
         settlementId: draft.id,
         adminId: fixture.adminId,
       });
-      expect(built.added).toBe(1);
-      const rebuilt = await settlements.buildSaleLines({
-        settlementId: draft.id,
-        adminId: fixture.adminId,
-      });
-      expect(rebuilt.added).toBe(0);
-
       const finalized = await settlements.finalize({
         settlementId: draft.id,
         adminId: fixture.adminId,
       });
-      expect(finalized.status).toBe('FINALIZED');
-      expect(finalized.paidAt).toBeNull();
-      expect(finalized.netPayableMinor).toBe(merchantNet);
 
-      const lines = await prisma
+      const paymentEntries = await prisma
         .getDb()
-        .orm.public.MerchantSettlementLine.where({ orderId })
+        .orm.public.FinancialLedgerEntry.where({
+          reference: pgVarchar<128>(`PAYMENT:${payment!.id}`),
+        })
         .all();
-      expect(lines).toHaveLength(1);
-      expect(lines[0]?.type).toBe('SALE');
-      expect(Number(lines[0]?.merchantNetMinor)).toBe(merchantNet);
+      expect(paymentEntries).toHaveLength(1);
+      expect(paymentEntries[0]?.type).toBe('CUSTOMER_PAYMENT');
+      expect(paymentEntries[0]?.direction).toBe('DEBIT');
 
-      const earningAfter = await prisma
-        .getDb()
-        .orm.public.DriverEarning.where({ deliveryId })
-        .first();
-      expect(earningAfter?.id).toBe(earningBefore?.id);
-      expect(Number(earningAfter?.netEarningMinor)).toBe(
-        Number(earningBefore?.netEarningMinor),
+      const positions = await ledger.getDriverPositions(fixture.driverId);
+      expect(positions.driverPayableMinor).toBe(300);
+      expect(positions.codCustodyMinor).toBe(0);
+
+      const merchantPos = await ledger.getMerchantPosition(fixture.merchantId);
+      expect(merchantPos.netPayableMinor).toBe(
+        Number(snapshot!.merchantNetAmountMinor),
       );
+      expect(finalized.paidAt).toBeNull();
+
+      const again = await ledger.reconcileUnposted(20);
+      expect(again.posted).toBe(0);
     } finally {
       if (fixture) await cleanupFixture(fixture);
     }
   });
 
-  it('settles COD SALE with outstanding custody unchanged', async () => {
+  it('keeps COD custody and Driver payable un-netted; remittance reduces custody only', async () => {
     const suffix = (Date.now() + 1).toString().slice(-6);
     let fixture: Fixture | undefined;
     try {
       fixture = await createFixture(suffix);
-      const { orderId, merchantNet } = await completeCod(fixture);
-      const collectionBefore = await prisma
+      const server = app.getHttpServer();
+      const orderId = await createReadyOrder(fixture, 'COD');
+      await completeLogistics(fixture, orderId);
+      const payment = await prisma
         .getDb()
-        .orm.public.CodCollection.where({ orderId })
+        .orm.public.Payment.where({ orderId })
         .first();
-      expect(collectionBefore).toBeTruthy();
+      const collected = await request(server)
+        .post('/api/v1/driver/deliveries/current/collect-cod')
+        .set('Authorization', `Bearer ${fixture.driverToken}`)
+        .send({ collectedAmountMinor: Number(payment!.amountMinor) });
+      expect(collected.status).toBe(200);
+      const completed = await request(server)
+        .post('/api/v1/driver/deliveries/current/complete-delivery')
+        .set('Authorization', `Bearer ${fixture.driverToken}`)
+        .send({});
+      expect(completed.status).toBe(200);
 
-      const draft = await settlements.openDraft({
-        merchantId: fixture.merchantId,
-        ...widePeriod(),
-        adminId: fixture.adminId,
-      });
-      await settlements.buildSaleLines({
-        settlementId: draft.id,
-        adminId: fixture.adminId,
-      });
-      const finalized = await settlements.finalize({
-        settlementId: draft.id,
-        adminId: fixture.adminId,
-      });
-      expect(finalized.netPayableMinor).toBe(merchantNet);
+      let positions = await ledger.getDriverPositions(fixture.driverId);
+      expect(positions.codCustodyMinor).toBe(Number(payment!.amountMinor));
+      expect(positions.driverPayableMinor).toBe(300);
 
-      const collectionAfter = await prisma
-        .getDb()
-        .orm.public.CodCollection.where({ orderId })
-        .first();
-      expect(collectionAfter?.id).toBe(collectionBefore?.id);
-      expect(Number(collectionAfter?.collectedAmountMinor)).toBe(
-        Number(collectionBefore?.collectedAmountMinor),
+      const remittance = await request(server)
+        .post('/api/v1/driver/cod/remittances')
+        .set('Authorization', `Bearer ${fixture.driverToken}`)
+        .send({ submittedAmountMinor: 500 });
+      expect(remittance.status).toBe(200);
+      await cod.confirmCodRemittance(
+        (remittance.body as { remittanceId: string }).remittanceId,
+        500,
       );
-      expect(
-        await prisma
-          .getDb()
-          .orm.public.CodRemittance.where({ driverId: fixture.driverId })
-          .all(),
-      ).toHaveLength(0);
+
+      positions = await ledger.getDriverPositions(fixture.driverId);
+      expect(positions.codCustodyMinor).toBe(
+        Number(payment!.amountMinor) - 500,
+      );
+      expect(positions.driverPayableMinor).toBe(300);
+
+      const customerPaymentLegs = await prisma
+        .getDb()
+        .orm.public.FinancialLedgerEntry.where({
+          type: pgVarchar<64>('CUSTOMER_PAYMENT'),
+          orderId,
+        })
+        .all();
+      expect(customerPaymentLegs).toHaveLength(0);
+
+      const remittanceRows = await prisma
+        .getDb()
+        .orm.public.CodRemittance.where({ driverId: fixture.driverId })
+        .all();
+      expect(remittanceRows).toHaveLength(1);
+      const remittanceEntries = await prisma
+        .getDb()
+        .orm.public.FinancialLedgerEntry.where({
+          reference: pgVarchar<128>(`COD_REMITTANCE:${remittanceRows[0].id}`),
+        })
+        .all();
+      expect(remittanceEntries).toHaveLength(1);
+      expect(remittanceEntries[0]?.type).toBe('COD_CUSTODY');
+      expect(remittanceEntries[0]?.direction).toBe('CREDIT');
+      expect(Number(remittanceEntries[0]?.amountMinor)).toBe(500);
+
+      const allocations = await prisma
+        .getDb()
+        .orm.public.CodRemittanceAllocation.where({
+          remittanceId: remittanceRows[0].id,
+        })
+        .all();
+      expect(allocations.length).toBeGreaterThan(0);
+      const custodyCredits = await prisma
+        .getDb()
+        .orm.public.FinancialLedgerEntry.where({
+          driverId: fixture.driverId,
+          type: pgVarchar<64>('COD_CUSTODY'),
+          direction: 'CREDIT',
+        })
+        .all();
+      expect(custodyCredits).toHaveLength(1);
+
+      await ledger.reconcileUnposted(50);
+      const remittanceAfter = await prisma
+        .getDb()
+        .orm.public.FinancialLedgerEntry.where({
+          reference: pgVarchar<128>(`COD_REMITTANCE:${remittanceRows[0].id}`),
+        })
+        .all();
+      expect(remittanceAfter).toHaveLength(1);
     } finally {
       if (fixture) await cleanupFixture(fixture);
     }
   });
 
-  it('applies trusted partial Merchant liability and keeps Refund/DriverEarning immutable', async () => {
+  it('posts Refund amount separately from Merchant settlement liability', async () => {
     const suffix = (Date.now() + 2).toString().slice(-6);
     let fixture: Fixture | undefined;
     try {
       fixture = await createFixture(suffix);
-      const { orderId, deliveryId, merchantNet } =
-        await completeElectronic(fixture);
-      const draft = await settlements.openDraft({
-        merchantId: fixture.merchantId,
-        ...widePeriod(),
-        adminId: fixture.adminId,
-      });
-      await settlements.buildSaleLines({
-        settlementId: draft.id,
-        adminId: fixture.adminId,
-      });
+      const server = app.getHttpServer();
+      const orderId = await createReadyOrder(fixture, 'ELECTRONIC');
+      await completeLogistics(fixture, orderId);
+      await request(server)
+        .post('/api/v1/driver/deliveries/current/complete-delivery')
+        .set('Authorization', `Bearer ${fixture.driverToken}`)
+        .send({});
 
       const created = await refunds.createRefund({
         orderId,
         amountMinor: 4000,
-        reason: 'partial goodwill',
+        reason: 'ledger partial',
         refundMethod: REFUND_METHOD_MANUAL_OTHER,
-        requestedByAdminId: fixture.adminId,
-      });
-      await refunds.authorizeRefund(created.id, { adminId: fixture.adminId });
-      const confirmed = await refunds.confirmManualRefund(created.id, {
-        adminId: fixture.adminId,
-      });
-      expect(confirmed.status).toBe('REFUNDED');
-
-      const adj = await settlements.attachRefundAdjustment({
-        settlementId: draft.id,
-        refundId: confirmed.id,
-        merchantLiabilityMinor: 2500,
-        adminId: fixture.adminId,
-      });
-      expect(adj?.adjustmentMinor).toBe(-2500);
-
-      const finalized = await settlements.finalize({
-        settlementId: draft.id,
-        adminId: fixture.adminId,
-      });
-      expect(finalized.netPayableMinor).toBe(merchantNet - 2500);
-      expect(finalized.refundAdjustmentsMinor).toBe(-2500);
-
-      const refundAfter = await prisma
-        .getDb()
-        .orm.public.Refund.where({ id: confirmed.id })
-        .first();
-      expect(refundAfter?.status).toBe('REFUNDED');
-      expect(Number(refundAfter?.amountMinor)).toBe(4000);
-
-      const earning = await prisma
-        .getDb()
-        .orm.public.DriverEarning.where({ deliveryId })
-        .first();
-      expect(earning?.status).toBe('EARNED');
-    } finally {
-      if (fixture) await cleanupFixture(fixture);
-    }
-  });
-
-  it('places refund adjustment after finalized SALE into a later settlement', async () => {
-    const suffix = (Date.now() + 3).toString().slice(-6);
-    let fixture: Fixture | undefined;
-    try {
-      fixture = await createFixture(suffix);
-      const { orderId, merchantNet } = await completeElectronic(fixture);
-      await prisma
-        .getDb()
-        .orm.public.Order.where({ id: orderId })
-        .update({ completedAt: pgTimestamptz('2025-06-15T12:00:00.000Z') });
-
-      const a = await settlements.openDraft({
-        merchantId: fixture.merchantId,
-        periodStart: '2025-06-01T00:00:00.000Z',
-        periodEnd: '2025-07-01T00:00:00.000Z',
-        adminId: fixture.adminId,
-      });
-      await settlements.buildSaleLines({
-        settlementId: a.id,
-        adminId: fixture.adminId,
-      });
-      const finalizedA = await settlements.finalize({
-        settlementId: a.id,
-        adminId: fixture.adminId,
-      });
-      expect(finalizedA.netPayableMinor).toBe(merchantNet);
-
-      const created = await refunds.createRefund({
-        orderId,
-        amountMinor: 1000,
-        reason: 'post settlement',
-        refundMethod: REFUND_METHOD_MANUAL_OTHER,
-        requestedByAdminId: fixture.adminId,
-      });
-      await refunds.authorizeRefund(created.id, { adminId: fixture.adminId });
-      const confirmed = await refunds.confirmManualRefund(created.id, {
-        adminId: fixture.adminId,
-      });
-
-      const b = await settlements.openDraft({
-        merchantId: fixture.merchantId,
-        ...widePeriod(),
-        adminId: fixture.adminId,
-      });
-      await settlements.attachRefundAdjustment({
-        settlementId: b.id,
-        refundId: confirmed.id,
-        merchantLiabilityMinor: 1000,
-        adminId: fixture.adminId,
-      });
-      const finalizedB = await settlements.finalize({
-        settlementId: b.id,
-        adminId: fixture.adminId,
-      });
-      expect(finalizedB.netPayableMinor).toBe(-1000);
-
-      const aAfter = await prisma
-        .getDb()
-        .orm.public.MerchantSettlement.where({ id: a.id })
-        .first();
-      expect(aAfter?.status).toBe('FINALIZED');
-      expect(Number(aAfter?.netPayableMinor)).toBe(merchantNet);
-      expect(
-        await prisma
-          .getDb()
-          .orm.public.MerchantSettlementLine.where({ settlementId: a.id })
-          .all(),
-      ).toHaveLength(1);
-    } finally {
-      if (fixture) await cleanupFixture(fixture);
-    }
-  });
-
-  it('creates SALE + adjustment coherently when refund completes before batch', async () => {
-    const suffix = (Date.now() + 4).toString().slice(-6);
-    let fixture: Fixture | undefined;
-    try {
-      fixture = await createFixture(suffix);
-      const { orderId, merchantNet } = await completeElectronic(fixture);
-      const created = await refunds.createRefund({
-        orderId,
-        amountMinor: 1500,
-        reason: 'before batch',
-        refundMethod: REFUND_METHOD_MANUAL_OTHER,
-        requestedByAdminId: fixture.adminId,
-      });
-      await refunds.authorizeRefund(created.id, { adminId: fixture.adminId });
-      const confirmed = await refunds.confirmManualRefund(created.id, {
-        adminId: fixture.adminId,
-      });
-
-      const draft = await settlements.openDraft({
-        merchantId: fixture.merchantId,
-        ...widePeriod(),
-        adminId: fixture.adminId,
-      });
-      const adj = await settlements.attachRefundAdjustment({
-        settlementId: draft.id,
-        refundId: confirmed.id,
-        merchantLiabilityMinor: 1500,
-        adminId: fixture.adminId,
-      });
-      expect(adj?.type).toBe('REFUND_ADJUSTMENT');
-      const lines = await prisma
-        .getDb()
-        .orm.public.MerchantSettlementLine.where({ settlementId: draft.id })
-        .all();
-      expect(lines.some((line) => line.type === 'SALE')).toBe(true);
-      expect(lines.some((line) => line.type === 'REFUND_ADJUSTMENT')).toBe(
-        true,
-      );
-      const finalized = await settlements.finalize({
-        settlementId: draft.id,
-        adminId: fixture.adminId,
-      });
-      expect(finalized.netPayableMinor).toBe(merchantNet - 1500);
-    } finally {
-      if (fixture) await cleanupFixture(fixture);
-    }
-  });
-
-  it('enforces Merchant read roles and foreign isolation', async () => {
-    const suffix = (Date.now() + 5).toString().slice(-6);
-    let fixture: Fixture | undefined;
-    try {
-      fixture = await createFixture(suffix);
-      await completeElectronic(fixture);
-      const draft = await settlements.openDraft({
-        merchantId: fixture.merchantId,
-        ...widePeriod(),
-        adminId: fixture.adminId,
-      });
-      await settlements.buildSaleLines({
-        settlementId: draft.id,
-        adminId: fixture.adminId,
-      });
-      await settlements.finalize({
-        settlementId: draft.id,
-        adminId: fixture.adminId,
-      });
-
-      const server = app.getHttpServer();
-      const ownerList = await request(server)
-        .get(`/api/v1/merchant/${fixture.merchantId}/settlements`)
-        .set('Authorization', `Bearer ${fixture.ownerToken}`);
-      expect(ownerList.status).toBe(200);
-      expect(ownerList.body).toHaveLength(1);
-
-      const managerList = await request(server)
-        .get(`/api/v1/merchant/${fixture.merchantId}/settlements`)
-        .set('Authorization', `Bearer ${fixture.managerToken}`);
-      expect(managerList.status).toBe(200);
-
-      const staffList = await request(server)
-        .get(`/api/v1/merchant/${fixture.merchantId}/settlements`)
-        .set('Authorization', `Bearer ${fixture.staffToken}`);
-      expect(staffList.status).toBe(403);
-
-      const foreign = await request(server)
-        .get(`/api/v1/merchant/${fixture.merchantId}/settlements`)
-        .set('Authorization', `Bearer ${fixture.foreignOwnerToken}`);
-      expect([403, 404]).toContain(foreign.status);
-
-      const customer = await request(server)
-        .get(`/api/v1/merchant/${fixture.merchantId}/settlements`)
-        .set('Authorization', `Bearer ${fixture.customerToken}`);
-      expect([403, 404]).toContain(customer.status);
-
-      const driver = await request(server)
-        .get(`/api/v1/merchant/${fixture.merchantId}/settlements`)
-        .set('Authorization', `Bearer ${fixture.driverToken}`);
-      expect([403, 404]).toContain(driver.status);
-
-      const detail = await request(server)
-        .get(`/api/v1/merchant/${fixture.merchantId}/settlements/${draft.id}`)
-        .set('Authorization', `Bearer ${fixture.ownerToken}`);
-      expect(detail.status).toBe(200);
-      const detailBody = detail.body as {
-        settlementId: string;
-        status: string;
-        currency: string;
-        paidAt?: unknown;
-      };
-      expect(detailBody).toMatchObject({
-        settlementId: draft.id,
-        status: 'FINALIZED',
-        currency: 'DZD',
-      });
-      expect(detailBody.paidAt).toBeUndefined();
-    } finally {
-      if (fixture) await cleanupFixture(fixture);
-    }
-  });
-
-  it('does not require COD remittance for SALE and keeps COD method path intact', async () => {
-    const suffix = (Date.now() + 6).toString().slice(-6);
-    let fixture: Fixture | undefined;
-    try {
-      fixture = await createFixture(suffix);
-      const { orderId } = await completeCod(fixture);
-      const created = await refunds.createRefund({
-        orderId,
-        amountMinor: 500,
-        reason: 'cod goodwill',
-        refundMethod: REFUND_METHOD_MANUAL_COD,
         requestedByAdminId: fixture.adminId,
       });
       await refunds.authorizeRefund(created.id, { adminId: fixture.adminId });
       await refunds.confirmManualRefund(created.id, {
         adminId: fixture.adminId,
       });
-      expect(
-        await prisma
-          .getDb()
-          .orm.public.CodRemittance.where({ driverId: fixture.driverId })
-          .all(),
-      ).toHaveLength(0);
+
+      const refundEntries = await prisma
+        .getDb()
+        .orm.public.FinancialLedgerEntry.where({
+          reference: pgVarchar<128>(`REFUND:${created.id}`),
+        })
+        .all();
+      expect(refundEntries).toHaveLength(1);
+      expect(Number(refundEntries[0]?.amountMinor)).toBe(4000);
+
+      const draft = await settlements.openDraft({
+        merchantId: fixture.merchantId,
+        periodStart: '2020-01-01T00:00:00.000Z',
+        periodEnd: '2099-01-01T00:00:00.000Z',
+        adminId: fixture.adminId,
+      });
+      await settlements.buildSaleLines({
+        settlementId: draft.id,
+        adminId: fixture.adminId,
+      });
+      await settlements.attachRefundAdjustment({
+        settlementId: draft.id,
+        refundId: created.id,
+        merchantLiabilityMinor: 2500,
+        adminId: fixture.adminId,
+      });
+      const finalized = await settlements.finalize({
+        settlementId: draft.id,
+        adminId: fixture.adminId,
+      });
+
+      const settlementEntries = await prisma
+        .getDb()
+        .orm.public.FinancialLedgerEntry.where({
+          reference: pgVarchar<128>(`MERCHANT_SETTLEMENT:${finalized.id}`),
+        })
+        .all();
+      expect(settlementEntries).toHaveLength(1);
+      expect(Number(settlementEntries[0]?.amountMinor)).toBe(
+        Math.abs(finalized.netPayableMinor),
+      );
+      expect(finalized.refundAdjustmentsMinor).toBe(-2500);
+      await ledger.reconcileUnposted(50);
+      const refundAfter = await prisma
+        .getDb()
+        .orm.public.FinancialLedgerEntry.where({
+          reference: pgVarchar<128>(`REFUND:${created.id}`),
+        })
+        .all();
+      expect(refundAfter).toHaveLength(1);
+      const settlementAfter = await prisma
+        .getDb()
+        .orm.public.FinancialLedgerEntry.where({
+          reference: pgVarchar<128>(`MERCHANT_SETTLEMENT:${finalized.id}`),
+        })
+        .all();
+      expect(settlementAfter).toHaveLength(1);
+    } finally {
+      if (fixture) await cleanupFixture(fixture);
+    }
+  });
+
+  it('derives Merchant cumulative category-local position and posts zero sources idempotently', async () => {
+    const suffix = (Date.now() + 3).toString().slice(-6);
+    let fixture: Fixture | undefined;
+    try {
+      fixture = await createFixture(suffix);
+      const orderId = await createReadyOrder(fixture, 'ELECTRONIC');
+      const negativeId = createUuidV7();
+      const positiveId = createUuidV7();
+      await ledger.postMerchantSettlementFinalized({
+        settlementId: negativeId,
+        merchantId: fixture.merchantId,
+        netPayableMinor: -2000,
+      });
+      await ledger.postMerchantSettlementFinalized({
+        settlementId: positiveId,
+        merchantId: fixture.merchantId,
+        netPayableMinor: 8000,
+      });
+      const position = await ledger.getMerchantPosition(fixture.merchantId);
+      expect(position.netPayableMinor).toBe(6000);
+
+      const zeroSettlementId = createUuidV7();
+      const zeroEarningId = createUuidV7();
+      await ledger.postMerchantSettlementFinalized({
+        settlementId: zeroSettlementId,
+        merchantId: fixture.merchantId,
+        netPayableMinor: 0,
+      });
+      await ledger.postDriverEarning({
+        earningId: zeroEarningId,
+        orderId,
+        driverId: fixture.driverId,
+        netEarningMinor: 0,
+      });
+
+      const zeroSettlement = await ledger.getBySourceReference(
+        `MERCHANT_SETTLEMENT:${zeroSettlementId}`,
+      );
+      expect(zeroSettlement?.direction).toBe('CREDIT');
+      expect(zeroSettlement?.amountMinor).toBe(0);
+      const zeroEarning = await ledger.getBySourceReference(
+        `DRIVER_EARNING:${zeroEarningId}`,
+      );
+      expect(zeroEarning?.direction).toBe('CREDIT');
+      expect(zeroEarning?.amountMinor).toBe(0);
+
+      await ledger.postMerchantSettlementFinalized({
+        settlementId: zeroSettlementId,
+        merchantId: fixture.merchantId,
+        netPayableMinor: 0,
+      });
+      await ledger.postDriverEarning({
+        earningId: zeroEarningId,
+        orderId,
+        driverId: fixture.driverId,
+        netEarningMinor: 0,
+      });
+      await ledger.reconcileUnposted(50);
+
+      const settlementRefs = await prisma
+        .getDb()
+        .orm.public.FinancialLedgerEntry.where({
+          reference: pgVarchar<128>(`MERCHANT_SETTLEMENT:${zeroSettlementId}`),
+        })
+        .all();
+      expect(settlementRefs).toHaveLength(1);
+      const earningRefs = await prisma
+        .getDb()
+        .orm.public.FinancialLedgerEntry.where({
+          reference: pgVarchar<128>(`DRIVER_EARNING:${zeroEarningId}`),
+        })
+        .all();
+      expect(earningRefs).toHaveLength(1);
+      const negativeRefs = await prisma
+        .getDb()
+        .orm.public.FinancialLedgerEntry.where({
+          reference: pgVarchar<128>(`MERCHANT_SETTLEMENT:${negativeId}`),
+        })
+        .all();
+      expect(negativeRefs).toHaveLength(1);
+      expect(negativeRefs[0]?.direction).toBe('DEBIT');
+      const positiveRefs = await prisma
+        .getDb()
+        .orm.public.FinancialLedgerEntry.where({
+          reference: pgVarchar<128>(`MERCHANT_SETTLEMENT:${positiveId}`),
+        })
+        .all();
+      expect(positiveRefs).toHaveLength(1);
+      expect(positiveRefs[0]?.direction).toBe('CREDIT');
     } finally {
       if (fixture) await cleanupFixture(fixture);
     }

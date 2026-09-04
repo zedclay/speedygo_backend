@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { MerchantAccessService } from '../../merchants/application/merchant-access.service';
 import { MERCHANT_CAPABILITIES } from '../../merchants/domain/merchant.policy';
+import { FinancialLedgerService } from '../../financial-ledger/application/financial-ledger.service';
 import {
   merchantSettlementAdminRequired,
   merchantSettlementDraftExists,
@@ -45,6 +46,7 @@ export class MerchantSettlementService {
   constructor(
     private readonly settlements: MerchantSettlementRepository,
     private readonly access: MerchantAccessService,
+    private readonly ledger: FinancialLedgerService,
   ) {}
 
   private async requireAdmin(adminId: string): Promise<void> {
@@ -314,6 +316,14 @@ export class MerchantSettlementService {
         throw merchantSettlementNotFound();
       }
       if (settlement.status === SETTLEMENT_STATUS_FINALIZED) {
+        await this.ledger.postMerchantSettlementFinalized(
+          {
+            settlementId: settlement.id,
+            merchantId: settlement.merchantId,
+            netPayableMinor: settlement.netPayableMinor,
+          },
+          tx,
+        );
         return settlement;
       }
       requireDraftStatus(settlement.status);
@@ -324,6 +334,14 @@ export class MerchantSettlementService {
         throw merchantSettlementNotFound();
       }
       if (fresh.status === SETTLEMENT_STATUS_FINALIZED) {
+        await this.ledger.postMerchantSettlementFinalized(
+          {
+            settlementId: fresh.id,
+            merchantId: fresh.merchantId,
+            netPayableMinor: fresh.netPayableMinor,
+          },
+          tx,
+        );
         return fresh;
       }
       requireDraftStatus(fresh.status);
@@ -346,6 +364,14 @@ export class MerchantSettlementService {
           'Concurrent finalization prevented this action',
         );
       }
+      await this.ledger.postMerchantSettlementFinalized(
+        {
+          settlementId: finalized.id,
+          merchantId: finalized.merchantId,
+          netPayableMinor: finalized.netPayableMinor,
+        },
+        tx,
+      );
       return finalized;
     });
   }

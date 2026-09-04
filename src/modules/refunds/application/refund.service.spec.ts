@@ -160,7 +160,12 @@ describe('RefundService (FINAL)', () => {
         Promise.resolve(accountId === ACCOUNT_A ? CUSTOMER_A : null),
       ),
     };
-    service = new RefundService(repo as never);
+    service = new RefundService(
+      repo as never,
+      {
+        postRefundRefunded: jest.fn().mockResolvedValue({}),
+      } as never,
+    );
   });
 
   it('starts every Refund as REQUESTED', async () => {

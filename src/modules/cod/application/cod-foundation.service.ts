@@ -13,6 +13,7 @@ import {
 import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import { DELIVERY_STATUS_ARRIVED_CUSTOMER } from '../../delivery/domain/delivery.policy';
 import { DriverRepository } from '../../drivers/infrastructure/driver.repository';
+import { FinancialLedgerService } from '../../financial-ledger/application/financial-ledger.service';
 import { isAcceptedAssignment } from '../../matching/domain/matching.policy';
 import {
   ORDER_PAYMENT_METHOD_COD,
@@ -85,6 +86,7 @@ export class CodFoundationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly drivers: DriverRepository,
+    private readonly ledger: FinancialLedgerService,
   ) {}
 
   async collectCod(
@@ -177,12 +179,15 @@ export class CodFoundationService {
       .CodCollection.where({ orderId: order.id })
       .first();
     if (existing) {
-      return this.reuseExistingCollection({
-        existing,
-        payment,
-        driverId: profile.id,
-        collectedAmountMinor,
-      });
+      return this.reuseExistingCollection(
+        {
+          existing,
+          payment,
+          driverId: profile.id,
+          collectedAmountMinor,
+        },
+        tx,
+      );
     }
 
     if (payment.status === PAYMENT_STATUS_SUCCEEDED) {
@@ -233,6 +238,16 @@ export class CodFoundationService {
       updatedAt: now,
     });
 
+    await this.ledger.postCodCollection(
+      {
+        collectionId: codCollectionId,
+        orderId: order.id,
+        driverId: profile.id,
+        amountMinor: collectedAmountMinor,
+      },
+      tx,
+    );
+
     return {
       orderId: order.id,
       codCollectionId,
@@ -243,24 +258,27 @@ export class CodFoundationService {
     };
   }
 
-  private reuseExistingCollection(input: {
-    existing: {
-      id: string;
-      orderId: string;
+  private async reuseExistingCollection(
+    input: {
+      existing: {
+        id: string;
+        orderId: string;
+        driverId: string;
+        expectedAmountMinor: unknown;
+        collectedAmountMinor: unknown;
+        status: string;
+      };
+      payment: {
+        status: string;
+        amountMinor: unknown;
+        method: string;
+        currency: string;
+      };
       driverId: string;
-      expectedAmountMinor: unknown;
-      collectedAmountMinor: unknown;
-      status: string;
-    };
-    payment: {
-      status: string;
-      amountMinor: unknown;
-      method: string;
-      currency: string;
-    };
-    driverId: string;
-    collectedAmountMinor: number;
-  }): CodCollectionView {
+      collectedAmountMinor: number;
+    },
+    tx: OrmClient,
+  ): Promise<CodCollectionView> {
     const expected = parseMinorUnits(input.existing.expectedAmountMinor);
     const collected = parseMinorUnits(input.existing.collectedAmountMinor);
     const paymentAmount = parseMinorUnits(input.payment.amountMinor);
@@ -284,6 +302,16 @@ export class CodFoundationService {
     if (input.payment.status !== PAYMENT_STATUS_SUCCEEDED) {
       throw driverCodCollectionInconsistentState();
     }
+
+    await this.ledger.postCodCollection(
+      {
+        collectionId: input.existing.id,
+        orderId: input.existing.orderId,
+        driverId: input.existing.driverId,
+        amountMinor: collected,
+      },
+      tx,
+    );
 
     return {
       orderId: input.existing.orderId,
@@ -499,6 +527,15 @@ export class CodFoundationService {
           });
         }
       }
+
+      await this.ledger.postCodRemittanceConfirmed(
+        {
+          remittanceId: locked.id,
+          driverId,
+          confirmedAmountMinor,
+        },
+        tx,
+      );
 
       return {
         remittanceId: locked.id,

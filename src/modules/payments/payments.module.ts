@@ -4,6 +4,7 @@ import {
   resolveChargilyMode,
   shouldUseTestPaymentProvider,
 } from '../../config/payment-config.validation';
+import { FinancialLedgerModule } from '../financial-ledger/financial-ledger.module';
 import { PaymentService } from './application/payment.service';
 import { PAYMENT_PROVIDER_CHARGILY } from './domain/payment.policy';
 import { CHARGILY_HTTP, PAYMENT_PROVIDER } from './domain/payment.types';
@@ -18,6 +19,7 @@ import { CustomerPaymentController } from './presentation/http/customer-payment.
 import { PaymentWebhookController } from './presentation/http/payment-webhook.controller';
 
 @Module({
+  imports: [FinancialLedgerModule],
   controllers: [CustomerPaymentController, PaymentWebhookController],
   providers: [
     PaymentRepository,

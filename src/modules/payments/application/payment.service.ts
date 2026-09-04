@@ -50,6 +50,7 @@ import {
   type ProviderWebhookEvent,
 } from '../domain/payment.types';
 import { PaymentRepository } from '../infrastructure/payment.repository';
+import { FinancialLedgerService } from '../../financial-ledger/application/financial-ledger.service';
 
 type PreparedInitiation =
   | { kind: 'reuse'; payment: PaymentRecord; attempt: PaymentTransactionRecord }
@@ -72,6 +73,7 @@ export class PaymentService {
     private readonly payments: PaymentRepository,
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     private readonly config: ConfigService,
+    private readonly ledger: FinancialLedgerService,
   ) {}
 
   async getCustomerPayment(
@@ -434,6 +436,15 @@ export class PaymentService {
       if (isOpenish(attempt.status)) {
         await this.payments.closeAttempt(attempt.id, PAYMENT_TX_SUCCEEDED, tx);
       }
+      await this.ledger.postElectronicPaymentSucceeded(
+        {
+          paymentId: locked.id,
+          orderId: locked.orderId,
+          amountMinor: locked.amountMinor,
+          currency: locked.currency,
+        },
+        tx,
+      );
     });
   }
 
@@ -501,6 +512,15 @@ export class PaymentService {
               tx,
             );
           }
+          await this.ledger.postElectronicPaymentSucceeded(
+            {
+              paymentId: payment.id,
+              orderId: payment.orderId,
+              amountMinor: payment.amountMinor,
+              currency: payment.currency,
+            },
+            tx,
+          );
         } else if (isPaymentExecutionTerminal(payment.status)) {
           recordedStatus = PAYMENT_TX_IGNORED;
         } else if (event.status === 'CANCELLED') {

@@ -8,6 +8,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
+import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
 import { createUuidV7 } from '../src/common/utils/uuid-v7';
 import { RedisService } from '../src/infrastructure/cache/redis.service';
 import { PrismaService } from '../src/infrastructure/database/database.module';
@@ -81,6 +82,7 @@ describe('Realtime tracking (e2e)', () => {
     baseUrl = await app.getUrl();
     sender = app.get(OTP_SENDER);
     prisma = app.get(PrismaService);
+    await deactivateAllDeliveryZones(prisma);
     redis = app.get(RedisService);
     matching = app.get(MatchingService);
     review = app.get(DriverReviewService);
@@ -277,6 +279,15 @@ describe('Realtime tracking (e2e)', () => {
           .orm.public.Vehicle.where({ id: vehicle.id })
           .delete();
       }
+      for (const entry of await prisma
+        .getDb()
+        .orm.public.FinancialLedgerEntry.where({ driverId: driver.id })
+        .all()) {
+        await prisma
+          .getDb()
+          .orm.public.FinancialLedgerEntry.where({ id: entry.id })
+          .delete();
+      }
       await prisma
         .getDb()
         .orm.public.DriverProfile.where({ id: driver.id })
@@ -380,6 +391,15 @@ describe('Realtime tracking (e2e)', () => {
           .getDb()
           .orm.public.OrderDeliveryAddressSnapshot.where({ orderId: order.id })
           .delete();
+        for (const entry of await prisma
+          .getDb()
+          .orm.public.FinancialLedgerEntry.where({ orderId: order.id })
+          .all()) {
+          await prisma
+            .getDb()
+            .orm.public.FinancialLedgerEntry.where({ id: entry.id })
+            .delete();
+        }
         await prisma.getDb().orm.public.Order.where({ id: order.id }).delete();
       }
       const carts = await prisma
