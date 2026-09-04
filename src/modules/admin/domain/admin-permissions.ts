@@ -23,6 +23,8 @@ export const ADMIN_PERMISSIONS = Object.freeze({
   PROMOTIONS_MANAGE: 'promotions.manage',
   LEDGER_READ: 'ledger.read',
   AUDIT_READ: 'audit.read',
+  SUPPORT_READ: 'support.read',
+  SUPPORT_MANAGE: 'support.manage',
 } as const);
 
 export type AdminPermissionCode =
