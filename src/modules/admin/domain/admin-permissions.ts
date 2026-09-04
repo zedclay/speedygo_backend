@@ -25,6 +25,10 @@ export const ADMIN_PERMISSIONS = Object.freeze({
   AUDIT_READ: 'audit.read',
   SUPPORT_READ: 'support.read',
   SUPPORT_MANAGE: 'support.manage',
+  /** Operational / non-sensitive Admin reports (Reports Foundation v1.0). */
+  REPORTS_READ: 'reports.read',
+  /** Financial Admin reports — not implied by reports.read. */
+  REPORTS_FINANCE_READ: 'reports.finance.read',
 } as const);
 
 export type AdminPermissionCode =

@@ -33,6 +33,7 @@ import { PromotionsModule } from './modules/promotions/promotions.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SupportModule } from './modules/support/support.module';
 import { RatingsModule } from './modules/ratings/ratings.module';
+import { ReportsModule } from './modules/reports/reports.module';
 
 @Module({
   imports: [
@@ -71,6 +72,7 @@ import { RatingsModule } from './modules/ratings/ratings.module';
     NotificationsModule,
     SupportModule,
     RatingsModule,
+    ReportsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
