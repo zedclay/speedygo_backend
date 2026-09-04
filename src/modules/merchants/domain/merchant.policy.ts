@@ -48,6 +48,7 @@ export const MERCHANT_CAPABILITIES = {
   ORDER_READ: 'ORDER_READ',
   ORDER_WORKFLOW_MUTATE: 'ORDER_WORKFLOW_MUTATE',
   COMMISSION_READ: 'COMMISSION_READ',
+  SETTLEMENT_READ: 'SETTLEMENT_READ',
 } as const;
 
 export type MerchantCapability =
@@ -87,6 +88,7 @@ export function roleHasCapability(
     case MERCHANT_CAPABILITIES.ORDER_READ:
       return true;
     case MERCHANT_CAPABILITIES.COMMISSION_READ:
+    case MERCHANT_CAPABILITIES.SETTLEMENT_READ:
       return (
         role === MERCHANT_MEMBER_ROLE_OWNER ||
         role === MERCHANT_MEMBER_ROLE_MANAGER
