@@ -44,6 +44,7 @@ import {
   type RefundStatus,
 } from '../domain/refund.types';
 import { RefundRepository } from '../infrastructure/refund.repository';
+import { FinancialLedgerService } from '../../financial-ledger/application/financial-ledger.service';
 
 export type CreateRefundCommand = {
   orderId: string;
@@ -63,7 +64,10 @@ export type TrustedRefundAction = {
 
 @Injectable()
 export class RefundService {
-  constructor(private readonly refunds: RefundRepository) {}
+  constructor(
+    private readonly refunds: RefundRepository,
+    private readonly ledger: FinancialLedgerService,
+  ) {}
 
   private async requireTrustedAdmin(adminId: string): Promise<void> {
     if (!(await this.refunds.adminExists(adminId))) {
@@ -236,6 +240,14 @@ export class RefundService {
       }
 
       if (refund.status === REFUND_STATUS_REFUNDED) {
+        await this.ledger.postRefundRefunded(
+          {
+            refundId: refund.id,
+            orderId: refund.orderId,
+            amountMinor: refund.amountMinor,
+          },
+          tx,
+        );
         return refund;
       }
       if (!canConfirmManualRefund(refund.status, refund.refundMethod)) {
@@ -265,6 +277,14 @@ export class RefundService {
           'Concurrent Refund transition prevented manual confirmation',
         );
       }
+      await this.ledger.postRefundRefunded(
+        {
+          refundId: updated.id,
+          orderId: updated.orderId,
+          amountMinor: updated.amountMinor,
+        },
+        tx,
+      );
       return updated;
     });
   }

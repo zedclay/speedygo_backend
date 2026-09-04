@@ -27,6 +27,7 @@ import { PaymentsModule } from './modules/payments/payments.module';
 import { CodModule } from './modules/cod/cod.module';
 import { RefundsModule } from './modules/refunds/refunds.module';
 import { MerchantSettlementsModule } from './modules/merchant-settlements/merchant-settlements.module';
+import { FinancialLedgerModule } from './modules/financial-ledger/financial-ledger.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { MerchantSettlementsModule } from './modules/merchant-settlements/mercha
     CodModule,
     RefundsModule,
     MerchantSettlementsModule,
+    FinancialLedgerModule,
   ],
   controllers: [AppController],
   providers: [AppService],

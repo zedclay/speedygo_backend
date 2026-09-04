@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { isPostgresUniqueViolation } from '../../../common/errors/postgres-unique';
 import { driverProfileNotFound } from '../../drivers/domain/driver.errors';
 import { DriverRepository } from '../../drivers/infrastructure/driver.repository';
+import { FinancialLedgerService } from '../../financial-ledger/application/financial-ledger.service';
 import {
   driverEarningAlreadyExists,
   driverEarningAssignmentInvalid,
@@ -31,6 +32,7 @@ export class DriverRemunerationService {
   constructor(
     private readonly earnings: DriverEarningRepository,
     private readonly drivers: DriverRepository,
+    private readonly ledger: FinancialLedgerService,
   ) {}
 
   /**
@@ -54,6 +56,15 @@ export class DriverRemunerationService {
         existing.driverId === input.driverId &&
         existing.status === DRIVER_EARNING_STATUS_EARNED
       ) {
+        await this.ledger.postDriverEarning(
+          {
+            earningId: existing.id,
+            orderId: input.orderId,
+            driverId: existing.driverId,
+            netEarningMinor: existing.netEarningMinor,
+          },
+          client,
+        );
         return existing;
       }
       throw driverEarningAlreadyExists();
@@ -82,7 +93,7 @@ export class DriverRemunerationService {
     const amounts = buildDriverEarningAmounts(snapshot.driverRemunerationMinor);
 
     try {
-      return await this.earnings.createEarned(
+      const created = await this.earnings.createEarned(
         {
           deliveryId: input.deliveryId,
           driverId: input.driverId,
@@ -94,6 +105,16 @@ export class DriverRemunerationService {
         },
         client,
       );
+      await this.ledger.postDriverEarning(
+        {
+          earningId: created.id,
+          orderId: input.orderId,
+          driverId: created.driverId,
+          netEarningMinor: created.netEarningMinor,
+        },
+        client,
+      );
+      return created;
     } catch (error) {
       if (!isPostgresUniqueViolation(error)) {
         throw error;
@@ -108,6 +129,15 @@ export class DriverRemunerationService {
         raced.netEarningMinor === amounts.netEarningMinor &&
         raced.status === DRIVER_EARNING_STATUS_EARNED
       ) {
+        await this.ledger.postDriverEarning(
+          {
+            earningId: raced.id,
+            orderId: input.orderId,
+            driverId: raced.driverId,
+            netEarningMinor: raced.netEarningMinor,
+          },
+          client,
+        );
         return raced;
       }
       throw driverEarningAlreadyExists();

@@ -4,6 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
+import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
 import { createUuidV7 } from '../src/common/utils/uuid-v7';
 import { RedisService } from '../src/infrastructure/cache/redis.service';
 import { PrismaService } from '../src/infrastructure/database/database.module';
@@ -73,6 +74,7 @@ describe('Merchant Commission Foundation (e2e)', () => {
     await app.init();
     sender = app.get(OTP_SENDER);
     prisma = app.get(PrismaService);
+    await deactivateAllDeliveryZones(prisma);
     redis = app.get(RedisService);
     commission = app.get(MerchantCommissionService);
     const leftover = await redis.getClient().keys('auth:test:*');
@@ -171,6 +173,15 @@ describe('Merchant Commission Foundation (e2e)', () => {
         .getDb()
         .orm.public.OrderDeliveryAddressSnapshot.where({ orderId: order.id })
         .delete();
+      for (const entry of await prisma
+        .getDb()
+        .orm.public.FinancialLedgerEntry.where({ orderId: order.id })
+        .all()) {
+        await prisma
+          .getDb()
+          .orm.public.FinancialLedgerEntry.where({ id: entry.id })
+          .delete();
+      }
       await prisma.getDb().orm.public.Order.where({ id: order.id }).delete();
     }
   }

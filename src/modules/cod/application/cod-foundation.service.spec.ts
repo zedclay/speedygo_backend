@@ -304,7 +304,14 @@ describe('CodFoundationService', () => {
         orm: buildOrm(),
       }),
     };
-    service = new CodFoundationService(prisma as never, drivers as never);
+    service = new CodFoundationService(
+      prisma as never,
+      drivers as never,
+      {
+        postCodCollection: jest.fn().mockResolvedValue({}),
+        postCodRemittanceConfirmed: jest.fn().mockResolvedValue({}),
+      } as never,
+    );
   });
 
   it('collects exact amount and marks Payment SUCCEEDED', async () => {

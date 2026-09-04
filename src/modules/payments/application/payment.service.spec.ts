@@ -188,9 +188,16 @@ describe('PaymentService', () => {
         }),
       ),
     };
-    service = new PaymentService(repo as never, provider, {
-      get: jest.fn(() => ''),
-    } as never);
+    service = new PaymentService(
+      repo as never,
+      provider,
+      {
+        get: jest.fn(() => ''),
+      } as never,
+      {
+        postElectronicPaymentSucceeded: jest.fn().mockResolvedValue({}),
+      } as never,
+    );
   });
 
   it('reads an owned Customer Payment without internal financial fields', async () => {

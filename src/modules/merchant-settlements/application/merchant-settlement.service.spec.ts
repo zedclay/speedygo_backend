@@ -152,6 +152,9 @@ describe('MerchantSettlementService', () => {
     service = new MerchantSettlementService(
       settlements as never,
       access as never,
+      {
+        postMerchantSettlementFinalized: jest.fn().mockResolvedValue({}),
+      } as never,
     );
   });
 
