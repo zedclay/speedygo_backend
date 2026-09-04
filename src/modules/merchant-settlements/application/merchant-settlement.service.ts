@@ -67,30 +67,39 @@ export class MerchantSettlementService {
     periodEnd: string;
     adminId: string;
   }): Promise<MerchantSettlementRecord> {
+    return this.settlements.runInTransaction((tx) =>
+      this.openDraftInTx(tx, input),
+    );
+  }
+
+  async openDraftInTx(
+    tx: OrmClient,
+    input: {
+      merchantId: string;
+      periodStart: string;
+      periodEnd: string;
+      adminId: string;
+    },
+  ): Promise<MerchantSettlementRecord> {
     await this.requireAdmin(input.adminId);
     requireValidSettlementPeriod(input.periodStart, input.periodEnd);
     if (!(await this.settlements.merchantExists(input.merchantId))) {
       throw merchantSettlementNotFound();
     }
 
-    return this.settlements.runInTransaction(async (tx) => {
-      await this.settlements.lockMerchantScope(input.merchantId, tx);
-      const existing = await this.settlements.findOpenDraft(
-        input.merchantId,
-        tx,
-      );
-      if (existing) {
-        throw merchantSettlementDraftExists();
-      }
-      return this.settlements.createDraft(
-        {
-          merchantId: input.merchantId,
-          periodStart: input.periodStart,
-          periodEnd: input.periodEnd,
-        },
-        tx,
-      );
-    });
+    await this.settlements.lockMerchantScope(input.merchantId, tx);
+    const existing = await this.settlements.findOpenDraft(input.merchantId, tx);
+    if (existing) {
+      throw merchantSettlementDraftExists();
+    }
+    return this.settlements.createDraft(
+      {
+        merchantId: input.merchantId,
+        periodStart: input.periodStart,
+        periodEnd: input.periodEnd,
+      },
+      tx,
+    );
   }
 
   /**
@@ -101,69 +110,76 @@ export class MerchantSettlementService {
     settlementId: string;
     adminId: string;
   }): Promise<{ added: number; settlementId: string }> {
+    return this.settlements.runInTransaction((tx) =>
+      this.buildSaleLinesInTx(tx, input),
+    );
+  }
+
+  async buildSaleLinesInTx(
+    tx: OrmClient,
+    input: {
+      settlementId: string;
+      adminId: string;
+    },
+  ): Promise<{ added: number; settlementId: string }> {
     await this.requireAdmin(input.adminId);
 
-    return this.settlements.runInTransaction(async (tx) => {
-      const settlement = await this.settlements.findById(
-        input.settlementId,
+    const settlement = await this.settlements.findById(input.settlementId, tx);
+    if (!settlement) {
+      throw merchantSettlementNotFound();
+    }
+    requireDraftStatus(settlement.status);
+    await this.settlements.lockMerchantScope(settlement.merchantId, tx);
+
+    const eligible = await this.settlements.findEligibleSaleOrders(
+      {
+        merchantId: settlement.merchantId,
+        periodStart: settlement.periodStart,
+        periodEnd: settlement.periodEnd,
+      },
+      tx,
+    );
+
+    let added = 0;
+    for (const order of eligible) {
+      if (
+        !isSaleEligibleOrder({
+          orderStatus: order.orderStatus,
+          paymentStatus: order.paymentStatus,
+          completedAt: order.completedAt,
+        })
+      ) {
+        continue;
+      }
+      const existing = await this.settlements.findSaleLineByOrderId(
+        order.orderId,
         tx,
       );
-      if (!settlement) {
-        throw merchantSettlementNotFound();
+      if (existing) {
+        continue;
       }
-      requireDraftStatus(settlement.status);
-      await this.settlements.lockMerchantScope(settlement.merchantId, tx);
-
-      const eligible = await this.settlements.findEligibleSaleOrders(
+      const amounts = buildSaleLineAmounts({
+        grossMerchandiseSubtotalMinor: order.grossMerchandiseSubtotalMinor,
+        merchantCommissionAmountMinor: order.merchantCommissionAmountMinor,
+        merchantNetAmountMinor: order.merchantNetAmountMinor,
+      });
+      await this.settlements.createLine(
         {
-          merchantId: settlement.merchantId,
-          periodStart: settlement.periodStart,
-          periodEnd: settlement.periodEnd,
+          settlementId: settlement.id,
+          orderId: order.orderId,
+          type: SETTLEMENT_LINE_TYPE_SALE,
+          ...amounts,
+          reference: null,
         },
         tx,
       );
+      added += 1;
+    }
 
-      let added = 0;
-      for (const order of eligible) {
-        if (
-          !isSaleEligibleOrder({
-            orderStatus: order.orderStatus,
-            paymentStatus: order.paymentStatus,
-            completedAt: order.completedAt,
-          })
-        ) {
-          continue;
-        }
-        const existing = await this.settlements.findSaleLineByOrderId(
-          order.orderId,
-          tx,
-        );
-        if (existing) {
-          continue;
-        }
-        const amounts = buildSaleLineAmounts({
-          grossMerchandiseSubtotalMinor: order.grossMerchandiseSubtotalMinor,
-          merchantCommissionAmountMinor: order.merchantCommissionAmountMinor,
-          merchantNetAmountMinor: order.merchantNetAmountMinor,
-        });
-        await this.settlements.createLine(
-          {
-            settlementId: settlement.id,
-            orderId: order.orderId,
-            type: SETTLEMENT_LINE_TYPE_SALE,
-            ...amounts,
-            reference: null,
-          },
-          tx,
-        );
-        added += 1;
-      }
-
-      if (added > 0) {
-        await this.refreshDraftTotals(settlement.id, tx);
-      }
-      return { added, settlementId: settlement.id };
-    });
+    if (added > 0) {
+      await this.refreshDraftTotals(settlement.id, tx);
+    }
+    return { added, settlementId: settlement.id };
   }
 
   /**
@@ -177,121 +193,127 @@ export class MerchantSettlementService {
     merchantLiabilityMinor: number;
     adminId: string;
   }): Promise<MerchantSettlementLineRecord | null> {
+    return this.settlements.runInTransaction((tx) =>
+      this.attachRefundAdjustmentInTx(tx, input),
+    );
+  }
+
+  async attachRefundAdjustmentInTx(
+    tx: OrmClient,
+    input: {
+      settlementId: string;
+      refundId: string;
+      merchantLiabilityMinor: number;
+      adminId: string;
+    },
+  ): Promise<MerchantSettlementLineRecord | null> {
     await this.requireAdmin(input.adminId);
 
-    return this.settlements.runInTransaction(async (tx) => {
-      const settlement = await this.settlements.findById(
-        input.settlementId,
-        tx,
-      );
-      if (!settlement) {
-        throw merchantSettlementNotFound();
-      }
-      requireDraftStatus(settlement.status);
-      await this.settlements.lockMerchantScope(settlement.merchantId, tx);
+    const settlement = await this.settlements.findById(input.settlementId, tx);
+    if (!settlement) {
+      throw merchantSettlementNotFound();
+    }
+    requireDraftStatus(settlement.status);
+    await this.settlements.lockMerchantScope(settlement.merchantId, tx);
 
-      const refund = await this.settlements.findRefundSettlementContext(
-        input.refundId,
-        tx,
+    const refund = await this.settlements.findRefundSettlementContext(
+      input.refundId,
+      tx,
+    );
+    if (!refund) {
+      throw merchantSettlementRefundNotEligible('Refund not found');
+    }
+    if (refund.merchantId !== settlement.merchantId) {
+      throw merchantSettlementMerchantMismatch();
+    }
+    if (
+      !isRefundEligibleForAdjustment({
+        refundStatus: refund.status,
+        completedAt: refund.completedAt,
+      })
+    ) {
+      throw merchantSettlementRefundNotEligible(
+        'Only REFUNDED Refunds with completedAt may create REFUND_ADJUSTMENT',
       );
-      if (!refund) {
-        throw merchantSettlementRefundNotEligible('Refund not found');
-      }
-      if (refund.merchantId !== settlement.merchantId) {
-        throw merchantSettlementMerchantMismatch();
-      }
-      if (
-        !isRefundEligibleForAdjustment({
-          refundStatus: refund.status,
-          completedAt: refund.completedAt,
-        })
-      ) {
-        throw merchantSettlementRefundNotEligible(
-          'Only REFUNDED Refunds with completedAt may create REFUND_ADJUSTMENT',
-        );
-      }
-      if (
-        !refund.completedAt ||
-        !isInstantInSettlementPeriod(
-          refund.completedAt,
-          settlement.periodStart,
-          settlement.periodEnd,
-        )
-      ) {
-        throw merchantSettlementRefundNotEligible(
-          'Refund.completedAt must fall in the settlement period [start, end)',
-        );
-      }
-
-      const liability = requireMerchantLiabilityMinor(
-        input.merchantLiabilityMinor,
-        refund.amountMinor,
+    }
+    if (
+      !refund.completedAt ||
+      !isInstantInSettlementPeriod(
+        refund.completedAt,
+        settlement.periodStart,
+        settlement.periodEnd,
+      )
+    ) {
+      throw merchantSettlementRefundNotEligible(
+        'Refund.completedAt must fall in the settlement period [start, end)',
       );
-      if (liability === 0) {
-        return null;
-      }
+    }
 
-      const existingAdj = await this.settlements.findRefundAdjustmentByRefundId(
-        refund.refundId,
-        tx,
-      );
-      if (existingAdj) {
-        throw merchantSettlementRefundAdjustmentExists();
-      }
+    const liability = requireMerchantLiabilityMinor(
+      input.merchantLiabilityMinor,
+      refund.amountMinor,
+    );
+    if (liability === 0) {
+      return null;
+    }
 
-      let sale = await this.settlements.findSaleLineByOrderId(
+    const existingAdj = await this.settlements.findRefundAdjustmentByRefundId(
+      refund.refundId,
+      tx,
+    );
+    if (existingAdj) {
+      throw merchantSettlementRefundAdjustmentExists();
+    }
+
+    let sale = await this.settlements.findSaleLineByOrderId(refund.orderId, tx);
+    if (!sale) {
+      const orderCtx = await this.settlements.findOrderSettlementContext(
         refund.orderId,
         tx,
       );
-      if (!sale) {
-        const orderCtx = await this.settlements.findOrderSettlementContext(
-          refund.orderId,
-          tx,
-        );
-        if (
-          !orderCtx ||
-          !isSaleEligibleOrder({
-            orderStatus: orderCtx.orderStatus,
-            paymentStatus: orderCtx.paymentStatus,
-            completedAt: orderCtx.completedAt,
-          })
-        ) {
-          throw merchantSettlementSaleRequired();
-        }
-        if (orderCtx.merchantId !== settlement.merchantId) {
-          throw merchantSettlementMerchantMismatch();
-        }
-        const amounts = buildSaleLineAmounts({
-          grossMerchandiseSubtotalMinor: orderCtx.grossMerchandiseSubtotalMinor,
-          merchantCommissionAmountMinor: orderCtx.merchantCommissionAmountMinor,
-          merchantNetAmountMinor: orderCtx.merchantNetAmountMinor,
-        });
-        sale = await this.settlements.createLine(
-          {
-            settlementId: settlement.id,
-            orderId: refund.orderId,
-            type: SETTLEMENT_LINE_TYPE_SALE,
-            ...amounts,
-            reference: null,
-          },
-          tx,
-        );
+      if (
+        !orderCtx ||
+        !isSaleEligibleOrder({
+          orderStatus: orderCtx.orderStatus,
+          paymentStatus: orderCtx.paymentStatus,
+          completedAt: orderCtx.completedAt,
+        })
+      ) {
+        throw merchantSettlementSaleRequired();
       }
-
-      const adj = buildRefundAdjustmentAmounts(liability);
-      const line = await this.settlements.createLine(
+      if (orderCtx.merchantId !== settlement.merchantId) {
+        throw merchantSettlementMerchantMismatch();
+      }
+      const amounts = buildSaleLineAmounts({
+        grossMerchandiseSubtotalMinor: orderCtx.grossMerchandiseSubtotalMinor,
+        merchantCommissionAmountMinor: orderCtx.merchantCommissionAmountMinor,
+        merchantNetAmountMinor: orderCtx.merchantNetAmountMinor,
+      });
+      sale = await this.settlements.createLine(
         {
           settlementId: settlement.id,
           orderId: refund.orderId,
-          type: SETTLEMENT_LINE_TYPE_REFUND_ADJUSTMENT,
-          ...adj,
-          reference: refundReference(refund.refundId),
+          type: SETTLEMENT_LINE_TYPE_SALE,
+          ...amounts,
+          reference: null,
         },
         tx,
       );
-      await this.refreshDraftTotals(settlement.id, tx);
-      return line;
-    });
+    }
+
+    const adj = buildRefundAdjustmentAmounts(liability);
+    const line = await this.settlements.createLine(
+      {
+        settlementId: settlement.id,
+        orderId: refund.orderId,
+        type: SETTLEMENT_LINE_TYPE_REFUND_ADJUSTMENT,
+        ...adj,
+        reference: refundReference(refund.refundId),
+      },
+      tx,
+    );
+    await this.refreshDraftTotals(settlement.id, tx);
+    return line;
   }
 
   private async refreshDraftTotals(
@@ -307,77 +329,87 @@ export class MerchantSettlementService {
     settlementId: string;
     adminId: string;
   }): Promise<MerchantSettlementRecord> {
-    await this.requireAdmin(input.adminId);
-
-    const settlement = await this.settlements.runInTransaction(async (tx) => {
-      const current = await this.settlements.findById(input.settlementId, tx);
-      if (!current) {
-        throw merchantSettlementNotFound();
-      }
-      if (current.status === SETTLEMENT_STATUS_FINALIZED) {
-        await this.ledger.postMerchantSettlementFinalized(
-          {
-            settlementId: current.id,
-            merchantId: current.merchantId,
-            netPayableMinor: current.netPayableMinor,
-          },
-          tx,
-        );
-        return current;
-      }
-      requireDraftStatus(current.status);
-      await this.settlements.lockMerchantScope(current.merchantId, tx);
-
-      const fresh = await this.settlements.findById(input.settlementId, tx);
-      if (!fresh) {
-        throw merchantSettlementNotFound();
-      }
-      if (fresh.status === SETTLEMENT_STATUS_FINALIZED) {
-        await this.ledger.postMerchantSettlementFinalized(
-          {
-            settlementId: fresh.id,
-            merchantId: fresh.merchantId,
-            netPayableMinor: fresh.netPayableMinor,
-          },
-          tx,
-        );
-        return fresh;
-      }
-      requireDraftStatus(fresh.status);
-
-      const lines = await this.settlements.listLines(input.settlementId, tx);
-      const totals = deriveSettlementTotals(lines);
-      if (totals.grossSalesMinor < 0 || totals.commissionMinor < 0) {
-        throw merchantSettlementFinancialStateInvalid(
-          'Settlement gross/commission totals cannot be negative',
-        );
-      }
-
-      const finalized = await this.settlements.finalize(
-        input.settlementId,
-        totals,
-        tx,
-      );
-      if (!finalized || finalized.status !== SETTLEMENT_STATUS_FINALIZED) {
-        throw merchantSettlementInvalidState(
-          'Concurrent finalization prevented this action',
-        );
-      }
-      await this.ledger.postMerchantSettlementFinalized(
-        {
-          settlementId: finalized.id,
-          merchantId: finalized.merchantId,
-          netPayableMinor: finalized.netPayableMinor,
-        },
-        tx,
-      );
-      return finalized;
-    });
+    const settlement = await this.settlements.runInTransaction((tx) =>
+      this.finalizeInTx(tx, input),
+    );
     await this.notifications.notifySettlementFinalized({
       settlementId: settlement.id,
       merchantId: settlement.merchantId,
     });
     return settlement;
+  }
+
+  async finalizeInTx(
+    tx: OrmClient,
+    input: {
+      settlementId: string;
+      adminId: string;
+    },
+  ): Promise<MerchantSettlementRecord> {
+    await this.requireAdmin(input.adminId);
+
+    const current = await this.settlements.findById(input.settlementId, tx);
+    if (!current) {
+      throw merchantSettlementNotFound();
+    }
+    if (current.status === SETTLEMENT_STATUS_FINALIZED) {
+      await this.ledger.postMerchantSettlementFinalized(
+        {
+          settlementId: current.id,
+          merchantId: current.merchantId,
+          netPayableMinor: current.netPayableMinor,
+        },
+        tx,
+      );
+      return current;
+    }
+    requireDraftStatus(current.status);
+    await this.settlements.lockMerchantScope(current.merchantId, tx);
+
+    const fresh = await this.settlements.findById(input.settlementId, tx);
+    if (!fresh) {
+      throw merchantSettlementNotFound();
+    }
+    if (fresh.status === SETTLEMENT_STATUS_FINALIZED) {
+      await this.ledger.postMerchantSettlementFinalized(
+        {
+          settlementId: fresh.id,
+          merchantId: fresh.merchantId,
+          netPayableMinor: fresh.netPayableMinor,
+        },
+        tx,
+      );
+      return fresh;
+    }
+    requireDraftStatus(fresh.status);
+
+    const lines = await this.settlements.listLines(input.settlementId, tx);
+    const totals = deriveSettlementTotals(lines);
+    if (totals.grossSalesMinor < 0 || totals.commissionMinor < 0) {
+      throw merchantSettlementFinancialStateInvalid(
+        'Settlement gross/commission totals cannot be negative',
+      );
+    }
+
+    const finalized = await this.settlements.finalize(
+      input.settlementId,
+      totals,
+      tx,
+    );
+    if (!finalized || finalized.status !== SETTLEMENT_STATUS_FINALIZED) {
+      throw merchantSettlementInvalidState(
+        'Concurrent finalization prevented this action',
+      );
+    }
+    await this.ledger.postMerchantSettlementFinalized(
+      {
+        settlementId: finalized.id,
+        merchantId: finalized.merchantId,
+        netPayableMinor: finalized.netPayableMinor,
+      },
+      tx,
+    );
+    return finalized;
   }
 
   async listMerchantSettlements(

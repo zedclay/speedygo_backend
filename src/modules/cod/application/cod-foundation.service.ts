@@ -391,9 +391,22 @@ export class CodFoundationService {
   }
 
   /**
-   * Trusted internal platform authority only. Not exposed as public Admin HTTP.
+   * Trusted internal platform authority only. Not exposed as public Admin HTTP
+   * without Admin orchestration. InTx never opens a nested transaction.
    */
   async confirmCodRemittance(
+    remittanceId: string,
+    confirmedAmountMinor: number,
+  ): Promise<CodRemittanceView> {
+    return this.prisma
+      .getDb()
+      .transaction((tx: OrmClient) =>
+        this.confirmCodRemittanceInTx(tx, remittanceId, confirmedAmountMinor),
+      );
+  }
+
+  async confirmCodRemittanceInTx(
+    tx: OrmClient,
     remittanceId: string,
     confirmedAmountMinor: number,
   ): Promise<CodRemittanceView> {
@@ -401,150 +414,148 @@ export class CodFoundationService {
       throw driverCodRemittanceInvalidAmount();
     }
 
-    return this.prisma.getDb().transaction(async (tx: OrmClient) => {
-      const remittance = await orm(tx)
-        .CodRemittance.where({ id: remittanceId })
-        .first();
-      if (!remittance) {
-        throw driverCodRemittanceNotFound();
-      }
+    const remittance = await orm(tx)
+      .CodRemittance.where({ id: remittanceId })
+      .first();
+    if (!remittance) {
+      throw driverCodRemittanceNotFound();
+    }
 
-      if (remittance.status === COD_REMITTANCE_STATUS_CONFIRMED) {
-        const existingAllocations = await orm(tx)
-          .CodRemittanceAllocation.where({ remittanceId: remittance.id })
-          .all();
-        const allocatedSum = existingAllocations.reduce(
-          (sum, row) => sum + parseMinorUnits(row.allocatedAmountMinor),
-          0,
-        );
-        if (allocatedSum !== parseMinorUnits(remittance.confirmedAmountMinor)) {
-          throw driverCodRemittanceInvalidState();
-        }
-        throw driverCodRemittanceAlreadyConfirmed();
-      }
-
-      if (remittance.status !== COD_REMITTANCE_STATUS_DECLARED) {
+    if (remittance.status === COD_REMITTANCE_STATUS_CONFIRMED) {
+      const existingAllocations = await orm(tx)
+        .CodRemittanceAllocation.where({ remittanceId: remittance.id })
+        .all();
+      const allocatedSum = existingAllocations.reduce(
+        (sum, row) => sum + parseMinorUnits(row.allocatedAmountMinor),
+        0,
+      );
+      if (allocatedSum !== parseMinorUnits(remittance.confirmedAmountMinor)) {
         throw driverCodRemittanceInvalidState();
       }
+      throw driverCodRemittanceAlreadyConfirmed();
+    }
 
-      const driverId = remittance.driverId;
-      const now = pgNow();
-      await orm(tx).DriverProfile.where({ id: driverId }).update({
-        updatedAt: now,
-      });
+    if (remittance.status !== COD_REMITTANCE_STATUS_DECLARED) {
+      throw driverCodRemittanceInvalidState();
+    }
 
-      // Re-read remittance under driver lock.
-      const locked = await orm(tx)
-        .CodRemittance.where({ id: remittanceId })
-        .first();
-      if (!locked || locked.status !== COD_REMITTANCE_STATUS_DECLARED) {
-        throw driverCodRemittanceAlreadyConfirmed();
-      }
-
-      const custody = await this.computeOutstandingCustody(driverId, tx);
-      if (confirmedAmountMinor > custody.outstandingCustodyMinor) {
-        throw driverCodRemittanceInsufficientCustody();
-      }
-
-      const collections = await orm(tx)
-        .CodCollection.where({
-          driverId,
-          status: pgVarchar<64>(COD_COLLECTION_STATUS_COLLECTED),
-        })
-        .all();
-      collections.sort((left, right) => {
-        if (left.collectedAt !== right.collectedAt) {
-          return left.collectedAt < right.collectedAt ? -1 : 1;
-        }
-        return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
-      });
-
-      const allocatedByCollectionId =
-        await this.loadConfirmedAllocationsByCollection(driverId, tx);
-
-      let remaining = confirmedAmountMinor;
-      const planned: Array<{ collectionId: string; amount: number }> = [];
-      for (const collection of collections) {
-        if (remaining === 0) {
-          break;
-        }
-        const already = allocatedByCollectionId.get(collection.id) ?? 0;
-        const collected = parseMinorUnits(collection.collectedAmountMinor);
-        const available = Math.max(0, collected - already);
-        if (available <= 0) {
-          continue;
-        }
-        const toAllocate = Math.min(available, remaining);
-        planned.push({ collectionId: collection.id, amount: toAllocate });
-        remaining -= toAllocate;
-      }
-
-      if (remaining !== 0) {
-        throw driverCodRemittanceInsufficientCustody();
-      }
-
-      const allocatedSum = planned.reduce((sum, row) => sum + row.amount, 0);
-      if (allocatedSum !== confirmedAmountMinor) {
-        throw driverCodRemittanceInsufficientCustody();
-      }
-
-      for (const row of planned) {
-        await orm(tx).CodRemittanceAllocation.create({
-          id: createUuidV7(),
-          remittanceId: locked.id,
-          collectionId: row.collectionId,
-          allocatedAmountMinor: pgBigInt(row.amount),
-          createdAt: now,
-        });
-      }
-
-      await orm(tx)
-        .CodRemittance.where({ id: locked.id })
-        .update({
-          status: pgVarchar<64>(COD_REMITTANCE_STATUS_CONFIRMED),
-          confirmedAmountMinor: pgBigInt(confirmedAmountMinor),
-          confirmedAt: now,
-        });
-
-      const submitted = parseMinorUnits(locked.submittedAmountMinor);
-      if (confirmedAmountMinor !== submitted) {
-        const existingDiscrepancy = await orm(tx)
-          .CodDiscrepancy.where({ remittanceId: locked.id })
-          .first();
-        if (!existingDiscrepancy) {
-          await orm(tx).CodDiscrepancy.create({
-            id: createUuidV7(),
-            driverId,
-            remittanceId: locked.id,
-            expectedMinor: pgBigInt(submitted),
-            confirmedMinor: pgBigInt(confirmedAmountMinor),
-            differenceMinor: pgBigInt(confirmedAmountMinor - submitted),
-            status: pgVarchar<64>(COD_DISCREPANCY_STATUS_OPEN),
-            cause: 'DECLARED_VS_CONFIRMED',
-            resolution: null,
-            createdAt: now,
-            resolvedAt: null,
-          });
-        }
-      }
-
-      await this.ledger.postCodRemittanceConfirmed(
-        {
-          remittanceId: locked.id,
-          driverId,
-          confirmedAmountMinor,
-        },
-        tx,
-      );
-
-      return {
-        remittanceId: locked.id,
-        reference: locked.reference,
-        submittedAmountMinor: submitted,
-        confirmedAmountMinor,
-        status: COD_REMITTANCE_STATUS_CONFIRMED,
-      };
+    const driverId = remittance.driverId;
+    const now = pgNow();
+    await orm(tx).DriverProfile.where({ id: driverId }).update({
+      updatedAt: now,
     });
+
+    // Re-read remittance under driver lock.
+    const locked = await orm(tx)
+      .CodRemittance.where({ id: remittanceId })
+      .first();
+    if (!locked || locked.status !== COD_REMITTANCE_STATUS_DECLARED) {
+      throw driverCodRemittanceAlreadyConfirmed();
+    }
+
+    const custody = await this.computeOutstandingCustody(driverId, tx);
+    if (confirmedAmountMinor > custody.outstandingCustodyMinor) {
+      throw driverCodRemittanceInsufficientCustody();
+    }
+
+    const collections = await orm(tx)
+      .CodCollection.where({
+        driverId,
+        status: pgVarchar<64>(COD_COLLECTION_STATUS_COLLECTED),
+      })
+      .all();
+    collections.sort((left, right) => {
+      if (left.collectedAt !== right.collectedAt) {
+        return left.collectedAt < right.collectedAt ? -1 : 1;
+      }
+      return left.id < right.id ? -1 : left.id > right.id ? 1 : 0;
+    });
+
+    const allocatedByCollectionId =
+      await this.loadConfirmedAllocationsByCollection(driverId, tx);
+
+    let remaining = confirmedAmountMinor;
+    const planned: Array<{ collectionId: string; amount: number }> = [];
+    for (const collection of collections) {
+      if (remaining === 0) {
+        break;
+      }
+      const already = allocatedByCollectionId.get(collection.id) ?? 0;
+      const collected = parseMinorUnits(collection.collectedAmountMinor);
+      const available = Math.max(0, collected - already);
+      if (available <= 0) {
+        continue;
+      }
+      const toAllocate = Math.min(available, remaining);
+      planned.push({ collectionId: collection.id, amount: toAllocate });
+      remaining -= toAllocate;
+    }
+
+    if (remaining !== 0) {
+      throw driverCodRemittanceInsufficientCustody();
+    }
+
+    const allocatedSum = planned.reduce((sum, row) => sum + row.amount, 0);
+    if (allocatedSum !== confirmedAmountMinor) {
+      throw driverCodRemittanceInsufficientCustody();
+    }
+
+    for (const row of planned) {
+      await orm(tx).CodRemittanceAllocation.create({
+        id: createUuidV7(),
+        remittanceId: locked.id,
+        collectionId: row.collectionId,
+        allocatedAmountMinor: pgBigInt(row.amount),
+        createdAt: now,
+      });
+    }
+
+    await orm(tx)
+      .CodRemittance.where({ id: locked.id })
+      .update({
+        status: pgVarchar<64>(COD_REMITTANCE_STATUS_CONFIRMED),
+        confirmedAmountMinor: pgBigInt(confirmedAmountMinor),
+        confirmedAt: now,
+      });
+
+    const submitted = parseMinorUnits(locked.submittedAmountMinor);
+    if (confirmedAmountMinor !== submitted) {
+      const existingDiscrepancy = await orm(tx)
+        .CodDiscrepancy.where({ remittanceId: locked.id })
+        .first();
+      if (!existingDiscrepancy) {
+        await orm(tx).CodDiscrepancy.create({
+          id: createUuidV7(),
+          driverId,
+          remittanceId: locked.id,
+          expectedMinor: pgBigInt(submitted),
+          confirmedMinor: pgBigInt(confirmedAmountMinor),
+          differenceMinor: pgBigInt(confirmedAmountMinor - submitted),
+          status: pgVarchar<64>(COD_DISCREPANCY_STATUS_OPEN),
+          cause: 'DECLARED_VS_CONFIRMED',
+          resolution: null,
+          createdAt: now,
+          resolvedAt: null,
+        });
+      }
+    }
+
+    await this.ledger.postCodRemittanceConfirmed(
+      {
+        remittanceId: locked.id,
+        driverId,
+        confirmedAmountMinor,
+      },
+      tx,
+    );
+
+    return {
+      remittanceId: locked.id,
+      reference: locked.reference,
+      submittedAmountMinor: submitted,
+      confirmedAmountMinor,
+      status: COD_REMITTANCE_STATUS_CONFIRMED,
+    };
   }
 
   private async computeOutstandingCustody(
