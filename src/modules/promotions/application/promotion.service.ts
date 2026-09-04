@@ -28,37 +28,59 @@ export class PromotionService {
   constructor(private readonly promotions: PromotionRepository) {}
 
   /**
-   * Internal trusted configuration for tests / future Admin.
-   * No public HTTP mutation.
+   * Internal trusted configuration for tests / Admin.
+   * No public HTTP mutation outside Admin orchestration.
    */
   async createPromotion(input: CreatePromotionInput): Promise<PromotionRecord> {
+    return this.promotions.runInTransaction((tx) =>
+      this.createPromotionInTx(tx, input),
+    );
+  }
+
+  async createPromotionInTx(
+    tx: OrmClient,
+    input: CreatePromotionInput,
+  ): Promise<PromotionRecord> {
     const code = normalizePromotionCode(input.code);
     const parsed = parsePromotionType(input.type);
     requirePromotionValue(parsed.kind, input.value);
     requireCreatePromotionWindow(input.startsAt, input.endsAt);
-    const existing = await this.promotions.findByNormalizedCode(code);
+    const existing = await this.promotions.findByNormalizedCode(code, tx);
     if (existing) {
       throw promotionConfigurationInvalid('Promotion code already exists');
     }
-    return this.promotions.createPromotion({
-      code,
-      type: parsed.type,
-      value: input.value,
-      startsAt: input.startsAt,
-      endsAt: input.endsAt,
-      active: input.active ?? true,
-    });
+    return this.promotions.createPromotion(
+      {
+        code,
+        type: parsed.type,
+        value: input.value,
+        startsAt: input.startsAt,
+        endsAt: input.endsAt,
+        active: input.active ?? true,
+      },
+      tx,
+    );
   }
 
   async setPromotionActive(
     promotionId: string,
     active: boolean,
   ): Promise<PromotionRecord> {
-    const existing = await this.promotions.findById(promotionId);
+    return this.promotions.runInTransaction((tx) =>
+      this.setPromotionActiveInTx(tx, promotionId, active),
+    );
+  }
+
+  async setPromotionActiveInTx(
+    tx: OrmClient,
+    promotionId: string,
+    active: boolean,
+  ): Promise<PromotionRecord> {
+    const existing = await this.promotions.findById(promotionId, tx);
     if (!existing) {
       throw promotionNotFound();
     }
-    return this.promotions.setActive(promotionId, active);
+    return this.promotions.setActive(promotionId, active, tx);
   }
 
   /**

@@ -158,17 +158,21 @@ export class PromotionRepository {
     return row ? toPromotion(row) : null;
   }
 
-  async createPromotion(input: {
-    code: string;
-    type: string;
-    value: number;
-    startsAt: string;
-    endsAt: string;
-    active: boolean;
-  }): Promise<PromotionRecord> {
+  async createPromotion(
+    input: {
+      code: string;
+      type: string;
+      value: number;
+      startsAt: string;
+      endsAt: string;
+      active: boolean;
+    },
+    client?: OrmClient,
+  ): Promise<PromotionRecord> {
+    const db = this.asClient(client);
     const id = createUuidV7();
     const now = pgNow();
-    await orm(this.db()).Promotion.create({
+    await orm(db).Promotion.create({
       id,
       code: pgVarchar<64>(input.code),
       type: pgVarchar<64>(input.type),
@@ -179,18 +183,23 @@ export class PromotionRepository {
       createdAt: now,
       updatedAt: now,
     });
-    const row = await orm(this.db()).Promotion.where({ id }).first();
+    const row = await orm(db).Promotion.where({ id }).first();
     if (!row) {
       throw promotionConfigurationInvalid('Promotion create failed');
     }
     return toPromotion(row);
   }
 
-  async setActive(id: string, active: boolean): Promise<PromotionRecord> {
-    await orm(this.db())
+  async setActive(
+    id: string,
+    active: boolean,
+    client?: OrmClient,
+  ): Promise<PromotionRecord> {
+    const db = this.asClient(client);
+    await orm(db)
       .Promotion.where({ id })
       .update({ active, updatedAt: pgNow() });
-    const row = await orm(this.db()).Promotion.where({ id }).first();
+    const row = await orm(db).Promotion.where({ id }).first();
     if (!row) {
       throw promotionConfigurationInvalid('Promotion update failed');
     }

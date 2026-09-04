@@ -43,7 +43,10 @@ import {
   type RefundRecord,
   type RefundStatus,
 } from '../domain/refund.types';
-import { RefundRepository } from '../infrastructure/refund.repository';
+import {
+  RefundRepository,
+  type OrmClient,
+} from '../infrastructure/refund.repository';
 import { FinancialLedgerService } from '../../financial-ledger/application/financial-ledger.service';
 import { NotificationService } from '../../notifications/application/notification.service';
 
@@ -78,6 +81,15 @@ export class RefundService {
   }
 
   async createRefund(command: CreateRefundCommand): Promise<RefundRecord> {
+    return this.refunds.runInTransaction((tx) =>
+      this.createRefundInTx(tx, command),
+    );
+  }
+
+  async createRefundInTx(
+    tx: OrmClient,
+    command: CreateRefundCommand,
+  ): Promise<RefundRecord> {
     requirePositiveRefundAmount(command.amountMinor);
     const reason = requireRefundReason(command.reason);
     await this.requireTrustedAdmin(command.requestedByAdminId);
@@ -86,75 +98,73 @@ export class RefundService {
       throw refundProviderUnsupported(ORIGINAL_PAYMENT_UNSUPPORTED_MESSAGE);
     }
 
-    return this.refunds.runInTransaction(async (tx) => {
-      const context = await this.refunds.findFinancialContextByOrderId(
-        command.orderId,
-        tx,
+    const context = await this.refunds.findFinancialContextByOrderId(
+      command.orderId,
+      tx,
+    );
+    if (!context) {
+      throw refundFinancialStateInvalid(
+        'Order Payment and financial snapshot are required for Refund',
       );
-      if (!context) {
-        throw refundFinancialStateInvalid(
-          'Order Payment and financial snapshot are required for Refund',
-        );
-      }
+    }
 
-      const locked = await this.refunds.lockPayment(context.paymentId, tx);
-      if (!locked) {
-        throw refundFinancialStateInvalid('Payment could not be locked');
-      }
+    const locked = await this.refunds.lockPayment(context.paymentId, tx);
+    if (!locked) {
+      throw refundFinancialStateInvalid('Payment could not be locked');
+    }
 
-      // Re-read Order status under Payment serialization root.
-      const fresh = await this.refunds.findFinancialContextByOrderId(
-        command.orderId,
-        tx,
-      );
-      if (!fresh) {
-        throw refundFinancialStateInvalid();
-      }
+    // Re-read Order status under Payment serialization root.
+    const fresh = await this.refunds.findFinancialContextByOrderId(
+      command.orderId,
+      tx,
+    );
+    if (!fresh) {
+      throw refundFinancialStateInvalid();
+    }
 
-      requireSucceededPayment(locked.status);
-      requireEligibleOrderStatus(fresh.orderStatus);
-      requirePaymentSnapshotConsistency({
-        paymentAmountMinor: locked.amountMinor,
-        snapshotPayableMinor: fresh.snapshotPayableMinor,
-        paymentCurrency: locked.currency,
-        snapshotCurrency: fresh.snapshotCurrency,
-      });
-
-      const totals = await this.refunds.sumReservedAndSuccessful(
-        command.orderId,
-        tx,
-      );
-      const capacity = calculateRefundCapacity({
-        originalPaidMinor: locked.amountMinor,
-        reservedRefundMinor: totals.reservedRefundMinor,
-        successfulRefundMinor: totals.successfulRefundMinor,
-        currency: locked.currency,
-      });
-      requireRefundableAmount(
-        command.amountMinor,
-        capacity.remainingRefundableMinor,
-      );
-
-      const binding = resolveRefundMethodBinding({
-        refundMethod: command.refundMethod,
-        paymentMethod: locked.method,
-        paymentTransactionId: null,
-      });
-
-      return this.refunds.createRefund(
-        {
-          orderId: command.orderId,
-          paymentTransactionId: binding.paymentTransactionId,
-          refundMethod: binding.refundMethod,
-          amountMinor: command.amountMinor,
-          status: REFUND_STATUS_REQUESTED,
-          reason,
-          internalNote: command.internalNote ?? null,
-          requestedByAdminId: command.requestedByAdminId,
-        },
-        tx,
-      );
+    requireSucceededPayment(locked.status);
+    requireEligibleOrderStatus(fresh.orderStatus);
+    requirePaymentSnapshotConsistency({
+      paymentAmountMinor: locked.amountMinor,
+      snapshotPayableMinor: fresh.snapshotPayableMinor,
+      paymentCurrency: locked.currency,
+      snapshotCurrency: fresh.snapshotCurrency,
     });
+
+    const totals = await this.refunds.sumReservedAndSuccessful(
+      command.orderId,
+      tx,
+    );
+    const capacity = calculateRefundCapacity({
+      originalPaidMinor: locked.amountMinor,
+      reservedRefundMinor: totals.reservedRefundMinor,
+      successfulRefundMinor: totals.successfulRefundMinor,
+      currency: locked.currency,
+    });
+    requireRefundableAmount(
+      command.amountMinor,
+      capacity.remainingRefundableMinor,
+    );
+
+    const binding = resolveRefundMethodBinding({
+      refundMethod: command.refundMethod,
+      paymentMethod: locked.method,
+      paymentTransactionId: null,
+    });
+
+    return this.refunds.createRefund(
+      {
+        orderId: command.orderId,
+        paymentTransactionId: binding.paymentTransactionId,
+        refundMethod: binding.refundMethod,
+        amountMinor: command.amountMinor,
+        status: REFUND_STATUS_REQUESTED,
+        reason,
+        internalNote: command.internalNote ?? null,
+        requestedByAdminId: command.requestedByAdminId,
+      },
+      tx,
+    );
   }
 
   /** Optional review: REQUESTED → UNDER_REVIEW. */
@@ -181,8 +191,18 @@ export class RefundService {
     refundId: string,
     action: TrustedRefundAction,
   ): Promise<RefundRecord> {
+    return this.refunds.runInTransaction((tx) =>
+      this.authorizeRefundInTx(tx, refundId, action),
+    );
+  }
+
+  async authorizeRefundInTx(
+    tx: OrmClient,
+    refundId: string,
+    action: TrustedRefundAction,
+  ): Promise<RefundRecord> {
     await this.requireTrustedAdmin(action.adminId);
-    return this.transitionRefund(refundId, {
+    return this.transitionRefundInTx(tx, refundId, {
       allowed: canAuthorizeRefund,
       toStatus: nextAuthorizedStatus(),
       fromStatuses: [REFUND_STATUS_REQUESTED, REFUND_STATUS_UNDER_REVIEW],
@@ -197,8 +217,18 @@ export class RefundService {
     refundId: string,
     action: TrustedRefundAction,
   ): Promise<RefundRecord> {
+    return this.refunds.runInTransaction((tx) =>
+      this.rejectRefundInTx(tx, refundId, action),
+    );
+  }
+
+  async rejectRefundInTx(
+    tx: OrmClient,
+    refundId: string,
+    action: TrustedRefundAction,
+  ): Promise<RefundRecord> {
     await this.requireTrustedAdmin(action.adminId);
-    return this.transitionRefund(refundId, {
+    return this.transitionRefundInTx(tx, refundId, {
       allowed: canRejectRefund,
       toStatus: nextRejectedStatus(),
       fromStatuses: [REFUND_STATUS_REQUESTED, REFUND_STATUS_UNDER_REVIEW],
@@ -211,86 +241,95 @@ export class RefundService {
   /**
    * Confirms MANUAL_COD / MANUAL_OTHER money return.
    * APPROVED → REFUNDED (+ completedAt). Replay of REFUNDED is deterministic.
+   * Notifications run after the outer TX commits (never inside InTx).
    */
   async confirmManualRefund(
     refundId: string,
     action: TrustedRefundAction,
   ): Promise<RefundRecord> {
-    await this.requireTrustedAdmin(action.adminId);
-
-    const refund = await this.refunds.runInTransaction(async (tx) => {
-      const seed = await this.refunds.findById(refundId, tx);
-      if (!seed) {
-        throw refundNotFound();
-      }
-      const context = await this.refunds.findFinancialContextByOrderId(
-        seed.orderId,
-        tx,
-      );
-      if (!context) {
-        throw refundFinancialStateInvalid();
-      }
-      const locked = await this.refunds.lockPayment(context.paymentId, tx);
-      if (!locked) {
-        throw refundFinancialStateInvalid('Payment could not be locked');
-      }
-      requireSucceededPayment(locked.status);
-
-      const current = await this.refunds.findById(refundId, tx);
-      if (!current) {
-        throw refundNotFound();
-      }
-
-      if (current.status === REFUND_STATUS_REFUNDED) {
-        await this.ledger.postRefundRefunded(
-          {
-            refundId: current.id,
-            orderId: current.orderId,
-            amountMinor: current.amountMinor,
-          },
-          tx,
-        );
-        return current;
-      }
-      if (!canConfirmManualRefund(current.status, current.refundMethod)) {
-        throw refundInvalidState(
-          'Manual confirmation requires APPROVED MANUAL_COD or MANUAL_OTHER Refund',
-        );
-      }
-
-      const updated = await this.refunds.updateStatus(
-        {
-          refundId,
-          status: nextRefundedStatus(),
-          fromStatuses: [REFUND_STATUS_APPROVED],
-          setCompletedAt: true,
-          internalNote:
-            action.internalNote === undefined
-              ? current.internalNote
-              : action.internalNote,
-        },
-        tx,
-      );
-      if (!updated) {
-        throw refundNotFound();
-      }
-      if (updated.status !== REFUND_STATUS_REFUNDED) {
-        throw refundInvalidState(
-          'Concurrent Refund transition prevented manual confirmation',
-        );
-      }
-      await this.ledger.postRefundRefunded(
-        {
-          refundId: updated.id,
-          orderId: updated.orderId,
-          amountMinor: updated.amountMinor,
-        },
-        tx,
-      );
-      return updated;
-    });
+    const refund = await this.refunds.runInTransaction((tx) =>
+      this.confirmManualRefundInTx(tx, refundId, action),
+    );
     await this.notifications.notifyRefundRefunded({ refundId: refund.id });
     return refund;
+  }
+
+  async confirmManualRefundInTx(
+    tx: OrmClient,
+    refundId: string,
+    action: TrustedRefundAction,
+  ): Promise<RefundRecord> {
+    await this.requireTrustedAdmin(action.adminId);
+
+    const seed = await this.refunds.findById(refundId, tx);
+    if (!seed) {
+      throw refundNotFound();
+    }
+    const context = await this.refunds.findFinancialContextByOrderId(
+      seed.orderId,
+      tx,
+    );
+    if (!context) {
+      throw refundFinancialStateInvalid();
+    }
+    const locked = await this.refunds.lockPayment(context.paymentId, tx);
+    if (!locked) {
+      throw refundFinancialStateInvalid('Payment could not be locked');
+    }
+    requireSucceededPayment(locked.status);
+
+    const current = await this.refunds.findById(refundId, tx);
+    if (!current) {
+      throw refundNotFound();
+    }
+
+    if (current.status === REFUND_STATUS_REFUNDED) {
+      await this.ledger.postRefundRefunded(
+        {
+          refundId: current.id,
+          orderId: current.orderId,
+          amountMinor: current.amountMinor,
+        },
+        tx,
+      );
+      return current;
+    }
+    if (!canConfirmManualRefund(current.status, current.refundMethod)) {
+      throw refundInvalidState(
+        'Manual confirmation requires APPROVED MANUAL_COD or MANUAL_OTHER Refund',
+      );
+    }
+
+    const updated = await this.refunds.updateStatus(
+      {
+        refundId,
+        status: nextRefundedStatus(),
+        fromStatuses: [REFUND_STATUS_APPROVED],
+        setCompletedAt: true,
+        internalNote:
+          action.internalNote === undefined
+            ? current.internalNote
+            : action.internalNote,
+      },
+      tx,
+    );
+    if (!updated) {
+      throw refundNotFound();
+    }
+    if (updated.status !== REFUND_STATUS_REFUNDED) {
+      throw refundInvalidState(
+        'Concurrent Refund transition prevented manual confirmation',
+      );
+    }
+    await this.ledger.postRefundRefunded(
+      {
+        refundId: updated.id,
+        orderId: updated.orderId,
+        amountMinor: updated.amountMinor,
+      },
+      tx,
+    );
+    return updated;
   }
 
   /**
@@ -388,54 +427,69 @@ export class RefundService {
       internalNote?: string | null;
     },
   ): Promise<RefundRecord> {
-    return this.refunds.runInTransaction(async (tx) => {
-      const seed = await this.refunds.findById(refundId, tx);
-      if (!seed) {
-        throw refundNotFound();
-      }
-      const context = await this.refunds.findFinancialContextByOrderId(
-        seed.orderId,
-        tx,
+    return this.refunds.runInTransaction((tx) =>
+      this.transitionRefundInTx(tx, refundId, input),
+    );
+  }
+
+  private async transitionRefundInTx(
+    tx: OrmClient,
+    refundId: string,
+    input: {
+      allowed: (status: RefundStatus) => boolean;
+      toStatus: RefundStatus;
+      fromStatuses: RefundStatus[];
+      idempotentStatus: RefundStatus;
+      invalidMessage: string;
+      internalNote?: string | null;
+    },
+  ): Promise<RefundRecord> {
+    const seed = await this.refunds.findById(refundId, tx);
+    if (!seed) {
+      throw refundNotFound();
+    }
+    const context = await this.refunds.findFinancialContextByOrderId(
+      seed.orderId,
+      tx,
+    );
+    if (!context) {
+      throw refundFinancialStateInvalid();
+    }
+    await this.refunds.lockPayment(context.paymentId, tx);
+
+    const refund = await this.refunds.findById(refundId, tx);
+    if (!refund) {
+      throw refundNotFound();
+    }
+
+    if (refund.status === input.idempotentStatus) {
+      return refund;
+    }
+    if (!input.allowed(refund.status)) {
+      throw refundInvalidState(input.invalidMessage);
+    }
+
+    const updated = await this.refunds.updateStatus(
+      {
+        refundId,
+        status: input.toStatus,
+        fromStatuses: input.fromStatuses,
+        internalNote:
+          input.internalNote === undefined
+            ? refund.internalNote
+            : input.internalNote,
+      },
+      tx,
+    );
+    if (!updated) {
+      throw refundNotFound();
+    }
+    if (updated.status !== input.toStatus) {
+      throw refundInvalidState(
+        'Concurrent Refund transition prevented this action',
       );
-      if (!context) {
-        throw refundFinancialStateInvalid();
-      }
-      await this.refunds.lockPayment(context.paymentId, tx);
-
-      const refund = await this.refunds.findById(refundId, tx);
-      if (!refund) {
-        throw refundNotFound();
-      }
-
-      if (refund.status === input.idempotentStatus) {
-        return refund;
-      }
-      if (!input.allowed(refund.status)) {
-        throw refundInvalidState(input.invalidMessage);
-      }
-
-      const updated = await this.refunds.updateStatus(
-        {
-          refundId,
-          status: input.toStatus,
-          fromStatuses: input.fromStatuses,
-          internalNote:
-            input.internalNote === undefined
-              ? refund.internalNote
-              : input.internalNote,
-        },
-        tx,
-      );
-      if (!updated) {
-        throw refundNotFound();
-      }
-      if (updated.status !== input.toStatus) {
-        throw refundInvalidState(
-          'Concurrent Refund transition prevented this action',
-        );
-      }
-      return updated;
-    });
+    }
+    return updated;
   }
 }
 

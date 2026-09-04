@@ -8,6 +8,7 @@ import { DatabaseModule } from './infrastructure/database/database.module';
 import { QueueModule } from './infrastructure/queue/queue.module';
 import { RealtimeModule } from './infrastructure/realtime/realtime.module';
 import { StorageModule } from './infrastructure/storage/storage.module';
+import { AdminModule } from './modules/admin/admin.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { AuthorizationModule } from './modules/authorization/authorization.module';
 import { CatalogModule } from './modules/catalog/catalog.module';
@@ -46,6 +47,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
     IdentityModule,
     AuthModule,
     AuthorizationModule,
+    AdminModule,
     CustomersModule,
     MerchantsModule,
     CatalogModule,
