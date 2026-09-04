@@ -197,6 +197,9 @@ describe('PaymentService', () => {
       {
         postElectronicPaymentSucceeded: jest.fn().mockResolvedValue({}),
       } as never,
+      {
+        notifyPaymentSucceeded: jest.fn().mockResolvedValue(undefined),
+      } as never,
     );
   });
 

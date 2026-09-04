@@ -1,12 +1,13 @@
 import { Module } from '@nestjs/common';
 import { FinancialLedgerModule } from '../financial-ledger/financial-ledger.module';
 import { MerchantsModule } from '../merchants/merchants.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { MerchantSettlementService } from './application/merchant-settlement.service';
 import { MerchantSettlementRepository } from './infrastructure/merchant-settlement.repository';
 import { MerchantSettlementController } from './presentation/http/merchant-settlement.controller';
 
 @Module({
-  imports: [MerchantsModule, FinancialLedgerModule],
+  imports: [MerchantsModule, FinancialLedgerModule, NotificationsModule],
   controllers: [MerchantSettlementController],
   providers: [MerchantSettlementRepository, MerchantSettlementService],
   exports: [MerchantSettlementService],

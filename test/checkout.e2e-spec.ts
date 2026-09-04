@@ -5,6 +5,7 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
+import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
 import { createUuidV7 } from '../src/common/utils/uuid-v7';
 import { RedisService } from '../src/infrastructure/cache/redis.service';
 import { PrismaService } from '../src/infrastructure/database/database.module';
@@ -263,6 +264,8 @@ describe('Checkout foundation (e2e)', () => {
     for (const device of devices) {
       await prisma.getDb().orm.public.Device.where({ id: device.id }).delete();
     }
+    await deleteAccountNotificationArtifacts(prisma, account.id);
+
     await prisma.getDb().orm.public.Account.where({ id: account.id }).delete();
   }
 

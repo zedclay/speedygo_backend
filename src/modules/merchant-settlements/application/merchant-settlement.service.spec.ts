@@ -155,6 +155,9 @@ describe('MerchantSettlementService', () => {
       {
         postMerchantSettlementFinalized: jest.fn().mockResolvedValue({}),
       } as never,
+      {
+        notifySettlementFinalized: jest.fn().mockResolvedValue(undefined),
+      } as never,
     );
   });
 

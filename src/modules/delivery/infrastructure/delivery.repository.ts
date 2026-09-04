@@ -286,6 +286,7 @@ export class DeliveryRepository {
   async findMatchingContext(deliveryId: string): Promise<{
     deliveryId: string;
     orderId: string;
+    customerId: string;
     publicReference: string;
     deliveryStatus: string;
     orderStatus: string;
@@ -333,6 +334,7 @@ export class DeliveryRepository {
     return {
       deliveryId: delivery.id,
       orderId: order.id,
+      customerId: order.customerId,
       publicReference: order.publicReference,
       deliveryStatus: delivery.status,
       orderStatus: order.status,

@@ -7,6 +7,7 @@ import {
 import { MatchingModule } from '../matching/matching.module';
 import { MerchantCommissionsModule } from '../merchant-commissions/merchant-commissions.module';
 import { MerchantsModule } from '../merchants/merchants.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { PromotionsModule } from '../promotions/promotions.module';
 import { MerchantOrderService } from './application/merchant-order.service';
 import { OrderService } from './application/order.service';
@@ -21,6 +22,7 @@ import { OrderController } from './presentation/http/order.controller';
     MerchantsModule,
     MerchantCommissionsModule,
     PromotionsModule,
+    NotificationsModule,
   ],
   controllers: [OrderController, MerchantOrderController],
   providers: [

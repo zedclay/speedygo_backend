@@ -45,6 +45,7 @@ import {
 } from '../domain/refund.types';
 import { RefundRepository } from '../infrastructure/refund.repository';
 import { FinancialLedgerService } from '../../financial-ledger/application/financial-ledger.service';
+import { NotificationService } from '../../notifications/application/notification.service';
 
 export type CreateRefundCommand = {
   orderId: string;
@@ -67,6 +68,7 @@ export class RefundService {
   constructor(
     private readonly refunds: RefundRepository,
     private readonly ledger: FinancialLedgerService,
+    private readonly notifications: NotificationService,
   ) {}
 
   private async requireTrustedAdmin(adminId: string): Promise<void> {
@@ -216,7 +218,7 @@ export class RefundService {
   ): Promise<RefundRecord> {
     await this.requireTrustedAdmin(action.adminId);
 
-    return this.refunds.runInTransaction(async (tx) => {
+    const refund = await this.refunds.runInTransaction(async (tx) => {
       const seed = await this.refunds.findById(refundId, tx);
       if (!seed) {
         throw refundNotFound();
@@ -234,23 +236,23 @@ export class RefundService {
       }
       requireSucceededPayment(locked.status);
 
-      const refund = await this.refunds.findById(refundId, tx);
-      if (!refund) {
+      const current = await this.refunds.findById(refundId, tx);
+      if (!current) {
         throw refundNotFound();
       }
 
-      if (refund.status === REFUND_STATUS_REFUNDED) {
+      if (current.status === REFUND_STATUS_REFUNDED) {
         await this.ledger.postRefundRefunded(
           {
-            refundId: refund.id,
-            orderId: refund.orderId,
-            amountMinor: refund.amountMinor,
+            refundId: current.id,
+            orderId: current.orderId,
+            amountMinor: current.amountMinor,
           },
           tx,
         );
-        return refund;
+        return current;
       }
-      if (!canConfirmManualRefund(refund.status, refund.refundMethod)) {
+      if (!canConfirmManualRefund(current.status, current.refundMethod)) {
         throw refundInvalidState(
           'Manual confirmation requires APPROVED MANUAL_COD or MANUAL_OTHER Refund',
         );
@@ -264,7 +266,7 @@ export class RefundService {
           setCompletedAt: true,
           internalNote:
             action.internalNote === undefined
-              ? refund.internalNote
+              ? current.internalNote
               : action.internalNote,
         },
         tx,
@@ -287,6 +289,8 @@ export class RefundService {
       );
       return updated;
     });
+    await this.notifications.notifyRefundRefunded({ refundId: refund.id });
+    return refund;
   }
 
   /**

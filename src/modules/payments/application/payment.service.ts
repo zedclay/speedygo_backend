@@ -51,6 +51,7 @@ import {
 } from '../domain/payment.types';
 import { PaymentRepository } from '../infrastructure/payment.repository';
 import { FinancialLedgerService } from '../../financial-ledger/application/financial-ledger.service';
+import { NotificationService } from '../../notifications/application/notification.service';
 
 type PreparedInitiation =
   | { kind: 'reuse'; payment: PaymentRecord; attempt: PaymentTransactionRecord }
@@ -74,6 +75,7 @@ export class PaymentService {
     @Inject(PAYMENT_PROVIDER) private readonly provider: PaymentProvider,
     private readonly config: ConfigService,
     private readonly ledger: FinancialLedgerService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async getCustomerPayment(
@@ -446,6 +448,9 @@ export class PaymentService {
         tx,
       );
     });
+    await this.notifications.notifyPaymentSucceeded({
+      paymentId: payment.id,
+    });
   }
 
   private async applyVerifiedWebhook(
@@ -455,6 +460,7 @@ export class PaymentService {
       this.provider.name,
       event.eventId,
     );
+    let succeededPaymentId: string | null = null;
     try {
       await this.payments.runInTransaction(async (tx) => {
         const existing = await this.payments.findTransactionByIdempotencyKey(
@@ -562,7 +568,15 @@ export class PaymentService {
           },
           tx,
         );
+        if (recordedStatus === PAYMENT_TX_SUCCEEDED) {
+          succeededPaymentId = payment.id;
+        }
       });
+      if (succeededPaymentId) {
+        await this.notifications.notifyPaymentSucceeded({
+          paymentId: succeededPaymentId,
+        });
+      }
     } catch (error) {
       if (isPostgresUniqueViolation(error)) {
         return;
