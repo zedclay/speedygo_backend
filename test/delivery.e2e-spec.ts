@@ -5,6 +5,8 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
+import { deactivateOpenGlobalCommissionDefaults } from './helpers/sanitize-commission-globals';
+import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
 import { createUuidV7 } from '../src/common/utils/uuid-v7';
 import { RedisService } from '../src/infrastructure/cache/redis.service';
 import { PrismaService } from '../src/infrastructure/database/database.module';
@@ -412,6 +414,8 @@ describe('Delivery foundation (e2e)', () => {
     for (const device of devices) {
       await prisma.getDb().orm.public.Device.where({ id: device.id }).delete();
     }
+    await deleteAccountNotificationArtifacts(prisma, account.id);
+
     await prisma.getDb().orm.public.Account.where({ id: account.id }).delete();
   }
 
@@ -567,6 +571,7 @@ describe('Delivery foundation (e2e)', () => {
         updatedAt: now,
       });
       adminIds.push(adminId);
+      await deactivateOpenGlobalCommissionDefaults(prisma);
       await prisma.getDb().orm.public.MerchantCommissionRule.create({
         id: createUuidV7(),
         scope: 'GLOBAL_DEFAULT',
@@ -823,10 +828,32 @@ describe('Delivery foundation (e2e)', () => {
         )
         .set('Authorization', `Bearer ${tokenOwner}`)
         .send({});
+      // Matching may race a Delivery create while Payment is still SUCCEEDED.
+      // Clear any raced row, then prove createForReadyOrder enforces payment.
       await prisma
         .getDb()
         .orm.public.Payment.where({ orderId: electronicId })
         .update({ status: 'PENDING', updatedAt: pgNow() });
+      const raced = await prisma
+        .getDb()
+        .orm.public.Delivery.where({ orderId: electronicId })
+        .first();
+      if (raced) {
+        const events = await prisma
+          .getDb()
+          .orm.public.DeliveryEvent.where({ deliveryId: raced.id })
+          .all();
+        for (const event of events) {
+          await prisma
+            .getDb()
+            .orm.public.DeliveryEvent.where({ id: event.id })
+            .delete();
+        }
+        await prisma
+          .getDb()
+          .orm.public.Delivery.where({ id: raced.id })
+          .delete();
+      }
       await expect(
         deliveryService.createForReadyOrder(electronicId),
       ).rejects.toMatchObject({ code: 'DELIVERY_PAYMENT_NOT_READY' });

@@ -48,6 +48,7 @@ import {
 } from '../domain/driver-delivery.policy';
 import { DeliveryRepository } from '../infrastructure/delivery.repository';
 import { DriverRemunerationService } from '../../driver-remuneration/application/driver-remuneration.service';
+import { NotificationService } from '../../notifications/application/notification.service';
 
 export type DriverCurrentDeliveryView = {
   assignmentId: string;
@@ -73,6 +74,7 @@ export class DriverDeliveryService {
     private readonly config: ConfigService,
     private readonly codCollections: CodCollectionRepository,
     private readonly remuneration: DriverRemunerationService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async getCurrent(
@@ -172,7 +174,7 @@ export class DriverDeliveryService {
     },
     transition: ReturnType<typeof transitionForAction>,
   ): Promise<DriverCurrentDeliveryView> {
-    await this.deliveries.runInTransaction(async (tx) => {
+    const earning = await this.deliveries.runInTransaction(async (tx) => {
       const locked = await this.deliveries.lockDelivery(context.deliveryId, tx);
       if (!locked) {
         throw driverDeliveryNotFound();
@@ -260,7 +262,7 @@ export class DriverDeliveryService {
       if (!completed) {
         throw driverDeliveryInvalidState();
       }
-      await this.remuneration.createForCompletedDelivery(
+      const earning = await this.remuneration.createForCompletedDelivery(
         {
           deliveryId: context.deliveryId,
           orderId: context.orderId,
@@ -284,11 +286,26 @@ export class DriverDeliveryService {
           tx,
         );
       }
+      return earning;
     });
     const detail = await this.deliveries.findDeliveryDetail(context.orderId);
     if (!detail) {
       throw driverDeliveryNotFound();
     }
+    const matching = await this.deliveries.findMatchingContext(
+      context.deliveryId,
+    );
+    if (matching) {
+      await this.notifications.notifyDeliveryCompleted({
+        orderId: context.orderId,
+        customerId: matching.customerId,
+        publicReference: matching.publicReference,
+      });
+    }
+    await this.notifications.notifyDriverEarningCreated({
+      earningId: earning.id,
+      driverId: context.driverId,
+    });
     return {
       assignmentId: context.assignmentId,
       deliveryId: context.deliveryId,

@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { MerchantAccessService } from '../../merchants/application/merchant-access.service';
 import { MERCHANT_CAPABILITIES } from '../../merchants/domain/merchant.policy';
 import { FinancialLedgerService } from '../../financial-ledger/application/financial-ledger.service';
+import { NotificationService } from '../../notifications/application/notification.service';
 import {
   merchantSettlementAdminRequired,
   merchantSettlementDraftExists,
@@ -47,6 +48,7 @@ export class MerchantSettlementService {
     private readonly settlements: MerchantSettlementRepository,
     private readonly access: MerchantAccessService,
     private readonly ledger: FinancialLedgerService,
+    private readonly notifications: NotificationService,
   ) {}
 
   private async requireAdmin(adminId: string): Promise<void> {
@@ -307,27 +309,24 @@ export class MerchantSettlementService {
   }): Promise<MerchantSettlementRecord> {
     await this.requireAdmin(input.adminId);
 
-    return this.settlements.runInTransaction(async (tx) => {
-      const settlement = await this.settlements.findById(
-        input.settlementId,
-        tx,
-      );
-      if (!settlement) {
+    const settlement = await this.settlements.runInTransaction(async (tx) => {
+      const current = await this.settlements.findById(input.settlementId, tx);
+      if (!current) {
         throw merchantSettlementNotFound();
       }
-      if (settlement.status === SETTLEMENT_STATUS_FINALIZED) {
+      if (current.status === SETTLEMENT_STATUS_FINALIZED) {
         await this.ledger.postMerchantSettlementFinalized(
           {
-            settlementId: settlement.id,
-            merchantId: settlement.merchantId,
-            netPayableMinor: settlement.netPayableMinor,
+            settlementId: current.id,
+            merchantId: current.merchantId,
+            netPayableMinor: current.netPayableMinor,
           },
           tx,
         );
-        return settlement;
+        return current;
       }
-      requireDraftStatus(settlement.status);
-      await this.settlements.lockMerchantScope(settlement.merchantId, tx);
+      requireDraftStatus(current.status);
+      await this.settlements.lockMerchantScope(current.merchantId, tx);
 
       const fresh = await this.settlements.findById(input.settlementId, tx);
       if (!fresh) {
@@ -374,6 +373,11 @@ export class MerchantSettlementService {
       );
       return finalized;
     });
+    await this.notifications.notifySettlementFinalized({
+      settlementId: settlement.id,
+      merchantId: settlement.merchantId,
+    });
+    return settlement;
   }
 
   async listMerchantSettlements(

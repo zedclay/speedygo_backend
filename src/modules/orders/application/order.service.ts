@@ -17,6 +17,7 @@ import {
   isMerchantApproved,
   isMerchantProfileComplete,
 } from '../../merchants/domain/merchant.policy';
+import { NotificationService } from '../../notifications/application/notification.service';
 import { PromotionService } from '../../promotions/application/promotion.service';
 import { requirePositiveCustomerPayableAfterPromotion } from '../../promotions/domain/promotion.policy';
 import {
@@ -59,6 +60,7 @@ export class OrderService {
     private readonly orders: OrderRepository,
     private readonly commission: MerchantCommissionService,
     private readonly promotions: PromotionService,
+    private readonly notifications: NotificationService,
     @Inject(CHECKOUT_CLOCK) private readonly clock: CheckoutClock,
   ) {}
 
@@ -286,6 +288,7 @@ export class OrderService {
       }
     });
 
+    await this.notifications.notifyMerchantOrderCreated({ orderId });
     return this.getOrder(accountId, orderId);
   }
 

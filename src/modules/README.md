@@ -29,7 +29,7 @@ Placeholder folders for the SpeedyGo modular monolith.
 | `merchant-settlements` | Merchant Settlements Foundation v1.0: DRAFT→FINALIZED batches, SALE from immutable merchant net, trusted REFUND_ADJUSTMENT; OWNER/MANAGER read; no payout/ledger |
 | `financial-ledger` | Financial Ledger Foundation v1.0: append-only operational event ledger (DEBIT/CREDIT + nonnegative amount); source-idempotent postings; internal reconciler; no payout |
 | `promotions` | Promotions Foundation v1.0 — code evaluation, OFS discounts, redemption |
-| `notifications` | Push / in-app / email / SMS dispatch |
+| `notifications` | Notifications Foundation v1.0 FINAL FREEZE: durable IN_APP Account inbox, source-idempotent emits, bounded NotificationRecoveryService (commit→emit gap); DeviceToken future-prep; Push not production-configured |
 | `support` | Support tickets |
 | `reports` | Reporting read models |
 | `admin` | Admin operations |

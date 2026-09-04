@@ -21,6 +21,7 @@ import {
   PROMOTION_TYPE_SPEEDYGO_FIXED_MINOR,
 } from '../src/modules/promotions/domain/promotion.types';
 import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
+import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
 
 type TokenBody = { accessToken: string };
 type AuthMeBody = { account: { id: string; phone: string } };
@@ -243,6 +244,8 @@ describe('Promotions Foundation (e2e)', () => {
       }
       await db.Device.where({ id: device.id }).delete();
     }
+    await deleteAccountNotificationArtifacts(prisma, account.id);
+
     await db.Account.where({ id: account.id }).delete();
   }
 

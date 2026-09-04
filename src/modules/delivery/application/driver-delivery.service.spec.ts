@@ -95,6 +95,9 @@ describe('DriverDeliveryService', () => {
       findMatchingContext: jest.fn().mockResolvedValue({
         pickup: PICKUP,
         dropoff: DROPOFF,
+        customerId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+        publicReference: 'sgo_del',
+        orderId: ORDER_ID,
       }),
     };
     drivers = {
@@ -139,6 +142,10 @@ describe('DriverDeliveryService', () => {
         return fallback;
       }),
     };
+    const notifications = {
+      notifyDeliveryCompleted: jest.fn().mockResolvedValue(undefined),
+      notifyDriverEarningCreated: jest.fn().mockResolvedValue(undefined),
+    };
     service = new DriverDeliveryService(
       deliveries as never,
       drivers as never,
@@ -146,6 +153,7 @@ describe('DriverDeliveryService', () => {
       config as never,
       codCollections as never,
       remuneration as never,
+      notifications as never,
     );
   });
 

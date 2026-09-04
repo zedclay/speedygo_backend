@@ -201,9 +201,15 @@ describe('MerchantOrderService', () => {
       enqueueRetry: jest.fn().mockResolvedValue(undefined),
       scheduleAfterMatch: jest.fn().mockResolvedValue(undefined),
     };
+    const notifications = {
+      notifyOrderAccepted: jest.fn().mockResolvedValue(undefined),
+      notifyOrderRejected: jest.fn().mockResolvedValue(undefined),
+      notifyOrderReady: jest.fn().mockResolvedValue(undefined),
+    };
     service = new MerchantOrderService(
       access as never,
       orders as never,
+      notifications as never,
       matchingJobs,
     );
   });

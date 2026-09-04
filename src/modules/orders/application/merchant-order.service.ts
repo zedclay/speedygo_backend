@@ -12,6 +12,7 @@ import {
   isMerchantApproved,
   MERCHANT_CAPABILITIES,
 } from '../../merchants/domain/merchant.policy';
+import { NotificationService } from '../../notifications/application/notification.service';
 import {
   merchantOrderAlreadyAccepted,
   merchantOrderInvalidTransition,
@@ -41,6 +42,7 @@ export class MerchantOrderService {
   constructor(
     private readonly access: MerchantAccessService,
     private readonly orders: OrderRepository,
+    private readonly notifications: NotificationService,
     @Inject(MATCHING_JOBS) private readonly matchingJobs: MatchingJobs,
   ) {}
 
@@ -143,6 +145,8 @@ export class MerchantOrderService {
     );
     const rejectionReason =
       action === 'REJECT' ? this.requireRejectionReason(reason) : undefined;
+    let customerId = '';
+    let publicReference = '';
     await this.orders.runInTransaction(async (tx) => {
       const merchant = await this.orders.findMerchantById(merchantId, tx);
       if (
@@ -164,6 +168,8 @@ export class MerchantOrderService {
       if (!locked) {
         throw merchantOrderNotFound();
       }
+      customerId = locked.customerId;
+      publicReference = locked.publicReference;
       const branchMerchantId = await this.orders.findBranchMerchantId(
         locked.merchantBranchId,
         tx,
@@ -252,6 +258,25 @@ export class MerchantOrderService {
           `Matching start enqueue failed for order ${orderId}: ${error instanceof Error ? error.message : String(error)}`,
         );
       }
+    }
+    if (action === 'ACCEPT') {
+      await this.notifications.notifyOrderAccepted({
+        orderId,
+        customerId,
+        publicReference,
+      });
+    } else if (action === 'REJECT') {
+      await this.notifications.notifyOrderRejected({
+        orderId,
+        customerId,
+        publicReference,
+      });
+    } else if (action === 'MARK_READY') {
+      await this.notifications.notifyOrderReady({
+        orderId,
+        customerId,
+        publicReference,
+      });
     }
     return detail;
   }

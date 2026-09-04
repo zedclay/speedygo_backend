@@ -3,6 +3,7 @@ import { Test } from '@nestjs/testing';
 import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
+import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
 import { configureApp } from '../src/app.setup';
 import { createUuidV7 } from '../src/common/utils/uuid-v7';
 import { RedisService } from '../src/infrastructure/cache/redis.service';
@@ -166,6 +167,8 @@ describe('Catalog foundation (e2e)', () => {
     for (const device of devices) {
       await prisma.getDb().orm.public.Device.where({ id: device.id }).delete();
     }
+    await deleteAccountNotificationArtifacts(prisma, account.id);
+
     await prisma.getDb().orm.public.Account.where({ id: account.id }).delete();
   }
 

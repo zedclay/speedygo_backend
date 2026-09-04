@@ -7,6 +7,8 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
+import { deactivateOpenGlobalCommissionDefaults } from './helpers/sanitize-commission-globals';
+import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
 import { createUuidV7 } from '../src/common/utils/uuid-v7';
 import { RedisService } from '../src/infrastructure/cache/redis.service';
 import { PrismaService } from '../src/infrastructure/database/database.module';
@@ -438,6 +440,8 @@ describe('Financial Ledger Foundation (e2e)', () => {
     }).all()) {
       await db.Device.where({ id: device.id }).delete();
     }
+    await deleteAccountNotificationArtifacts(prisma, account.id);
+
     await db.Account.where({ id: account.id }).delete();
   }
 
@@ -566,6 +570,7 @@ describe('Financial Ledger Foundation (e2e)', () => {
       createdAt: now,
       updatedAt: now,
     });
+    await deactivateOpenGlobalCommissionDefaults(prisma);
     await prisma.getDb().orm.public.MerchantCommissionRule.create({
       id: createUuidV7(),
       scope: 'GLOBAL_DEFAULT',

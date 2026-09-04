@@ -7,6 +7,7 @@ import { DriverDeliveryService } from './application/driver-delivery.service';
 import { DeliveryRepository } from './infrastructure/delivery.repository';
 import { CodModule } from '../cod/cod.module';
 import { DriverRemunerationModule } from '../driver-remuneration/driver-remuneration.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { CustomerDeliveryController } from './presentation/http/customer-delivery.controller';
 import { DriverDeliveryController } from './presentation/http/driver-delivery.controller';
 import { MerchantDeliveryController } from './presentation/http/merchant-delivery.controller';
@@ -18,6 +19,7 @@ import { MerchantDeliveryController } from './presentation/http/merchant-deliver
     forwardRef(() => MatchingModule),
     CodModule,
     DriverRemunerationModule,
+    NotificationsModule,
   ],
   controllers: [
     CustomerDeliveryController,

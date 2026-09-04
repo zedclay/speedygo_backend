@@ -14,6 +14,7 @@ import {
   DRIVER_AVAILABILITY_ONLINE,
 } from '../../drivers/domain/driver.policy';
 import { DriverRepository } from '../../drivers/infrastructure/driver.repository';
+import { NotificationService } from '../../notifications/application/notification.service';
 import {
   deliveryAlreadyAssigned,
   deliveryNotSearchingDriver,
@@ -61,6 +62,7 @@ export class MatchingService {
     private readonly drivers: DriverService,
     private readonly driverRows: DriverRepository,
     private readonly assignments: AssignmentRepository,
+    private readonly notifications: NotificationService,
     @Inject(DRIVER_LOCATION_STORE)
     private readonly locations: DriverLocationStore,
     private readonly config: ConfigService,
@@ -205,6 +207,12 @@ export class MatchingService {
       offered: created.status === ASSIGNMENT_STATUS_OFFERED,
     };
     await this.safeSchedule(offered);
+    if (offered.offered && created) {
+      await this.notifications.notifyMatchOffer({
+        assignmentId: created.id,
+        driverId: created.driverId,
+      });
+    }
     return offered;
   }
 
@@ -276,6 +284,16 @@ export class MatchingService {
       }
       return moved;
     });
+    const context = await this.deliveryRows.findMatchingContext(
+      accepted.deliveryId,
+    );
+    if (context) {
+      await this.notifications.notifyDriverAssigned({
+        orderId: context.orderId,
+        customerId: context.customerId,
+        publicReference: context.publicReference,
+      });
+    }
     return this.toAcceptedView(accepted);
   }
 

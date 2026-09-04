@@ -165,6 +165,9 @@ describe('RefundService (FINAL)', () => {
       {
         postRefundRefunded: jest.fn().mockResolvedValue({}),
       } as never,
+      {
+        notifyRefundRefunded: jest.fn().mockResolvedValue(undefined),
+      } as never,
     );
   });
 

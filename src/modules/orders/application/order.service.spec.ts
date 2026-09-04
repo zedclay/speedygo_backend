@@ -261,6 +261,9 @@ describe('OrderService.createOrder', () => {
         evaluateForPreview: jest.fn(),
       } as never,
       {
+        notifyMerchantOrderCreated: jest.fn().mockResolvedValue(undefined),
+      } as never,
+      {
         now: () => instant,
       },
     );
@@ -727,6 +730,9 @@ describe('OrderService reads', () => {
       } as never,
       {
         redeemForOrder: jest.fn(),
+      } as never,
+      {
+        notifyMerchantOrderCreated: jest.fn().mockResolvedValue(undefined),
       } as never,
       {
         now: () => new Date(),

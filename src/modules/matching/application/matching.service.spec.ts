@@ -40,6 +40,7 @@ describe('MatchingService', () => {
   const context = {
     deliveryId: DELIVERY_ID,
     orderId: ORDER_ID,
+    customerId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
     publicReference: 'sgo_match',
     deliveryStatus: DELIVERY_STATUS_SEARCHING_DRIVER,
     orderStatus: 'ACTIVE',
@@ -207,6 +208,10 @@ describe('MatchingService', () => {
           return Promise.resolve(row);
         },
         setDeliveryAssigned: () => Promise.resolve(true),
+      } as never,
+      {
+        notifyMatchOffer: jest.fn().mockResolvedValue(undefined),
+        notifyDriverAssigned: jest.fn().mockResolvedValue(undefined),
       } as never,
       store,
       config as unknown as ConfigService,

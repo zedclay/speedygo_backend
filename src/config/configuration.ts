@@ -43,6 +43,17 @@ export default () => ({
     redisKeyPrefix: process.env.MATCHING_REDIS_PREFIX ?? 'matching:',
     bullPrefix: process.env.MATCHING_BULL_PREFIX ?? 'bull:matching',
   },
+  notifications: {
+    recoveryIntervalMs: int(
+      process.env.NOTIFICATIONS_RECOVERY_INTERVAL_MS,
+      30_000,
+    ),
+    recoveryBatchSize: int(process.env.NOTIFICATIONS_RECOVERY_BATCH_SIZE, 50),
+    recoveryLookbackMs: int(
+      process.env.NOTIFICATIONS_RECOVERY_LOOKBACK_MS,
+      86_400_000,
+    ),
+  },
   payments: {
     provider: process.env.PAYMENT_PROVIDER ?? '',
     returnUrl: process.env.PAYMENT_RETURN_URL ?? '',
