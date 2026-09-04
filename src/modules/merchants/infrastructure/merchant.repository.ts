@@ -9,22 +9,28 @@ import {
   type SpeedyGoDb,
 } from '../../../infrastructure/database/database.module';
 import {
+  pgDate,
   pgNow,
   pgNumeric,
   pgVarchar,
+  type PgTimestamptz,
 } from '../../../infrastructure/database/pg-values';
 import {
   merchantBranchInvalid,
   merchantLastBranchRequired,
   merchantStatusRestricted,
+  merchantVerificationIntegrity,
 } from '../domain/merchant.errors';
 import { statusAllowsBranchMutation } from '../domain/merchant.policy';
 import {
   MERCHANT_BRANCH_OPERATIONAL_STATUS_ACTIVE,
+  MERCHANT_DOCUMENT_STATUS_PENDING,
+  MERCHANT_DOCUMENT_STATUS_SUBMITTED,
   MERCHANT_MEMBER_ROLE_OWNER,
   MERCHANT_STATUS_ACTIVE,
   MERCHANT_STATUS_PENDING_REVIEW,
   newPublicReference,
+  objectKeyForMerchantDocument,
   parseMerchantStatus,
   type CreateBranchInput,
   type CreateMerchantInput,
@@ -36,7 +42,12 @@ import {
   type UpdateMerchantInput,
 } from '../domain/merchant.types';
 
-function orm(client: { orm: SpeedyGoDb['orm'] }) {
+export type OrmClient = {
+  orm: SpeedyGoDb['orm'];
+  query?: (plan: unknown) => unknown;
+};
+
+function orm(client: OrmClient) {
   return client.orm.public;
 }
 
@@ -316,8 +327,9 @@ export class MerchantRepository {
 
   async listDocumentSummaries(
     merchantId: string,
+    client?: OrmClient,
   ): Promise<MerchantDocumentSummary[]> {
-    const rows = await orm(this.db())
+    const rows = await orm(client ?? this.db())
       .MerchantDocument.where({ merchantId })
       .orderBy((document) => document.createdAt.asc())
       .all();
@@ -328,6 +340,169 @@ export class MerchantRepository {
       status: row.status,
       expiryDate: row.expiryDate,
     }));
+  }
+
+  /**
+   * Bounded document list for internal review packages (max 50).
+   */
+  async listDocumentSummariesBounded(
+    merchantId: string,
+    limit = 50,
+    client?: OrmClient,
+  ): Promise<MerchantDocumentSummary[]> {
+    const rows = await orm(client ?? this.db())
+      .MerchantDocument.where({ merchantId })
+      .orderBy((document) => document.createdAt.asc())
+      .all();
+    return rows.slice(0, limit).map((row) => ({
+      id: row.id,
+      merchantId: row.merchantId,
+      type: row.type,
+      status: row.status,
+      expiryDate: row.expiryDate,
+    }));
+  }
+
+  runInTransaction<T>(fn: (tx: OrmClient) => Promise<T>): Promise<T> {
+    return this.db().transaction(async (tx: OrmClient) => fn(tx));
+  }
+
+  async lockMerchant(
+    merchantId: string,
+    client: OrmClient,
+  ): Promise<MerchantRecord | null> {
+    await orm(client)
+      .Merchant.where({ id: merchantId })
+      .update({ updatedAt: pgNow() });
+    const row = await orm(client).Merchant.where({ id: merchantId }).first();
+    return row ? this.toMerchant(row) : null;
+  }
+
+  async findMerchantInTx(
+    merchantId: string,
+    client: OrmClient,
+  ): Promise<MerchantRecord | null> {
+    const row = await orm(client).Merchant.where({ id: merchantId }).first();
+    return row ? this.toMerchant(row) : null;
+  }
+
+  async adminExists(adminId: string, client?: OrmClient): Promise<boolean> {
+    const row = await orm(client ?? this.db())
+      .AdminProfile.where({ id: adminId })
+      .first();
+    return Boolean(row);
+  }
+
+  async setMerchantStatus(
+    merchantId: string,
+    status: string,
+    verifiedAt: PgTimestamptz | null,
+    client: OrmClient,
+  ): Promise<MerchantRecord | null> {
+    await orm(client)
+      .Merchant.where({ id: merchantId })
+      .update({
+        status: pgVarchar<64>(status),
+        verifiedAt,
+        updatedAt: pgNow(),
+      });
+    return this.findMerchantInTx(merchantId, client);
+  }
+
+  /**
+   * One authoritative row per (merchantId, type) via application upsert.
+   * Fail closed if multiple same-type rows already exist.
+   */
+  async upsertDocument(
+    merchantId: string,
+    type: string,
+    expiryDate: string | null,
+    client: OrmClient,
+  ): Promise<MerchantDocumentSummary> {
+    const now = pgNow();
+    const existing = await orm(client)
+      .MerchantDocument.where({ merchantId })
+      .all();
+    const matches = existing.filter((row) => row.type === type);
+    if (matches.length > 1) {
+      throw merchantVerificationIntegrity(
+        'Duplicate MerchantDocument type rows exist',
+      );
+    }
+    const current = matches[0];
+    if (current) {
+      await orm(client)
+        .MerchantDocument.where({ id: current.id })
+        .update({
+          expiryDate: expiryDate ? pgDate(expiryDate) : null,
+          status: pgVarchar<64>(MERCHANT_DOCUMENT_STATUS_PENDING),
+          updatedAt: now,
+        });
+      const row = await orm(client)
+        .MerchantDocument.where({ id: current.id })
+        .first();
+      return {
+        id: row!.id,
+        merchantId: row!.merchantId,
+        type: row!.type,
+        status: row!.status,
+        expiryDate: row!.expiryDate,
+      };
+    }
+    const id = createUuidV7();
+    const created = await orm(client).MerchantDocument.create({
+      id,
+      merchantId,
+      type: pgVarchar<64>(type),
+      fileUrl: objectKeyForMerchantDocument(id),
+      status: pgVarchar<64>(MERCHANT_DOCUMENT_STATUS_PENDING),
+      expiryDate: expiryDate ? pgDate(expiryDate) : null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return {
+      id: created.id,
+      merchantId: created.merchantId,
+      type: created.type,
+      status: created.status,
+      expiryDate: created.expiryDate,
+    };
+  }
+
+  async markDocumentsSubmitted(
+    merchantId: string,
+    client: OrmClient,
+  ): Promise<void> {
+    const now = pgNow();
+    const rows = await orm(client).MerchantDocument.where({ merchantId }).all();
+    for (const row of rows) {
+      if (row.status !== MERCHANT_DOCUMENT_STATUS_SUBMITTED) {
+        await orm(client)
+          .MerchantDocument.where({ id: row.id })
+          .update({
+            status: pgVarchar<64>(MERCHANT_DOCUMENT_STATUS_SUBMITTED),
+            updatedAt: now,
+          });
+      }
+    }
+  }
+
+  async resetDocumentsToPending(
+    merchantId: string,
+    client: OrmClient,
+  ): Promise<void> {
+    const now = pgNow();
+    const rows = await orm(client).MerchantDocument.where({ merchantId }).all();
+    for (const row of rows) {
+      if (row.status !== MERCHANT_DOCUMENT_STATUS_PENDING) {
+        await orm(client)
+          .MerchantDocument.where({ id: row.id })
+          .update({
+            status: pgVarchar<64>(MERCHANT_DOCUMENT_STATUS_PENDING),
+            updatedAt: now,
+          });
+      }
+    }
   }
 
   private toMerchant(row: {

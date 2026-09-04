@@ -5,6 +5,7 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -32,6 +33,19 @@ export class UpdateMerchantProfileDto {
   @IsNotEmpty()
   @MaxLength(255)
   name?: string;
+}
+
+export class UpsertMerchantDocumentDto {
+  @ApiPropertyOptional({
+    example: '2099-01-01',
+    description:
+      'Optional for all SpeedyGo application evidence categories. YYYY-MM-DD. When present, must not be in the past. Not an Algerian statutory requirement.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => trimString(value))
+  @IsString()
+  @Matches(/^\d{4}-\d{2}-\d{2}$/)
+  expiryDate?: string;
 }
 
 export class CreateMerchantBranchDto {

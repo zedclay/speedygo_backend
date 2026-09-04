@@ -1,5 +1,15 @@
 import { createUuidV7 } from '../../../common/utils/uuid-v7';
-import { deriveMerchantReadiness } from './merchant.policy';
+import {
+  MERCHANT_OPTIONAL_DOCUMENT_TYPES,
+  MERCHANT_REQUIRED_DOCUMENT_TYPES,
+  canEditVerificationEvidence,
+  deriveMerchantReadiness,
+  isEvidenceDocumentComplete,
+  isOptionalExpiryValid,
+  isRequiredDocumentExpiredAttention,
+  isVerificationFormallySubmitted,
+  isVerificationReady,
+} from './merchant.policy';
 
 export {
   MERCHANT_BRANCH_OPERATIONAL_STATUS_ACTIVE,
@@ -7,18 +17,36 @@ export {
   MERCHANT_BRANCH_OPERATIONAL_STATUS_SUSPENDED,
   MERCHANT_BRANCH_OPERATIONAL_STATUSES,
   MERCHANT_CAPABILITIES,
+  MERCHANT_DOCUMENT_BUSINESS_IDENTITY,
+  MERCHANT_DOCUMENT_BUSINESS_REGISTRATION,
+  MERCHANT_DOCUMENT_STATUS_PENDING,
+  MERCHANT_DOCUMENT_STATUS_SUBMITTED,
+  MERCHANT_DOCUMENT_SUPPORTING,
+  MERCHANT_DOCUMENT_TYPES,
   MERCHANT_MEMBER_ROLE_MANAGER,
   MERCHANT_MEMBER_ROLE_OWNER,
   MERCHANT_MEMBER_ROLE_STAFF,
   MERCHANT_MEMBER_ROLES,
+  MERCHANT_OPTIONAL_DOCUMENT_TYPES,
+  MERCHANT_REQUIRED_DOCUMENT_TYPES,
   MERCHANT_STATUS_ACTIVE,
   MERCHANT_STATUS_PENDING_REVIEW,
   MERCHANT_STATUS_REJECTED,
   MERCHANT_STATUS_SUSPENDED,
   MERCHANT_STATUSES,
+  canEditVerificationEvidence,
+  canSubmitMerchantVerification,
   deriveMerchantReadiness,
+  isBusinessIdentityComplete,
+  isBusinessRegistrationComplete,
+  isEvidenceDocumentComplete,
   isMerchantApproved,
   isMerchantProfileComplete,
+  isOptionalExpiryValid,
+  isRequiredDocumentExpiredAttention,
+  isVerificationFormallySubmitted,
+  isVerificationReady,
+  objectKeyForMerchantDocument,
   parseBranchOperationalStatus,
   parseMerchantMemberRole,
   parseMerchantStatus,
@@ -118,6 +146,15 @@ export type MerchantDocumentView = {
   expiryDate: string | null;
 };
 
+export type MerchantEvidenceChecklistItem = {
+  type: string;
+  required: boolean;
+  present: boolean;
+  complete: boolean;
+  status: string | null;
+  expiryDate: string | null;
+};
+
 export type MerchantMembershipView = {
   merchantId: string;
   role: string;
@@ -127,14 +164,35 @@ export type MerchantMembershipView = {
   branchReady: boolean;
   approved: boolean;
   operationalReady: boolean;
+  verificationReady: boolean;
+  verificationSubmitted: boolean;
+  verificationAttentionRequired: boolean;
   merchant: MerchantView;
   branches: MerchantBranchView[];
   documents: MerchantDocumentView[];
+  evidenceChecklist: MerchantEvidenceChecklistItem[];
 };
 
 export type MerchantMeView = {
   merchantMembershipExists: boolean;
   memberships: MerchantMembershipView[];
+};
+
+export type MerchantVerificationPackageView = {
+  merchantId: string;
+  status: string;
+  verifiedAt: string | null;
+  verificationReady: boolean;
+  verificationSubmitted: boolean;
+  verificationAttentionRequired: boolean;
+  evidenceEditable: boolean;
+  evidenceChecklist: MerchantEvidenceChecklistItem[];
+  documents: MerchantDocumentView[];
+};
+
+export type UpsertMerchantDocumentInput = {
+  type: string;
+  expiryDate?: string | null;
 };
 
 export function hasValidCoordinates(
@@ -188,11 +246,65 @@ export function toDocumentView(
   };
 }
 
+export function buildEvidenceChecklist(
+  documents: MerchantDocumentSummary[],
+): MerchantEvidenceChecklistItem[] {
+  const types = [
+    ...MERCHANT_REQUIRED_DOCUMENT_TYPES.map((type) => ({
+      type,
+      required: true as const,
+    })),
+    ...MERCHANT_OPTIONAL_DOCUMENT_TYPES.map((type) => ({
+      type,
+      required: false as const,
+    })),
+  ];
+  return types.map(({ type, required }) => {
+    const matches = documents.filter((row) => row.type === type);
+    if (matches.length > 1) {
+      return {
+        type,
+        required,
+        present: true,
+        complete: false,
+        status: null,
+        expiryDate: null,
+      };
+    }
+    const document = matches[0] ?? null;
+    let complete = false;
+    if (document) {
+      if (required) {
+        complete = isEvidenceDocumentComplete(
+          {
+            type: document.type,
+            status: document.status,
+            expiryDate: document.expiryDate,
+          },
+          type,
+        );
+      } else {
+        complete = isOptionalExpiryValid(document.expiryDate);
+      }
+    }
+    return {
+      type,
+      required,
+      present: document !== null,
+      complete,
+      status: document?.status ?? null,
+      expiryDate: document?.expiryDate ?? null,
+    };
+  });
+}
+
 export function toMembershipView(input: {
   member: MerchantMemberRecord;
   merchant: MerchantRecord;
   branches: MerchantBranchRecord[];
   documents: MerchantDocumentSummary[];
+  includeDocuments?: boolean;
+  includeChecklist?: boolean;
 }): MerchantMembershipView {
   const readiness = deriveMerchantReadiness({
     name: input.merchant.name,
@@ -202,13 +314,65 @@ export function toMembershipView(input: {
       (branch) => branch.operationalStatus,
     ),
   });
+  const evidence = input.documents.map((document) => ({
+    type: document.type,
+    status: document.status,
+    expiryDate: document.expiryDate,
+  }));
+  const includeDocuments = input.includeDocuments !== false;
+  const includeChecklist = input.includeChecklist !== false;
   return {
     merchantId: input.merchant.id,
     role: input.member.role,
     createdAt: input.member.createdAt,
     ...readiness,
+    verificationReady: isVerificationReady({
+      name: input.merchant.name,
+      documents: evidence,
+    }),
+    verificationSubmitted: isVerificationFormallySubmitted(evidence),
+    verificationAttentionRequired: isRequiredDocumentExpiredAttention({
+      status: input.merchant.status,
+      verifiedAt: input.merchant.verifiedAt,
+      documents: evidence,
+    }),
     merchant: toMerchantView(input.merchant),
     branches: input.branches.map(toBranchView),
+    documents: includeDocuments ? input.documents.map(toDocumentView) : [],
+    evidenceChecklist: includeChecklist
+      ? buildEvidenceChecklist(input.documents)
+      : [],
+  };
+}
+
+export function toVerificationPackageView(input: {
+  merchant: MerchantRecord;
+  documents: MerchantDocumentSummary[];
+}): MerchantVerificationPackageView {
+  const evidence = input.documents.map((document) => ({
+    type: document.type,
+    status: document.status,
+    expiryDate: document.expiryDate,
+  }));
+  return {
+    merchantId: input.merchant.id,
+    status: input.merchant.status,
+    verifiedAt: input.merchant.verifiedAt,
+    verificationReady: isVerificationReady({
+      name: input.merchant.name,
+      documents: evidence,
+    }),
+    verificationSubmitted: isVerificationFormallySubmitted(evidence),
+    verificationAttentionRequired: isRequiredDocumentExpiredAttention({
+      status: input.merchant.status,
+      verifiedAt: input.merchant.verifiedAt,
+      documents: evidence,
+    }),
+    evidenceEditable: canEditVerificationEvidence({
+      status: input.merchant.status,
+      documents: evidence,
+    }),
+    evidenceChecklist: buildEvidenceChecklist(input.documents),
     documents: input.documents.map(toDocumentView),
   };
 }

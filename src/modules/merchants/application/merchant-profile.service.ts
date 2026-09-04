@@ -1,6 +1,12 @@
 import { Injectable } from '@nestjs/common';
 import { merchantNotFound } from '../domain/merchant.errors';
-import { MERCHANT_CAPABILITIES } from '../domain/merchant.policy';
+import {
+  MERCHANT_CAPABILITIES,
+  MERCHANT_MEMBER_ROLE_MANAGER,
+  MERCHANT_MEMBER_ROLE_OWNER,
+  MERCHANT_MEMBER_ROLE_STAFF,
+  parseMerchantMemberRole,
+} from '../domain/merchant.policy';
 import {
   toMembershipView,
   type CreateMerchantInput,
@@ -49,14 +55,37 @@ export class MerchantProfileService {
       if (!merchant) {
         return [];
       }
-      return [
-        toMembershipView({
-          member,
-          merchant,
-          branches: branchesByMerchant.get(merchant.id) ?? [],
-          documents: documentsByMerchant.get(merchant.id) ?? [],
-        }),
-      ];
+      const role = parseMerchantMemberRole(member.role);
+      const docs = documentsByMerchant.get(merchant.id) ?? [];
+      const includeDocuments = role === MERCHANT_MEMBER_ROLE_OWNER;
+      const includeChecklist = role === MERCHANT_MEMBER_ROLE_OWNER;
+      const view = toMembershipView({
+        member,
+        merchant,
+        branches: branchesByMerchant.get(merchant.id) ?? [],
+        documents: docs,
+        includeDocuments,
+        includeChecklist,
+      });
+      if (role === MERCHANT_MEMBER_ROLE_MANAGER) {
+        return [
+          {
+            ...view,
+            documents: [],
+            evidenceChecklist: [],
+          },
+        ];
+      }
+      if (role === MERCHANT_MEMBER_ROLE_STAFF) {
+        return [
+          {
+            ...view,
+            documents: [],
+            evidenceChecklist: [],
+          },
+        ];
+      }
+      return [view];
     });
     return {
       merchantMembershipExists: membershipViews.length > 0,
