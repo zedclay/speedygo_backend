@@ -255,6 +255,12 @@ describe('OrderService.createOrder', () => {
       orders as never,
       commission as never,
       {
+        redeemForOrder: jest.fn(),
+        prepareOrderRedemption: jest.fn(),
+        commitOrderRedemption: jest.fn(),
+        evaluateForPreview: jest.fn(),
+      } as never,
+      {
         now: () => instant,
       },
     );
@@ -646,7 +652,7 @@ describe('OrderService.createOrder', () => {
       );
       throw new Error('expected fake total');
     } catch (error) {
-      expectCode(error, ORDER_ERROR_CODES.ORDER_EXPECTED_AMOUNTS_INVALID);
+      expectCode(error, ORDER_ERROR_CODES.ORDER_RECONFIRMATION_REQUIRED);
     }
     expect(orders.persistCreatedOrder).not.toHaveBeenCalled();
     expect(cartStatus).toBe(CART_STATUS_ACTIVE);
@@ -718,6 +724,9 @@ describe('OrderService reads', () => {
       {
         readCommissionDecisionAt: jest.fn(),
         resolveApplicable: jest.fn(),
+      } as never,
+      {
+        redeemForOrder: jest.fn(),
       } as never,
       {
         now: () => new Date(),

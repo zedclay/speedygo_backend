@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { CartItemResponseDto } from '../../../../cart/presentation/http/dto/cart-response.dto';
 
 export class CheckoutCartSummaryDto {
@@ -97,19 +97,34 @@ export class CheckoutPreviewResponseDto {
   pricing!: CheckoutPricingSummaryDto;
 
   @ApiProperty({
-    description: 'Live merchandise subtotal in integer minor units.',
+    description:
+      'Live merchandise subtotal (gross) in integer minor units. Not reduced by promotions.',
   })
   merchandiseSubtotalMinor!: number;
 
   @ApiProperty({
     description:
-      'customerDeliveryFeeMinor from the uniquely resolved DeliveryPricingRule. Integer minor units. Flat fee; not distance-based.',
+      'customerDeliveryFeeMinor from the uniquely resolved DeliveryPricingRule. Integer minor units. Flat fee; not distance-based. Merchandise promotions do not alter delivery fee.',
   })
   deliveryFeeMinor!: number;
 
+  @ApiPropertyOptional({
+    description:
+      'Customer-facing promotion discount in integer minor units when a valid promoCode was supplied. Omitted when no promotion applies.',
+    nullable: true,
+  })
+  discountMinor?: number | null;
+
+  @ApiPropertyOptional({
+    description:
+      'Normalized promotion code when a valid promoCode was applied. Omitted when no promotion applies.',
+    nullable: true,
+  })
+  promoCode?: string | null;
+
   @ApiProperty({
     description:
-      'merchandiseSubtotalMinor + deliveryFeeMinor. No promotions, taxes, or tips.',
+      'merchandiseSubtotalMinor − discountMinor + deliveryFeeMinor. No taxes or tips. discountMinor is 0 when no promotion applies.',
   })
   customerTotalMinor!: number;
 }

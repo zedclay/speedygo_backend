@@ -67,8 +67,20 @@ describe('Checkout write DTO validation', () => {
       parse({ addressId: ADDRESS_ID, tipPercentage: 10 }),
     ).rejects.toBeInstanceOf(BadRequestException);
     await expect(
-      parse({ addressId: ADDRESS_ID, promoCode: 'SAVE' }),
+      parse({ addressId: ADDRESS_ID, discountMinor: 100 }),
     ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      parse({ addressId: ADDRESS_ID, funding: 'MERCHANT' }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('accepts optional promoCode', async () => {
+    await expect(
+      parse({ addressId: ADDRESS_ID, promoCode: 'SAVE10' }),
+    ).resolves.toEqual({
+      addressId: ADDRESS_ID,
+      promoCode: 'SAVE10',
+    });
   });
 
   it('rejects invalid UUIDs', async () => {

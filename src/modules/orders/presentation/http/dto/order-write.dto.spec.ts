@@ -96,15 +96,23 @@ describe('Order write DTO validation', () => {
     await expect(parse({ ...VALID, tip: 0 })).rejects.toBeInstanceOf(
       BadRequestException,
     );
-    await expect(parse({ ...VALID, promoCode: 'X' })).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
+    await expect(
+      parse({ ...VALID, discountMinor: 100 }),
+    ).rejects.toBeInstanceOf(BadRequestException);
     await expect(
       parse({ ...VALID, promotionId: ADDRESS_ID }),
     ).rejects.toBeInstanceOf(BadRequestException);
     await expect(parse({ ...VALID, serviceFee: 0 })).rejects.toBeInstanceOf(
       BadRequestException,
     );
+  });
+
+  it('accepts optional promoCode', async () => {
+    await expect(
+      parse({ ...VALID, promoCode: 'SAVE10' }),
+    ).resolves.toMatchObject({
+      promoCode: 'SAVE10',
+    });
   });
 
   it('rejects negative, fractional, and unsafe expected amounts', async () => {

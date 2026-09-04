@@ -28,6 +28,7 @@ import { CodModule } from './modules/cod/cod.module';
 import { RefundsModule } from './modules/refunds/refunds.module';
 import { MerchantSettlementsModule } from './modules/merchant-settlements/merchant-settlements.module';
 import { FinancialLedgerModule } from './modules/financial-ledger/financial-ledger.module';
+import { PromotionsModule } from './modules/promotions/promotions.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { FinancialLedgerModule } from './modules/financial-ledger/financial-ledg
     RefundsModule,
     MerchantSettlementsModule,
     FinancialLedgerModule,
+    PromotionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

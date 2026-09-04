@@ -17,6 +17,8 @@ import {
   isMerchantApproved,
   isMerchantProfileComplete,
 } from '../../merchants/domain/merchant.policy';
+import { PromotionService } from '../../promotions/application/promotion.service';
+import { requirePositiveCustomerPayableAfterPromotion } from '../../promotions/domain/promotion.policy';
 import {
   orderAddressCoordinatesRequired,
   orderAddressNotFound,
@@ -56,6 +58,7 @@ export class OrderService {
     private readonly carts: CartRepository,
     private readonly orders: OrderRepository,
     private readonly commission: MerchantCommissionService,
+    private readonly promotions: PromotionService,
     @Inject(CHECKOUT_CLOCK) private readonly clock: CheckoutClock,
   ) {}
 
@@ -203,14 +206,45 @@ export class OrderService {
         throw error;
       }
 
+      const gms = merchandiseSubtotalMinor(lines);
+      let merchantDiscountMinor = 0;
+      let platformDiscountMinor = 0;
+      let promoDecision:
+        | Awaited<ReturnType<PromotionService['prepareOrderRedemption']>>
+        | undefined;
+      if (input.promoCode !== undefined && input.promoCode !== null) {
+        promoDecision = await this.promotions.prepareOrderRedemption(
+          {
+            code: input.promoCode,
+            eligibleBaseMinor: gms,
+            decisionAt: pricingInstant,
+            orderId,
+          },
+          tx,
+        );
+        merchantDiscountMinor = promoDecision.merchantDiscountMinor;
+        platformDiscountMinor = promoDecision.platformDiscountMinor;
+      }
+
       const financial = buildOrderFinancialSnapshot({
-        grossMerchandiseSubtotalMinor: merchandiseSubtotalMinor(lines),
+        grossMerchandiseSubtotalMinor: gms,
         customerDeliveryFeeMinor: pricingRule.customerDeliveryFeeMinor,
         driverRemunerationMinor: pricingRule.driverRemunerationMinor,
         merchantCommissionRateBps: commissionRule.rateBps,
         commissionRuleId: commissionRule.ruleId,
         pricingRuleId: pricingRule.id,
+        merchantDiscountMinor,
+        platformDiscountMinor,
       });
+
+      if (promoDecision) {
+        requirePositiveCustomerPayableAfterPromotion({
+          merchandiseSubtotalMinor: financial.grossMerchandiseSubtotalMinor,
+          discountAmountMinor: financial.totalDiscountMinor,
+          deliveryFeeMinor: financial.customerDeliveryFeeMinor,
+          serviceFeeMinor: financial.serviceFeeMinor,
+        });
+      }
 
       requireConfirmedAmountsMatch({
         grossMerchandiseSubtotalMinor: financial.grossMerchandiseSubtotalMinor,
@@ -238,6 +272,18 @@ export class OrderService {
         },
         tx,
       );
+
+      if (promoDecision) {
+        await this.promotions.commitOrderRedemption(
+          {
+            decision: promoDecision,
+            customerId: profile.id,
+            orderId,
+            decisionAt: pricingInstant,
+          },
+          tx,
+        );
+      }
     });
 
     return this.getOrder(accountId, orderId);

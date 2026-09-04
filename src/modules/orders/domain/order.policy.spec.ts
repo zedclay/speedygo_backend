@@ -348,6 +348,65 @@ describe('Order policy', () => {
     );
   });
 
+  it('maps merchant-funded discount into merchantDiscount without reducing commission base', () => {
+    const financial = buildOrderFinancialSnapshot({
+      grossMerchandiseSubtotalMinor: 10000,
+      customerDeliveryFeeMinor: 500,
+      driverRemunerationMinor: 300,
+      merchantCommissionRateBps: 1000,
+      commissionRuleId: 'comm-global',
+      pricingRuleId: 'rule-1',
+      merchantDiscountMinor: 2000,
+      platformDiscountMinor: 0,
+    });
+    expect(financial.commissionBaseMinor).toBe(10000);
+    expect(financial.merchantCommissionAmountMinor).toBe(1000);
+    expect(financial.merchantDiscountMinor).toBe(2000);
+    expect(financial.platformDiscountMinor).toBe(0);
+    expect(financial.merchantNetAmountMinor).toBe(7000);
+    expect(financial.customerPayableMinor).toBe(8500);
+    expect(financial.driverRemunerationMinor).toBe(300);
+  });
+
+  it('maps SpeedyGo-funded discount into platformDiscount without reducing Merchant net', () => {
+    const financial = buildOrderFinancialSnapshot({
+      grossMerchandiseSubtotalMinor: 10000,
+      customerDeliveryFeeMinor: 500,
+      driverRemunerationMinor: 300,
+      merchantCommissionRateBps: 1000,
+      commissionRuleId: 'comm-global',
+      pricingRuleId: 'rule-1',
+      merchantDiscountMinor: 0,
+      platformDiscountMinor: 2000,
+    });
+    expect(financial.commissionBaseMinor).toBe(10000);
+    expect(financial.merchantCommissionAmountMinor).toBe(1000);
+    expect(financial.merchantDiscountMinor).toBe(0);
+    expect(financial.platformDiscountMinor).toBe(2000);
+    expect(financial.merchantNetAmountMinor).toBe(9000);
+    expect(financial.customerPayableMinor).toBe(8500);
+  });
+
+  it('rejects merchant-funded discount that would make Merchant net negative', () => {
+    try {
+      buildOrderFinancialSnapshot({
+        grossMerchandiseSubtotalMinor: 10000,
+        customerDeliveryFeeMinor: 500,
+        driverRemunerationMinor: 300,
+        merchantCommissionRateBps: 700,
+        commissionRuleId: 'comm-global',
+        pricingRuleId: 'rule-1',
+        merchantDiscountMinor: 10000,
+        platformDiscountMinor: 0,
+      });
+      fail('expected');
+    } catch (error) {
+      expect((error as { code: string }).code).toBe(
+        ORDER_ERROR_CODES.ORDER_FINANCIAL_CONFIGURATION_INVALID,
+      );
+    }
+  });
+
   it('rejects a Delivery Fee lower than driver remuneration', () => {
     try {
       buildOrderFinancialSnapshot({
@@ -380,19 +439,21 @@ describe('Order policy', () => {
     });
   });
 
-  it('rejects inconsistent, negative, fractional, and unsafe expected amounts', () => {
-    try {
+  it('accepts expected totals that omit additive equality (promotion-aware)', () => {
+    expect(
       requireCustomerConfirmedAmounts({
         expectedMerchandiseSubtotalMinor: 1200,
         expectedDeliveryFeeMinor: 500,
         expectedCustomerTotalMinor: 1600,
-      });
-      fail('expected inconsistent total');
-    } catch (error) {
-      expect((error as { code: string }).code).toBe(
-        ORDER_ERROR_CODES.ORDER_EXPECTED_AMOUNTS_INVALID,
-      );
-    }
+      }),
+    ).toEqual({
+      expectedMerchandiseSubtotalMinor: 1200,
+      expectedDeliveryFeeMinor: 500,
+      expectedCustomerTotalMinor: 1600,
+    });
+  });
+
+  it('rejects negative, fractional, and unsafe expected amounts', () => {
     try {
       requireCustomerConfirmedAmounts({
         expectedMerchandiseSubtotalMinor: -1,

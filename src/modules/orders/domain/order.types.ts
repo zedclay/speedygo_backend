@@ -64,6 +64,7 @@ export type CreateOrderInput = {
   expectedMerchandiseSubtotalMinor: number;
   expectedDeliveryFeeMinor: number;
   expectedCustomerTotalMinor: number;
+  promoCode?: string;
 };
 
 export type OrderListQuery = {
