@@ -26,6 +26,7 @@ import { OrdersModule } from './modules/orders/orders.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { CodModule } from './modules/cod/cod.module';
 import { RefundsModule } from './modules/refunds/refunds.module';
+import { MerchantSettlementsModule } from './modules/merchant-settlements/merchant-settlements.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { RefundsModule } from './modules/refunds/refunds.module';
     TrackingModule,
     CodModule,
     RefundsModule,
+    MerchantSettlementsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

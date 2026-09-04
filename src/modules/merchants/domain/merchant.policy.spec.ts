@@ -95,6 +95,27 @@ describe('Merchant policy', () => {
     ).toBe(false);
   });
 
+  it('grants OWNER and MANAGER settlement read and STAFF Order read only', () => {
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_OWNER,
+        MERCHANT_CAPABILITIES.SETTLEMENT_READ,
+      ),
+    ).toBe(true);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_MANAGER,
+        MERCHANT_CAPABILITIES.SETTLEMENT_READ,
+      ),
+    ).toBe(true);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_STAFF,
+        MERCHANT_CAPABILITIES.SETTLEMENT_READ,
+      ),
+    ).toBe(false);
+  });
+
   it('grants OWNER and MANAGER Order workflow mutation and STAFF Order read only', () => {
     expect(
       roleHasCapability(
