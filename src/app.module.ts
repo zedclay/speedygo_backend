@@ -32,6 +32,7 @@ import { FinancialLedgerModule } from './modules/financial-ledger/financial-ledg
 import { PromotionsModule } from './modules/promotions/promotions.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { SupportModule } from './modules/support/support.module';
+import { RatingsModule } from './modules/ratings/ratings.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { SupportModule } from './modules/support/support.module';
     PromotionsModule,
     NotificationsModule,
     SupportModule,
+    RatingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
