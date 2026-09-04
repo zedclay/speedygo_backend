@@ -141,13 +141,8 @@ export function requireCustomerConfirmedAmounts(input: {
     input.expectedCustomerTotalMinor,
     'expectedCustomerTotalMinor',
   );
-  const expectedSum = addMinorUnits(
-    expectedMerchandiseSubtotalMinor,
-    expectedDeliveryFeeMinor,
-  );
-  if (expectedCustomerTotalMinor !== expectedSum) {
-    throw orderExpectedAmountsInvalid();
-  }
+  // With Promotions, customer total = GMS − discount + delivery.
+  // Additive equality is therefore not required; live match is authoritative.
   return {
     expectedMerchandiseSubtotalMinor,
     expectedDeliveryFeeMinor,
@@ -386,11 +381,11 @@ export function merchandiseSubtotalMinor(lines: OrderLineSnapshot[]): number {
 }
 
 /**
- * v1.0 snapshot with promotions unimplemented.
- * commissionBaseMinor = grossMerchandiseSubtotalMinor because discounts are 0.
- * Before Promotions Foundation enables Merchant-funded or Platform-funded
- * discounts, commission-base behavior MUST be reopened and explicitly frozen.
- * That future decision is not an Order v1.0 RBC.
+ * Order financial snapshot builder.
+ *
+ * Promotions v1.0: optional merchant/platform discount buckets.
+ * commissionBaseMinor = grossMerchandiseSubtotalMinor (GMS) always —
+ * discounts do NOT reduce the commission base.
  */
 export function buildOrderFinancialSnapshot(input: {
   grossMerchandiseSubtotalMinor: number;
@@ -399,6 +394,8 @@ export function buildOrderFinancialSnapshot(input: {
   merchantCommissionRateBps: number;
   commissionRuleId: string;
   pricingRuleId: string;
+  merchantDiscountMinor?: number;
+  platformDiscountMinor?: number;
 }): OrderFinancialAmounts {
   if (
     !Number.isInteger(input.grossMerchandiseSubtotalMinor) ||
@@ -410,12 +407,33 @@ export function buildOrderFinancialSnapshot(input: {
       'Merchandise subtotal is out of range',
     );
   }
-  const merchantDiscountMinor = ORDER_V1_DISCOUNT_MINOR;
-  const platformDiscountMinor = ORDER_V1_DISCOUNT_MINOR;
+  const merchantDiscountMinor =
+    input.merchantDiscountMinor === undefined
+      ? ORDER_V1_DISCOUNT_MINOR
+      : input.merchantDiscountMinor;
+  const platformDiscountMinor =
+    input.platformDiscountMinor === undefined
+      ? ORDER_V1_DISCOUNT_MINOR
+      : input.platformDiscountMinor;
+  if (
+    !Number.isInteger(merchantDiscountMinor) ||
+    merchantDiscountMinor < 0 ||
+    !Number.isInteger(platformDiscountMinor) ||
+    platformDiscountMinor < 0
+  ) {
+    throw orderFinancialConfigurationInvalid(
+      'Discount amounts must be non-negative integers',
+    );
+  }
   const totalDiscountMinor = addMinorUnits(
     merchantDiscountMinor,
     platformDiscountMinor,
   );
+  if (totalDiscountMinor > input.grossMerchandiseSubtotalMinor) {
+    throw orderFinancialConfigurationInvalid(
+      'Total discount cannot exceed merchandise subtotal',
+    );
+  }
   const commissionBaseMinor = input.grossMerchandiseSubtotalMinor;
   const merchantCommissionAmountMinor = commissionAmountMinor(
     commissionBaseMinor,

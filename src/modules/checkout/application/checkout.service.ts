@@ -7,6 +7,7 @@ import {
   isMerchantApproved,
   isMerchantProfileComplete,
 } from '../../merchants/domain/merchant.policy';
+import { PromotionService } from '../../promotions/application/promotion.service';
 import { CHECKOUT_CLOCK, type CheckoutClock } from '../domain/checkout.clock';
 import {
   checkoutAddressCoordinatesRequired,
@@ -18,6 +19,7 @@ import {
   checkoutDeliveryZoneAmbiguous,
   checkoutMerchantNotOperational,
 } from '../domain/checkout.errors';
+import { requirePositiveCustomerPayableAfterPromotion } from '../../promotions/domain/promotion.policy';
 import {
   CHECKOUT_PRICING_TIMEZONE,
   customerTotalMinor,
@@ -36,13 +38,14 @@ export class CheckoutService {
   constructor(
     private readonly carts: CartService,
     private readonly checkout: CheckoutRepository,
+    private readonly promotions: PromotionService,
     @Inject(CHECKOUT_CLOCK) private readonly clock: CheckoutClock,
   ) {}
 
   /**
-   * Live Checkout Preview. Stateless. Not a reservation. Creates no Order/Payment.
+   * Live Checkout Preview. Stateless. Not a reservation. Creates no Order/Payment/redemption.
    * Delivery Fee and Catalog prices are live and not locked.
-   * Future Order creation must fully revalidate inside the Order transaction.
+   * Optional promoCode is evaluated without consuming usage.
    */
   async preview(
     accountId: string,
@@ -106,9 +109,10 @@ export class CheckoutService {
     }
     const zone = zones[0];
 
+    const decisionAt = this.clock.now();
     const applicable = selectApplicablePricingRules(
       await this.checkout.listActivePricingRules(zone.id),
-      this.clock.now(),
+      decisionAt,
     );
     const rule = requireSinglePricingRule(applicable);
     const deliveryFeeMinor = rule.customerDeliveryFeeMinor;
@@ -120,6 +124,23 @@ export class CheckoutService {
       )
     ) {
       warnings.push('PRICE_CHANGED');
+    }
+
+    let discountMinor = 0;
+    let promoCode: string | null = null;
+    if (input.promoCode !== undefined && input.promoCode !== null) {
+      const decision = await this.promotions.evaluateForPreview({
+        code: input.promoCode,
+        eligibleBaseMinor: merchandiseSubtotalMinor,
+        decisionAt,
+      });
+      discountMinor = decision.discountAmountMinor;
+      promoCode = decision.code;
+      requirePositiveCustomerPayableAfterPromotion({
+        merchandiseSubtotalMinor,
+        discountAmountMinor: discountMinor,
+        deliveryFeeMinor,
+      });
     }
 
     return {
@@ -152,9 +173,12 @@ export class CheckoutService {
       },
       merchandiseSubtotalMinor,
       deliveryFeeMinor,
+      discountMinor,
+      promoCode,
       customerTotalMinor: customerTotalMinor(
         merchandiseSubtotalMinor,
         deliveryFeeMinor,
+        discountMinor,
       ),
     };
   }

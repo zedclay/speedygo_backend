@@ -1,6 +1,14 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, IsString, IsUUID, Max, Min } from 'class-validator';
+import {
+  IsInt,
+  IsOptional,
+  IsString,
+  IsUUID,
+  Max,
+  MaxLength,
+  Min,
+} from 'class-validator';
 import {
   ORDER_EXPECTED_MINOR_MAX,
   ORDER_LIST_DEFAULT_LIMIT,
@@ -53,7 +61,7 @@ export class CreateOrderDto {
 
   @ApiProperty({
     description:
-      'Customer-confirmed total from the latest Checkout Preview (customerTotalMinor). Maps to internal customerPayableMinor for comparison only. Must equal expectedMerchandiseSubtotalMinor + expectedDeliveryFeeMinor. Never used as Payment.amountMinor authority.',
+      'Customer-confirmed total from the latest Checkout Preview (customerTotalMinor = merchandise − discount + delivery). Maps to internal customerPayableMinor for comparison only. Never used as Payment.amountMinor authority.',
     minimum: 0,
     maximum: ORDER_EXPECTED_MINOR_MAX,
     example: 1700,
@@ -63,6 +71,17 @@ export class CreateOrderDto {
   @Min(0)
   @Max(ORDER_EXPECTED_MINOR_MAX)
   expectedCustomerTotalMinor!: number;
+
+  @ApiPropertyOptional({
+    description:
+      'Optional promotion code. Revalidated inside the Order transaction. If supplied and no longer eligible, Order creation fails — the discount is never silently dropped. Client discountMinor/funding fields are rejected.',
+    maxLength: 64,
+    example: 'SAVE10',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  promoCode?: string;
 }
 
 export class ListOrdersQueryDto {

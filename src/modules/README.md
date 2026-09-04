@@ -28,7 +28,7 @@ Placeholder folders for the SpeedyGo modular monolith.
 | `refunds` | Refunds Foundation v1.0: multiple/partial Refunds, remaining-refundable reservation, internal authorize/confirm; Customer GET self-read; no Chargily fake refund; no Settlement/DriverEarning/COD rewrite |
 | `merchant-settlements` | Merchant Settlements Foundation v1.0: DRAFT→FINALIZED batches, SALE from immutable merchant net, trusted REFUND_ADJUSTMENT; OWNER/MANAGER read; no payout/ledger |
 | `financial-ledger` | Financial Ledger Foundation v1.0: append-only operational event ledger (DEBIT/CREDIT + nonnegative amount); source-idempotent postings; internal reconciler; no payout |
-| `promotions` | Promotions and discounts |
+| `promotions` | Promotions Foundation v1.0 — code evaluation, OFS discounts, redemption |
 | `notifications` | Push / in-app / email / SMS dispatch |
 | `support` | Support tickets |
 | `reports` | Reporting read models |

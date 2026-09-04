@@ -9,6 +9,7 @@ import {
 import type { AuthenticatedPrincipal } from '../../../auth/domain/auth.types';
 import { CurrentPrincipal } from '../../../auth/presentation/http/decorators/current-principal.decorator';
 import { CUSTOMER_ERROR_CODES } from '../../../customers/domain/customer.errors';
+import { PROMOTION_ERROR_CODES } from '../../../promotions/domain/promotion.errors';
 import { CheckoutService } from '../../application/checkout.service';
 import { CHECKOUT_ERROR_CODES } from '../../domain/checkout.errors';
 import { CheckoutPreviewResponseDto } from './dto/checkout-response.dto';
@@ -30,9 +31,11 @@ export class CheckoutController {
       'DeliveryZones are platform-wide. Coverage uses PostGIS ST_Covers (a boundary point is inside). Overlapping active zones fail closed.',
       'Delivery Fee is the flat DeliveryPricingRule.customerDeliveryFeeMinor in integer minor units. There is no distance, tax, tip, or promotion component.',
       'customerTotalMinor = merchandiseSubtotalMinor + deliveryFeeMinor. Payment method is selected later during Order creation (COD or ELECTRONIC).',
-      'Input is addressId only. The Active Cart is resolved from the authenticated Customer. cartId, deliveryFee, pricingRuleId, DeliveryZone id, coordinates, paymentMethod, tax, and tip are rejected.',
+      'Optional promoCode is evaluated without redemption. Customer-safe response may include discountMinor and normalized promoCode; funding internals are never exposed.',
+      'Promotions that would leave customerTotalMinor <= 0 fail closed (zero-payment Orders are unsupported).',
+      'Input is addressId and optional promoCode. The Active Cart is resolved from the authenticated Customer. cartId, deliveryFee, pricingRuleId, DeliveryZone id, coordinates, paymentMethod, tax, tip, discountMinor, and funding fields are rejected.',
       'Pricing local time uses Africa/Algiers. Both-null start/end times mean all-day. A one-sided time window is invalid configuration. timeBand does not invent hidden hours.',
-      'Order creation must fully revalidate Cart, Catalog, Address, zone, pricing, live merchandise prices, and Delivery Fee inside the Order transaction.',
+      'Order creation must fully revalidate Cart, Catalog, Address, zone, pricing, live merchandise prices, Delivery Fee, and Promotion inside the Order transaction.',
     ].join(' '),
   })
   @ApiOkResponse({ type: CheckoutPreviewResponseDto })
@@ -42,7 +45,7 @@ export class CheckoutController {
   })
   @ApiResponse({
     status: 404,
-    description: `${CUSTOMER_ERROR_CODES.CUSTOMER_PROFILE_NOT_FOUND} or ${CHECKOUT_ERROR_CODES.CHECKOUT_ADDRESS_NOT_FOUND}`,
+    description: `${CUSTOMER_ERROR_CODES.CUSTOMER_PROFILE_NOT_FOUND} or ${CHECKOUT_ERROR_CODES.CHECKOUT_ADDRESS_NOT_FOUND} or ${PROMOTION_ERROR_CODES.PROMOTION_NOT_FOUND}`,
   })
   @ApiResponse({
     status: 409,
@@ -55,6 +58,10 @@ export class CheckoutController {
       CHECKOUT_ERROR_CODES.CHECKOUT_PRICING_CONFIGURATION_INVALID,
       CHECKOUT_ERROR_CODES.CHECKOUT_MERCHANT_NOT_OPERATIONAL,
       CHECKOUT_ERROR_CODES.CHECKOUT_BRANCH_NOT_OPERATIONAL,
+      PROMOTION_ERROR_CODES.PROMOTION_INACTIVE,
+      PROMOTION_ERROR_CODES.PROMOTION_EXPIRED,
+      PROMOTION_ERROR_CODES.PROMOTION_NOT_YET_ACTIVE,
+      PROMOTION_ERROR_CODES.PROMOTION_ZERO_PAYABLE_UNSUPPORTED,
     ].join(' or '),
   })
   preview(
@@ -63,6 +70,7 @@ export class CheckoutController {
   ) {
     return this.checkout.preview(principal.accountId, {
       addressId: body.addressId,
+      promoCode: body.promoCode,
     });
   }
 }

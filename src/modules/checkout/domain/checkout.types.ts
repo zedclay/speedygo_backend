@@ -34,6 +34,7 @@ export type CheckoutPricingRuleRecord = {
 
 export type CheckoutPreviewInput = {
   addressId: string;
+  promoCode?: string;
 };
 
 export type CheckoutPreviewView = {
@@ -66,5 +67,7 @@ export type CheckoutPreviewView = {
   };
   merchandiseSubtotalMinor: number;
   deliveryFeeMinor: number;
+  discountMinor: number;
+  promoCode: string | null;
   customerTotalMinor: number;
 };

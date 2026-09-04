@@ -157,17 +157,23 @@ export function requireSinglePricingRule(
 export function customerTotalMinor(
   merchandiseSubtotalMinor: number,
   deliveryFeeMinor: number,
+  discountMinor = 0,
 ): number {
   if (
     !Number.isInteger(merchandiseSubtotalMinor) ||
     !Number.isInteger(deliveryFeeMinor) ||
+    !Number.isInteger(discountMinor) ||
     merchandiseSubtotalMinor < 0 ||
-    deliveryFeeMinor < 0
+    deliveryFeeMinor < 0 ||
+    discountMinor < 0
   ) {
     throw checkoutPricingConfigurationInvalid();
   }
-  const total = merchandiseSubtotalMinor + deliveryFeeMinor;
-  if (!Number.isSafeInteger(total)) {
+  if (discountMinor > merchandiseSubtotalMinor) {
+    throw checkoutPricingConfigurationInvalid();
+  }
+  const total = merchandiseSubtotalMinor - discountMinor + deliveryFeeMinor;
+  if (!Number.isSafeInteger(total) || total < 0) {
     throw checkoutPricingConfigurationInvalid();
   }
   return total;

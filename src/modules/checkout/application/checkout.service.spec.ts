@@ -124,9 +124,16 @@ describe('CheckoutService.preview', () => {
         ]),
       listActivePricingRules: jest.fn().mockResolvedValue([pricingRule()]),
     };
-    service = new CheckoutService(carts as never, repo as never, {
-      now: () => now,
-    });
+    service = new CheckoutService(
+      carts as never,
+      repo as never,
+      {
+        evaluateForPreview: jest.fn(),
+      } as never,
+      {
+        now: () => now,
+      },
+    );
   });
 
   it('returns a ready preview with live totals', async () => {
@@ -135,6 +142,8 @@ describe('CheckoutService.preview', () => {
     expect(preview.warnings).toEqual([]);
     expect(preview.merchandiseSubtotalMinor).toBe(1200);
     expect(preview.deliveryFeeMinor).toBe(500);
+    expect(preview.discountMinor).toBe(0);
+    expect(preview.promoCode).toBeNull();
     expect(preview.customerTotalMinor).toBe(1700);
     expect(preview.pricing.timezone).toBe('Africa/Algiers');
     expect(preview.pricing.ruleId).toBe('rule-1');

@@ -18,6 +18,7 @@ import {
 import type { AuthenticatedPrincipal } from '../../../auth/domain/auth.types';
 import { CurrentPrincipal } from '../../../auth/presentation/http/decorators/current-principal.decorator';
 import { CUSTOMER_ERROR_CODES } from '../../../customers/domain/customer.errors';
+import { PROMOTION_ERROR_CODES } from '../../../promotions/domain/promotion.errors';
 import { OrderService } from '../../application/order.service';
 import { ORDER_ERROR_CODES } from '../../domain/order.errors';
 import {
@@ -41,7 +42,8 @@ export class OrderController {
       'Expected amounts are Customer confirmation values from the latest Checkout Preview only. The Backend recalculates all authoritative merchandise, Delivery Fee, commission, and customerPayableMinor values inside the same transaction.',
       'Public expectedCustomerTotalMinor maps to internal customerPayableMinor for comparison only. Expected amounts never become price authority and are never written to Payment.amountMinor.',
       'If live amounts differ from confirmed expected amounts, the request returns 409 ORDER_RECONFIRMATION_REQUIRED with changes[] and current { merchandiseSubtotalMinor, deliveryFeeMinor, customerTotalMinor }. Nothing is persisted. The ACTIVE Cart remains ACTIVE.',
-      'Rejected mass-assignment includes cartId, customerId, accountId, merchantId, merchantBranchId, zoneId, pricingRuleId, commissionRuleId, productId, prices, authoritative totals, expectedCustomerPayableMinor, status, fulfillmentStatus, commission, discounts, tax, tip, promoCode, and serviceFee.',
+      'Optional promoCode is revalidated inside the Order transaction; if supplied and ineligible, creation fails without silently dropping the discount. Client discountMinor/funding fields are rejected.',
+      'Rejected mass-assignment includes cartId, customerId, accountId, merchantId, merchantBranchId, zoneId, pricingRuleId, commissionRuleId, productId, prices, authoritative totals, expectedCustomerPayableMinor, status, fulfillmentStatus, commission amounts, discount amounts, tax, tip, and serviceFee.',
       'On success: Order status CREATED, fulfillment PENDING_ACCEPTANCE, one ORDER_CREATED event, Payment PENDING intent (no PaymentTransaction), no Delivery, ACTIVE Cart converted to CONVERTED. Historical Order values are immutable after commit.',
     ].join(' '),
   })
@@ -68,6 +70,12 @@ export class OrderController {
       ORDER_ERROR_CODES.ORDER_ALREADY_CREATED,
       ORDER_ERROR_CODES.ORDER_FINANCIAL_CONFIGURATION_INVALID,
       ORDER_ERROR_CODES.ORDER_RECONFIRMATION_REQUIRED,
+      PROMOTION_ERROR_CODES.PROMOTION_INACTIVE,
+      PROMOTION_ERROR_CODES.PROMOTION_NOT_FOUND,
+      PROMOTION_ERROR_CODES.PROMOTION_EXPIRED,
+      PROMOTION_ERROR_CODES.PROMOTION_NOT_YET_ACTIVE,
+      PROMOTION_ERROR_CODES.PROMOTION_CODE_INVALID,
+      PROMOTION_ERROR_CODES.PROMOTION_ZERO_PAYABLE_UNSUPPORTED,
     ].join(' or '),
   })
   create(
@@ -80,6 +88,7 @@ export class OrderController {
       expectedMerchandiseSubtotalMinor: body.expectedMerchandiseSubtotalMinor,
       expectedDeliveryFeeMinor: body.expectedDeliveryFeeMinor,
       expectedCustomerTotalMinor: body.expectedCustomerTotalMinor,
+      promoCode: body.promoCode,
     });
   }
 
