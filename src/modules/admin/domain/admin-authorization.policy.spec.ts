@@ -122,5 +122,13 @@ describe('Admin authorization policy (permission-first)', () => {
     expect(financeMutations.has(ADMIN_PERMISSIONS.PAYMENTS_READ)).toBe(false);
     expect(financeMutations.has(supportManage)).toBe(false);
     expect(financeMutations.has(supportRead)).toBe(false);
+    expect(financeMutations.has(ADMIN_PERMISSIONS.SETTINGS_READ)).toBe(false);
+    expect(financeMutations.has(ADMIN_PERMISSIONS.SETTINGS_MANAGE)).toBe(false);
+    expect(ADMIN_PERMISSIONS.SETTINGS_READ).not.toBe(
+      ADMIN_PERMISSIONS.SETTINGS_MANAGE,
+    );
+    expect(ADMIN_PERMISSIONS.SETTINGS_MANAGE).not.toBe(
+      ADMIN_PERMISSIONS.REPORTS_READ,
+    );
   });
 });

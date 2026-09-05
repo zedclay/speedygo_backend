@@ -29,6 +29,10 @@ export const ADMIN_PERMISSIONS = Object.freeze({
   REPORTS_READ: 'reports.read',
   /** Financial Admin reports — not implied by reports.read. */
   REPORTS_FINANCE_READ: 'reports.finance.read',
+  /** Safe allowlisted platform settings read (Settings Foundation v1.0). */
+  SETTINGS_READ: 'settings.read',
+  /** Allowlisted platform settings mutation — not implied by settings.read. */
+  SETTINGS_MANAGE: 'settings.manage',
 } as const);
 
 export type AdminPermissionCode =

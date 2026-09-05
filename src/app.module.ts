@@ -34,6 +34,7 @@ import { NotificationsModule } from './modules/notifications/notifications.modul
 import { SupportModule } from './modules/support/support.module';
 import { RatingsModule } from './modules/ratings/ratings.module';
 import { ReportsModule } from './modules/reports/reports.module';
+import { SettingsModule } from './modules/settings/settings.module';
 
 @Module({
   imports: [
@@ -73,6 +74,7 @@ import { ReportsModule } from './modules/reports/reports.module';
     SupportModule,
     RatingsModule,
     ReportsModule,
+    SettingsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

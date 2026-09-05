@@ -107,7 +107,10 @@ describe('Realtime tracking (e2e)', () => {
 
   afterAll(async () => {
     await queue.obliterate({ force: true });
-    await app.get(MatchingProcessor).worker.close();
+    await Promise.race([
+      app.get(MatchingProcessor).worker.close(),
+      new Promise((resolve) => setTimeout(resolve, 3000)),
+    ]);
     await app.close();
   });
 

@@ -22,6 +22,10 @@ export const ADMIN_AUDIT_ACTIONS = Object.freeze({
   SUPPORT_STATUS_CHANGE: 'support.status_change',
   SUPPORT_PRIORITY_CHANGE: 'support.priority_change',
   SUPPORT_INTERNAL_NOTE: 'support.internal_note',
+  SETTINGS_UPDATE_SUPPORT_CONTACT_EMAIL:
+    'settings.update.platform.supportContactEmail',
+  SETTINGS_UPDATE_SUPPORT_CONTACT_PHONE:
+    'settings.update.platform.supportContactPhone',
 } as const);
 
 export type AdminAuditAction =
@@ -36,6 +40,7 @@ export const ADMIN_AUDIT_TARGET_TYPES = Object.freeze({
   MERCHANT_SETTLEMENT: 'MerchantSettlement',
   PROMOTION: 'Promotion',
   SUPPORT_TICKET: 'SupportTicket',
+  PLATFORM_SETTING: 'PlatformSetting',
 } as const);
 
 export type AdminAuditTargetType =
