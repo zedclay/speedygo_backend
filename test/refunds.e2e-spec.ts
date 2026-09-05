@@ -287,6 +287,13 @@ describe('Refunds Foundation (e2e)', () => {
           }).all()) {
             await db.DriverAssignment.where({ id: row.id }).delete();
           }
+          // Matching recovery can insert a new assignment between the loop and
+          // Delivery delete; re-check once more before deleting the delivery.
+          for (const row of await db.DriverAssignment.where({
+            deliveryId: delivery.id,
+          }).all()) {
+            await db.DriverAssignment.where({ id: row.id }).delete();
+          }
           await db.Delivery.where({ id: delivery.id }).delete();
         }
         for (const collection of await db.CodCollection.where({

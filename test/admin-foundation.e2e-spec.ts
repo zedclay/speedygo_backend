@@ -491,7 +491,8 @@ describe('Admin Foundation (e2e)', () => {
         adminAccount.id,
         `super-${suffix}`,
         [ADMIN_PERMISSIONS.MERCHANTS_READ],
-        { roleName: 'SUPER_ADMIN' },
+        // Unique name — Role.name is non-authoritative; bare SUPER_ADMIN collides across runs.
+        { roleName: `SUPER_ADMIN-${suffix}` },
       );
       const merchantId = await submitMerchantForReview(
         ownerToken,

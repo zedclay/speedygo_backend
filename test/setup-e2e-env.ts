@@ -23,8 +23,9 @@ process.env.MATCHING_PICKUP_RADIUS_METERS = '5000';
 process.env.MATCHING_CANDIDATE_LIMIT = '20';
 process.env.MATCHING_OFFER_TIMEOUT_MS = '30000';
 process.env.MATCHING_RETRY_DELAY_MS = '15000';
-process.env.MATCHING_RECOVERY_INTERVAL_MS = '15000';
-process.env.NOTIFICATIONS_RECOVERY_INTERVAL_MS = '30000';
+// Disable background recovery/cleanup loops during e2e — they race cleanup and matching.
+process.env.MATCHING_RECOVERY_INTERVAL_MS = '86400000';
+process.env.NOTIFICATIONS_RECOVERY_INTERVAL_MS = '86400000';
 process.env.NOTIFICATIONS_RECOVERY_BATCH_SIZE = '50';
 process.env.NOTIFICATIONS_RECOVERY_LOOKBACK_MS = '86400000';
 process.env.DRIVER_DELIVERY_PICKUP_RADIUS_METERS = '300';
@@ -38,8 +39,8 @@ process.env.TRACKING_AUTH_REVALIDATION_INTERVAL_MS = '200';
 process.env.TRACKING_REDIS_PREFIX = 'tracking:test:';
 process.env.TRACKING_SOCKET_ADAPTER_PREFIX = 'socket.io:tracking:test';
 process.env.AUTH_DEFAULT_COUNTRY = 'DZ';
-process.env.OTP_MAX_REQUESTS_PER_IP_PER_HOUR = '1000';
-process.env.OTP_MAX_REQUESTS_PER_HOUR = '20';
+process.env.OTP_MAX_REQUESTS_PER_IP_PER_HOUR = '10000';
+process.env.OTP_MAX_REQUESTS_PER_HOUR = '1000';
 process.env.PAYMENT_PROVIDER = 'test';
 process.env.PAYMENT_TEST_WEBHOOK_SECRET =
   process.env.PAYMENT_TEST_WEBHOOK_SECRET &&

@@ -9,6 +9,7 @@ import { configureApp } from '../src/app.setup';
 import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
 import { deactivateOpenGlobalCommissionDefaults } from './helpers/sanitize-commission-globals';
 import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
+import { sanitizeOpenMatchingState } from './helpers/sanitize-open-matching';
 import { createUuidV7 } from '../src/common/utils/uuid-v7';
 import { RedisService } from '../src/infrastructure/cache/redis.service';
 import { PrismaService } from '../src/infrastructure/database/database.module';
@@ -88,6 +89,7 @@ describe('Driver matching (e2e)', () => {
     sender = app.get(OTP_SENDER);
     prisma = app.get(PrismaService);
     await deactivateAllDeliveryZones(prisma);
+    await sanitizeOpenMatchingState(prisma);
     redis = app.get(RedisService);
     matching = app.get(MatchingService);
     review = app.get(DriverReviewService);

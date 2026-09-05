@@ -773,8 +773,22 @@ describe('Financial Ledger Foundation (e2e)', () => {
       );
       expect(finalized.paidAt).toBeNull();
 
-      const again = await ledger.reconcileUnposted(20);
-      expect(again.posted).toBe(0);
+      // Idempotency for THIS payment — do not assert global posted===0 (other suites may leave orphans).
+      const paymentRef = pgVarchar<128>(`PAYMENT:${payment!.id}`);
+      const beforeCount = (
+        await prisma
+          .getDb()
+          .orm.public.FinancialLedgerEntry.where({ reference: paymentRef })
+          .all()
+      ).length;
+      await ledger.reconcileUnposted(20);
+      const afterCount = (
+        await prisma
+          .getDb()
+          .orm.public.FinancialLedgerEntry.where({ reference: paymentRef })
+          .all()
+      ).length;
+      expect(afterCount).toBe(beforeCount);
     } finally {
       if (fixture) await cleanupFixture(fixture);
     }
