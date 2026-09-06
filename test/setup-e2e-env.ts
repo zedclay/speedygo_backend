@@ -1,4 +1,7 @@
 import { execSync } from 'node:child_process';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import {
   assertSafeE2eDatabaseUrl,
   redactDatabaseUrl,
@@ -66,6 +69,21 @@ process.env.PAYMENT_TEST_WEBHOOK_SECRET =
   process.env.PAYMENT_TEST_WEBHOOK_SECRET.length >= 16
     ? process.env.PAYMENT_TEST_WEBHOOK_SECRET
     : 'test-payment-webhook-secret';
+
+// Private object storage for verification document E2E (isolated temp root; never repo paths).
+const e2eStorageRoot = mkdtempSync(join(tmpdir(), 'speedygo-e2e-storage-'));
+process.env.STORAGE_DRIVER = 'local';
+process.env.STORAGE_LOCAL_ROOT = e2eStorageRoot;
+process.env.STORAGE_REDIS_PREFIX = 'storage:test:';
+process.env.STORAGE_MALWARE_SCAN_REQUIRED = 'true';
+process.env.STORAGE_MALWARE_SCANNER_DRIVER = 'clamav';
+process.env.STORAGE_CLAMAV_HOST = '127.0.0.1';
+process.env.STORAGE_CLAMAV_PORT = '3311';
+process.env.STORAGE_CLAMAV_CONNECT_TIMEOUT_MS = '5000';
+process.env.STORAGE_CLAMAV_SCAN_TIMEOUT_MS = '60000';
+process.env.STORAGE_UPLOADS_ENABLED = 'true';
+process.env.STORAGE_PENDING_UPLOAD_TTL_SECONDS = '3600';
+process.env.STORAGE_PENDING_CLEANUP_INTERVAL_MS = '86400000';
 
 // Deterministic e2e isolation: flush SpeedyGo E2E Redis DB15 only (never :6379).
 try {

@@ -6,6 +6,7 @@
 #   Redis       6381 (host) → 6379 (container) — avoids collision with other local Redis on 6379
 #   MinIO API   9000
 #   MinIO UI    9001
+#   ClamAV      3311 (host) → 3310 (container) — private malware scanning for verification uploads
 #
 # Usage:
 #   docker compose up -d
@@ -69,7 +70,28 @@ services:
     volumes:
       - speedygo_minio_data:/data
 
+  clamav:
+    # Pinned ClamAV image for local/E2E malware scanning (host 3311 → container 3310).
+    image: clamav/clamav:1.4.6-debian13-slim
+    container_name: speedygo-clamav
+    restart: unless-stopped
+    ports:
+      - '${SPEEDYGO_CLAMAV_HOST_PORT:-3311}:3310'
+    volumes:
+      - speedygo_clamav_data:/var/lib/clamav
+    healthcheck:
+      test:
+        [
+          'CMD-SHELL',
+          'echo PING | nc -w 2 127.0.0.1 3310 | grep -q PONG || exit 1',
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 40
+      start_period: 180s
+
 volumes:
   speedygo_postgres_data:
   speedygo_redis_data:
   speedygo_minio_data:
+  speedygo_clamav_data:

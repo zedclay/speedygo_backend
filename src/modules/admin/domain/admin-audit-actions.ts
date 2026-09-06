@@ -6,6 +6,8 @@ export const ADMIN_AUDIT_ACTIONS = Object.freeze({
   DRIVER_VERIFICATION_APPROVE: 'driver.verification.approve',
   DRIVER_VERIFICATION_REJECT: 'driver.verification.reject',
   DRIVER_SUSPEND: 'driver.suspend',
+  DRIVER_DOCUMENT_READ: 'driver.document.read',
+  MERCHANT_DOCUMENT_READ: 'merchant.document.read',
   REFUND_CREATE: 'refund.create',
   REFUND_APPROVE: 'refund.approve',
   REFUND_REJECT: 'refund.reject',

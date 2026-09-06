@@ -342,6 +342,40 @@ export class MerchantRepository {
     }));
   }
 
+  async findDocumentById(documentId: string): Promise<{
+    id: string;
+    merchantId: string;
+    type: string;
+    status: string;
+    expiryDate: string | null;
+    fileUrl: string;
+  } | null> {
+    const row = await orm(this.db())
+      .MerchantDocument.where({ id: documentId })
+      .first();
+    if (!row) {
+      return null;
+    }
+    return {
+      id: row.id,
+      merchantId: row.merchantId,
+      type: row.type,
+      status: row.status,
+      expiryDate: row.expiryDate,
+      fileUrl: row.fileUrl,
+    };
+  }
+
+  async updateDocumentFileUrl(
+    documentId: string,
+    fileUrl: string,
+  ): Promise<void> {
+    await orm(this.db()).MerchantDocument.where({ id: documentId }).update({
+      fileUrl,
+      updatedAt: pgNow(),
+    });
+  }
+
   /**
    * Bounded document list for internal review packages (max 50).
    */

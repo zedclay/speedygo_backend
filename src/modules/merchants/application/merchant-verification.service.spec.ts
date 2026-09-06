@@ -145,6 +145,10 @@ class MemoryMerchantRepository {
     return Promise.resolve(created);
   }
 
+  updateDocumentFileUrl(): Promise<void> {
+    return Promise.resolve();
+  }
+
   markDocumentsSubmitted(merchantId: string): Promise<void> {
     const list = this.documents.get(merchantId) ?? [];
     for (const row of list) {
@@ -196,6 +200,13 @@ describe('MerchantVerificationService + MerchantReviewService', () => {
     verification = new MerchantVerificationService(
       repo as unknown as MerchantRepository,
       access,
+      {
+        uploadPending: jest.fn(),
+        promotePendingToPermanent: jest.fn(),
+        deletePermanentLocator: jest.fn(),
+        readDurableContent: jest.fn(),
+        readBoundContent: jest.fn(),
+      } as never,
     );
     review = new MerchantReviewService(repo as unknown as MerchantRepository);
   });

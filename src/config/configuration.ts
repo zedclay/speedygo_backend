@@ -97,4 +97,50 @@ export default () => ({
     socketAdapterPrefix:
       process.env.TRACKING_SOCKET_ADAPTER_PREFIX ?? 'socket.io:tracking',
   },
+  storage: {
+    uploadsEnabled: process.env.STORAGE_UPLOADS_ENABLED !== 'false',
+    driver: process.env.STORAGE_DRIVER ?? 'local',
+    localRoot: process.env.STORAGE_LOCAL_ROOT ?? '',
+    redisKeyPrefix: process.env.STORAGE_REDIS_PREFIX ?? 'storage:',
+    pendingUploadTtlSeconds: int(
+      process.env.STORAGE_PENDING_UPLOAD_TTL_SECONDS,
+      3600,
+    ),
+    pendingCleanupIntervalMs: int(
+      process.env.STORAGE_PENDING_CLEANUP_INTERVAL_MS,
+      60_000,
+    ),
+    pendingCleanupBatchSize: int(
+      process.env.STORAGE_PENDING_CLEANUP_BATCH_SIZE,
+      50,
+    ),
+    malwareScanRequired: process.env.STORAGE_MALWARE_SCAN_REQUIRED === 'true',
+    malwareScannerDriver:
+      process.env.STORAGE_MALWARE_SCANNER_DRIVER ?? 'unavailable',
+    clamav: {
+      host: process.env.STORAGE_CLAMAV_HOST ?? '127.0.0.1',
+      port: int(process.env.STORAGE_CLAMAV_PORT, 3310),
+      connectTimeoutMs: int(
+        process.env.STORAGE_CLAMAV_CONNECT_TIMEOUT_MS,
+        3000,
+      ),
+      scanTimeoutMs: int(process.env.STORAGE_CLAMAV_SCAN_TIMEOUT_MS, 30_000),
+    },
+    s3: {
+      endpoint:
+        process.env.STORAGE_S3_ENDPOINT ?? process.env.S3_ENDPOINT ?? '',
+      region: process.env.STORAGE_S3_REGION ?? process.env.S3_REGION ?? '',
+      bucket: process.env.STORAGE_S3_BUCKET ?? process.env.S3_BUCKET ?? '',
+      accessKeyId:
+        process.env.STORAGE_S3_ACCESS_KEY_ID ??
+        process.env.S3_ACCESS_KEY_ID ??
+        '',
+      secretAccessKey:
+        process.env.STORAGE_S3_SECRET_ACCESS_KEY ??
+        process.env.S3_SECRET_ACCESS_KEY ??
+        '',
+      forcePathStyle:
+        (process.env.STORAGE_S3_FORCE_PATH_STYLE ?? 'true') !== 'false',
+    },
+  },
 });

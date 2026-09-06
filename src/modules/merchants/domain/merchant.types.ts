@@ -193,6 +193,7 @@ export type MerchantVerificationPackageView = {
 export type UpsertMerchantDocumentInput = {
   type: string;
   expiryDate?: string | null;
+  uploadReference?: string;
 };
 
 export function hasValidCoordinates(

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { SecureDocumentStorageService } from '../../../infrastructure/storage/application/secure-document-storage.service';
 import {
   driverAvailabilityInvalidTransition,
   driverDocumentInvalid,
@@ -62,7 +63,10 @@ import { DriverRepository } from '../infrastructure/driver.repository';
 
 @Injectable()
 export class DriverService {
-  constructor(private readonly drivers: DriverRepository) {}
+  constructor(
+    private readonly drivers: DriverRepository,
+    private readonly secureDocuments: SecureDocumentStorageService,
+  ) {}
 
   async getMe(accountId: string): Promise<DriverMeView> {
     const profile = await this.drivers.findProfileByAccountId(accountId);
@@ -120,6 +124,35 @@ export class DriverService {
     return toProfileView(updated);
   }
 
+  async uploadDocumentContent(
+    accountId: string,
+    type: string,
+    input: {
+      body: Buffer;
+      declaredMime?: string;
+      originalFilename?: string;
+    },
+  ): Promise<{
+    uploadReference: string;
+    contentType: string;
+    sizeBytes: number;
+    purpose: string;
+  }> {
+    if (!isDriverDocumentType(type)) {
+      throw driverDocumentInvalid('Unsupported document type');
+    }
+    const profile = await this.requireEditableProfile(accountId);
+    return this.secureDocuments.uploadPending(
+      {
+        accountId,
+        ownerType: 'DRIVER',
+        ownerId: profile.id,
+        purpose: type,
+      },
+      input,
+    );
+  }
+
   async upsertDocument(
     accountId: string,
     input: UpsertDocumentInput,
@@ -143,18 +176,38 @@ export class DriverService {
       }
     }
     const profile = await this.requireEditableProfile(accountId);
-    await this.drivers.runInTransaction(async (tx) => {
+    const document = await this.drivers.runInTransaction(async (tx) => {
       const locked = await this.drivers.lockProfile(profile.id, tx);
       if (!locked || !isEditableOnboardingStatus(locked.verificationStatus)) {
         throw driverVerificationInvalidState();
       }
-      await this.drivers.upsertDocument(
+      return this.drivers.upsertDocument(
         locked.id,
         input.type,
         input.expiryDate,
         tx,
       );
     });
+    if (input.uploadReference) {
+      const promoted = await this.secureDocuments.promotePendingToPermanent({
+        uploadReference: input.uploadReference,
+        accountId,
+        ownerType: 'DRIVER',
+        ownerId: profile.id,
+        purpose: input.type,
+      });
+      try {
+        await this.drivers.updateDocumentFileUrl(
+          document.id,
+          promoted.durableLocator,
+        );
+      } catch (error) {
+        await this.secureDocuments.deletePermanentLocator(
+          promoted.durableLocator,
+        );
+        throw error;
+      }
+    }
     return this.getMe(accountId);
   }
 

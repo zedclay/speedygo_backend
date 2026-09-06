@@ -9,9 +9,14 @@ import {
   Patch,
   Post,
   Put,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
@@ -21,6 +26,8 @@ import {
 } from '@nestjs/swagger';
 import type { AuthenticatedPrincipal } from '../../../auth/domain/auth.types';
 import { CurrentPrincipal } from '../../../auth/presentation/http/decorators/current-principal.decorator';
+import { STORAGE_MAX_BYTES } from '../../../../infrastructure/storage/domain/content-validation';
+import { storageMalformedMultipart } from '../../../../infrastructure/storage/domain/storage.errors';
 import { MerchantBranchService } from '../../application/merchant-branch.service';
 import { MerchantProfileService } from '../../application/merchant-profile.service';
 import { MerchantVerificationService } from '../../application/merchant-verification.service';
@@ -129,11 +136,59 @@ export class MerchantController {
     return this.verification.getVerification(principal.accountId, merchantId);
   }
 
+  @Post(':merchantId/verification/documents/:type/content')
+  @HttpCode(200)
+  @ApiParam({ name: 'type', enum: MERCHANT_DOCUMENT_TYPES })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'PDF, JPEG, or PNG. Max 10 MiB.',
+        },
+      },
+    },
+  })
+  @ApiOperation({
+    summary: 'Upload private Merchant verification document bytes',
+    description:
+      'OWNER only. Multipart field `file`. Returns opaque uploadReference for PUT bind. No public URLs or storage paths.',
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: STORAGE_MAX_BYTES, files: 1, fields: 0 },
+    }),
+  )
+  uploadVerificationDocumentContent(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('type') type: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    if (!file?.buffer?.length) {
+      throw storageMalformedMultipart('Expected multipart field "file"');
+    }
+    return this.verification.uploadDocumentContent(
+      principal.accountId,
+      merchantId,
+      type,
+      {
+        body: file.buffer,
+        declaredMime: file.mimetype,
+        originalFilename: file.originalname,
+      },
+    );
+  }
+
   @Put(':merchantId/verification/documents/:type')
   @ApiOperation({
     summary: 'Register or replace Merchant verification document metadata',
     description:
-      'OWNER only. Metadata-only SpeedyGo application evidence categories (not Algerian statutory names): BUSINESS_IDENTITY, BUSINESS_REGISTRATION, SUPPORTING_DOCUMENT. Server assigns opaque storage key; client cannot set fileUrl or status. Editable while PENDING_REVIEW before formal submission, or REJECTED. Locked while submitted under review, ACTIVE, or SUSPENDED. expiryDate optional for all types; when present must be valid.',
+      'OWNER only. Optional uploadReference binds private bytes from POST .../content. Metadata-only SpeedyGo application evidence categories: BUSINESS_IDENTITY, BUSINESS_REGISTRATION, SUPPORTING_DOCUMENT. Server assigns opaque storage key; client cannot set fileUrl or status. Editable while PENDING_REVIEW before formal submission, or REJECTED. Locked while submitted under review, ACTIVE, or SUSPENDED. expiryDate optional for all types; when present must be valid.',
   })
   @ApiParam({ name: 'type', enum: MERCHANT_DOCUMENT_TYPES })
   @ApiOkResponse({ type: MerchantMembershipResponseDto })
@@ -162,6 +217,7 @@ export class MerchantController {
     return this.verification.upsertDocument(principal.accountId, merchantId, {
       type,
       expiryDate: body.expiryDate,
+      uploadReference: body.uploadReference,
     });
   }
 

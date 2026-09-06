@@ -169,6 +169,25 @@ export class DriverRepository {
     return rows.map((row) => this.toDocument(row));
   }
 
+  async findDocumentById(
+    documentId: string,
+  ): Promise<DriverDocumentRecord | null> {
+    const row = await orm(this.db())
+      .DriverDocument.where({ id: documentId })
+      .first();
+    return row ? this.toDocument(row) : null;
+  }
+
+  async updateDocumentFileUrl(
+    documentId: string,
+    fileUrl: string,
+  ): Promise<void> {
+    await orm(this.db()).DriverDocument.where({ id: documentId }).update({
+      fileUrl,
+      updatedAt: pgNow(),
+    });
+  }
+
   async upsertDocument(
     driverId: string,
     type: string,

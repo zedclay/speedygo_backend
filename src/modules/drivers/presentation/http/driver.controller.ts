@@ -8,9 +8,14 @@ import {
   Patch,
   Post,
   Put,
+  UploadedFile,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import {
   ApiBearerAuth,
+  ApiBody,
+  ApiConsumes,
   ApiCreatedResponse,
   ApiOkResponse,
   ApiOperation,
@@ -20,6 +25,8 @@ import {
 } from '@nestjs/swagger';
 import type { AuthenticatedPrincipal } from '../../../auth/domain/auth.types';
 import { CurrentPrincipal } from '../../../auth/presentation/http/decorators/current-principal.decorator';
+import { STORAGE_MAX_BYTES } from '../../../../infrastructure/storage/domain/content-validation';
+import { storageMalformedMultipart } from '../../../../infrastructure/storage/domain/storage.errors';
 import { DriverService } from '../../application/driver.service';
 import { DRIVER_ERROR_CODES } from '../../domain/driver.errors';
 import { DRIVER_DOCUMENT_TYPES } from '../../domain/driver.policy';
@@ -98,12 +105,56 @@ export class DriverController {
     });
   }
 
+  @Post('documents/:type/content')
+  @HttpCode(200)
+  @ApiParam({ name: 'type', enum: DRIVER_DOCUMENT_TYPES })
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description:
+            'PDF, JPEG, or PNG. Max 10 MiB. Field name must be file.',
+        },
+      },
+    },
+  })
+  @ApiOperation({
+    summary: 'Upload private verification document bytes',
+    description:
+      'Multipart field `file` only. Returns opaque uploadReference for PUT /driver/documents/:type. Never returns paths, buckets, or public URLs. Own DriverProfile and editable verification state required.',
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: STORAGE_MAX_BYTES, files: 1, fields: 0 },
+    }),
+  )
+  uploadDocumentContent(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('type') type: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    if (!file?.buffer?.length) {
+      throw storageMalformedMultipart('Expected multipart field "file"');
+    }
+    return this.drivers.uploadDocumentContent(principal.accountId, type, {
+      body: file.buffer,
+      declaredMime: file.mimetype,
+      originalFilename: file.originalname,
+    });
+  }
+
   @Put('documents/:type')
   @ApiParam({ name: 'type', enum: DRIVER_DOCUMENT_TYPES })
   @ApiOperation({
     summary: 'Register identity or driving-license metadata',
     description: [
-      'Does not upload files. StorageModule has no S3 wiring. fileUrl is a server-generated opaque object key and is never returned.',
+      'Optional uploadReference binds private bytes from POST .../content.',
+      'fileUrl is a server-generated opaque object key and is never returned.',
       'Client cannot send fileUrl or status. DRIVING_LICENSE requires a future expiryDate (YYYY-MM-DD). IDENTITY expiryDate is optional; if present it must not be expired.',
       'Replaceable while UNVERIFIED or REJECTED. Locked in PENDING_REVIEW, APPROVED, and SUSPENDED.',
     ].join(' '),
@@ -117,6 +168,7 @@ export class DriverController {
     return this.drivers.upsertDocument(principal.accountId, {
       type,
       expiryDate: body.expiryDate ?? null,
+      uploadReference: body.uploadReference,
     });
   }
 

@@ -6,16 +6,21 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
+  Res,
+  StreamableFile,
   UseGuards,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
+  ApiProduces,
   ApiTags,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import { RequirePermissions } from '../../../../authorization/require-permissions.decorator';
 import { MerchantVerificationService } from '../../../../merchants/application/merchant-verification.service';
+import { AdminDocumentAccessService } from '../../../application/admin-document-access.service';
 import { AdminMerchantCommandsService } from '../../../application/admin-merchant-commands.service';
 import { ADMIN_PERMISSIONS } from '../../../domain/admin-permissions';
 import type { CurrentAdminContext } from '../../../domain/admin.types';
@@ -37,6 +42,7 @@ export class AdminMerchantController {
     private readonly queries: AdminQueryRepository,
     private readonly commands: AdminMerchantCommandsService,
     private readonly verificationService: MerchantVerificationService,
+    private readonly documents: AdminDocumentAccessService,
   ) {}
 
   @Get()
@@ -91,6 +97,35 @@ export class AdminMerchantController {
         expiryDate: doc.expiryDate,
       })),
     };
+  }
+
+  @Get(':id/documents/:documentId/content')
+  @RequirePermissions(ADMIN_PERMISSIONS.MERCHANTS_VERIFY)
+  @ApiOperation({
+    summary: 'Download private Merchant verification document bytes',
+    description:
+      'Requires merchants.verify. Audits MERCHANT_DOCUMENT_READ before returning bytes.',
+  })
+  @ApiProduces('application/pdf', 'image/jpeg', 'image/png')
+  async downloadDocument(
+    @CurrentAdmin() admin: CurrentAdminContext,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('documentId', ParseUUIDPipe) documentId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const file = await this.documents.downloadMerchantDocument(
+      admin,
+      id,
+      documentId,
+    );
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader(
+      'Content-Disposition',
+      `attachment; filename="${file.downloadFilename}"`,
+    );
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, no-store');
+    return new StreamableFile(file.body);
   }
 
   @Post(':id/verification/approve')
