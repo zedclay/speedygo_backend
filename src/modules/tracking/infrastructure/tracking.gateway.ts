@@ -5,6 +5,7 @@ import {
   MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
+  OnGatewayInit,
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
@@ -44,6 +45,11 @@ type SocketSubscription = {
   merchantId?: string;
 };
 
+type TrackingSocketData = {
+  principal?: AuthenticatedPrincipal;
+  accessExp?: number;
+};
+
 const principals = new WeakMap<Socket, AuthenticatedPrincipal>();
 const subscriptions = new WeakMap<Socket, SocketSubscription>();
 const expiryTimers = new WeakMap<Socket, ReturnType<typeof setTimeout>>();
@@ -56,6 +62,7 @@ const connected = new Set<Socket>();
 })
 export class TrackingGateway
   implements
+    OnGatewayInit,
     OnGatewayConnection,
     OnGatewayDisconnect,
     OnModuleInit,
@@ -73,6 +80,16 @@ export class TrackingGateway
     private readonly config: ConfigService,
   ) {}
 
+  afterInit(server: Server): void {
+    // Authenticate in middleware so the client `connect` event fires only after
+    // the principal is bound. handleConnection alone races early subscribe emits.
+    server.use((socket, next) => {
+      void this.authenticateHandshake(socket)
+        .then(() => next())
+        .catch(() => next(new Error('AUTH_INVALID_TOKEN')));
+    });
+  }
+
   onModuleInit(): void {
     const every = this.config.get<number>(
       'tracking.authRevalidationIntervalMs',
@@ -89,26 +106,27 @@ export class TrackingGateway
       clearInterval(this.revalidateTimer);
       this.revalidateTimer = null;
     }
+    for (const client of [...connected]) {
+      client.disconnect(true);
+    }
+    connected.clear();
   }
 
-  async handleConnection(client: Socket): Promise<void> {
-    try {
-      const token = extractHandshakeToken(client);
-      const claims = this.tokens.verifyAccessToken(token);
-      const principal = await this.sessions.assertPrincipal(
-        claims.sub,
-        claims.sid,
-      );
-      principals.set(client, principal);
-      connected.add(client);
-      this.scheduleAccessExpiry(client, claims.exp);
-    } catch {
+  handleConnection(client: Socket): void {
+    const data = client.data as TrackingSocketData;
+    const principal = data.principal;
+    const accessExp = data.accessExp;
+    if (!principal || typeof accessExp !== 'number') {
       client.emit(TRACKING_EVENT_ERROR, {
         code: 'AUTH_INVALID_TOKEN',
         message: 'Authentication required',
       });
       client.disconnect(true);
+      return;
     }
+    principals.set(client, principal);
+    connected.add(client);
+    this.scheduleAccessExpiry(client, accessExp);
   }
 
   handleDisconnect(client: Socket): void {
@@ -122,6 +140,7 @@ export class TrackingGateway
   async onLocationUpdate(
     @ConnectedSocket() client: Socket,
     @MessageBody() body: unknown,
+    // Ack param must remain so Nest does not bind the Socket.IO ack as @MessageBody.
     ack?: (response: SocketAck) => void,
   ): Promise<SocketAck> {
     const response = await this.safeHandle(client, async (principal) => {
@@ -155,6 +174,7 @@ export class TrackingGateway
   async onSubscribe(
     @ConnectedSocket() client: Socket,
     @MessageBody() body: unknown,
+    // Ack param must remain so Nest does not bind the Socket.IO ack as @MessageBody.
     ack?: (response: SocketAck) => void,
   ): Promise<SocketAck> {
     const response = await this.safeHandle(client, async (principal) => {
@@ -181,12 +201,26 @@ export class TrackingGateway
   @SubscribeMessage(TRACKING_EVENT_UNSUBSCRIBE)
   async onUnsubscribe(
     @ConnectedSocket() client: Socket,
+    // Ack param must remain so Nest does not bind the Socket.IO ack as @MessageBody.
     ack?: (response: SocketAck) => void,
   ): Promise<SocketAck> {
     await this.leaveCurrentRoom(client);
     const response = { ok: true };
     ack?.(response);
     return response;
+  }
+
+  private async authenticateHandshake(client: Socket): Promise<void> {
+    const token = extractHandshakeToken(client);
+    const claims = this.tokens.verifyAccessToken(token);
+    const principal = await this.sessions.assertPrincipal(
+      claims.sub,
+      claims.sid,
+    );
+    const data = client.data as TrackingSocketData;
+    data.principal = principal;
+    data.accessExp = claims.exp;
+    principals.set(client, principal);
   }
 
   private async reauthorize(

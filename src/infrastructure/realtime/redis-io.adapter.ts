@@ -36,17 +36,23 @@ export class RedisIoAdapter extends IoAdapter {
     const clients = [this.pub, this.sub];
     this.pub = undefined;
     this.sub = undefined;
+    this.adapterConstructor = undefined;
     await Promise.all(
       clients.map(async (client) => {
         if (!client) {
           return;
         }
         try {
+          client.removeAllListeners();
           if (client.status !== 'end') {
             await client.quit();
           }
         } catch {
-          client.disconnect();
+          try {
+            client.disconnect();
+          } catch {
+            // Ignore disconnect errors during shutdown.
+          }
         }
       }),
     );
