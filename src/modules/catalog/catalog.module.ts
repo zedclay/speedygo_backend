@@ -1,4 +1,8 @@
 import { Module } from '@nestjs/common';
+import {
+  CHECKOUT_CLOCK,
+  SystemCheckoutClock,
+} from '../checkout/domain/checkout.clock';
 import { MerchantsModule } from '../merchants/merchants.module';
 import { CatalogService } from './application/catalog.service';
 import { CustomerCatalogService } from './application/customer-catalog.service';
@@ -15,6 +19,7 @@ import { CustomerCatalogController } from './presentation/http/customer-catalog.
     CatalogService,
     CustomerCatalogRepository,
     CustomerCatalogService,
+    { provide: CHECKOUT_CLOCK, useClass: SystemCheckoutClock },
   ],
 })
 export class CatalogModule {}

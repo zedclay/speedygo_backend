@@ -17,6 +17,10 @@ import {
 import { OTP_SENDER } from '../src/modules/auth/domain/ports/otp-sender.port';
 import { TestOtpSender } from '../src/modules/auth/infrastructure/otp/test-otp.sender';
 import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
+import {
+  deleteBranchOpeningHours,
+  ensureBranchOpeningHours,
+} from './helpers/ensure-branch-opening-hours';
 import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
 
 type TokenBody = { accessToken: string };
@@ -258,6 +262,7 @@ describe('Customer catalog discovery (e2e)', () => {
             .orm.public.Category.where({ id: category.id })
             .delete();
         }
+        await deleteBranchOpeningHours(prisma, branch.id);
         await prisma
           .getDb()
           .orm.public.MerchantBranch.where({ id: branch.id })
@@ -373,6 +378,11 @@ describe('Customer catalog discovery (e2e)', () => {
         });
       expect(branch.status).toBe(201);
       const branchId = (branch.body as BranchBody).id;
+      await ensureBranchOpeningHours(
+        prisma,
+        branchId,
+        (await authMe(tokenMerchant)).id,
+      );
 
       const branch2 = await request(server)
         .post(`/api/v1/merchant/${merchantId}/branches`)
@@ -406,6 +416,11 @@ describe('Customer catalog discovery (e2e)', () => {
         });
       expect(branchB.status).toBe(201);
       const branchBId = (branchB.body as BranchBody).id;
+      await ensureBranchOpeningHours(
+        prisma,
+        branchBId,
+        (await authMe(tokenMerchantB)).id,
+      );
       await approveMerchant(merchantBId);
 
       const categoryB = await request(server)

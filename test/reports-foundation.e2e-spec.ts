@@ -18,6 +18,10 @@ import { TestOtpSender } from '../src/modules/auth/infrastructure/otp/test-otp.s
 import { PermissionService } from '../src/modules/authorization/permission.service';
 import { ADMIN_PERMISSIONS } from '../src/modules/admin/domain/admin-permissions';
 import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
+import {
+  ensureBranchOpeningHours,
+  deleteBranchOpeningHours,
+} from './helpers/ensure-branch-opening-hours';
 import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
 import { deactivateOpenGlobalCommissionDefaults } from './helpers/sanitize-commission-globals';
 
@@ -291,6 +295,7 @@ describe('Reports Foundation (e2e)', () => {
         }).all()) {
           await cleanupOrder(order.id);
         }
+        await deleteBranchOpeningHours(prisma, branch.id);
         await db.MerchantBranch.where({ id: branch.id }).delete();
       }
       await db.Merchant.where({ id: merchantId }).delete();
@@ -475,6 +480,11 @@ describe('Reports Foundation (e2e)', () => {
       });
     expect(branchRes.status).toBe(201);
     const branchId = (branchRes.body as { id: string }).id;
+    await ensureBranchOpeningHours(
+      prisma,
+      branchId,
+      (await authMe(ownerToken)).id,
+    );
 
     const now = pgNow();
     const zoneId = createUuidV7();

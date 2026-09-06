@@ -5,6 +5,10 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
+import {
+  ensureBranchOpeningHours,
+  deleteBranchOpeningHours,
+} from './helpers/ensure-branch-opening-hours';
 import { deactivateOpenGlobalCommissionDefaults } from './helpers/sanitize-commission-globals';
 import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
 import { createUuidV7 } from '../src/common/utils/uuid-v7';
@@ -378,6 +382,7 @@ describe('Order foundation (e2e)', () => {
             .orm.public.Category.where({ id: category.id })
             .delete();
         }
+        await deleteBranchOpeningHours(prisma, branch.id);
         await prisma
           .getDb()
           .orm.public.MerchantBranch.where({ id: branch.id })
@@ -543,6 +548,11 @@ describe('Order foundation (e2e)', () => {
         });
       expect(branch.status).toBe(201);
       const branchId = (branch.body as BranchBody).id;
+      await ensureBranchOpeningHours(
+        prisma,
+        branchId,
+        (await authMe(tokenMerchant)).id,
+      );
       await approveMerchant(merchantId);
 
       const category = await request(server)

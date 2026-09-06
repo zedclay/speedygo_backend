@@ -150,6 +150,8 @@ model Account {
   createdAt TimestamptzString(6) @default(now()) @map("created_at")
   updatedAt TimestamptzString(6) @default(now()) @map("updated_at")
 
+  merchantBranchOpeningSchedulesUpdated MerchantBranchOpeningSchedule[]
+
   @@index([phone], unique: true, where: "(phone IS NOT NULL)", name: "accounts_phone_uq")
   @@index([email], unique: true, where: "(email IS NOT NULL)", name: "accounts_email_uq")
   @@map("accounts")
@@ -357,10 +359,51 @@ model MerchantBranch {
   createdAt          TimestamptzString(6) @default(now()) @map("created_at")
   updatedAt          TimestamptzString(6) @default(now()) @map("updated_at")
 
-  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  merchant         Merchant                        @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  openingSchedule  MerchantBranchOpeningSchedule?
 
   @@index([merchantId], name: "merchant_branches_merchant")
   @@map("merchant_branches")
+}
+
+model MerchantBranchOpeningSchedule {
+  id                 Uuid                 @id
+  branchId           Uuid                 @unique @map("branch_id")
+  version            Int
+  updatedByAccountId Uuid                 @map("updated_by_account_id")
+  createdAt          TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt          TimestamptzString(6) @default(now()) @map("updated_at")
+
+  branch     MerchantBranch               @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  updatedBy  Account                      @relation(fields: [updatedByAccountId], references: [id], onDelete: Restrict)
+  intervals  MerchantBranchOpeningInterval[]
+
+  @@check(expression: "version >= 1", name: "mbos_version_positive")
+  @@map("merchant_branch_opening_schedules")
+}
+
+model MerchantBranchOpeningInterval {
+  id            Uuid                 @id
+  scheduleId    Uuid                 @map("schedule_id")
+  dayOfWeek     Int                  @map("day_of_week") // ISO 1=Mon..7=Sun
+  opensMinute   Int                  @map("opens_minute") // 0..1439
+  closesMinute  Int                  @map("closes_minute") // 0..1439
+  closesNextDay Boolean              @map("closes_next_day")
+  sortOrder     Int                  @map("sort_order")
+  createdAt     TimestamptzString(6) @default(now()) @map("created_at")
+
+  schedule MerchantBranchOpeningSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+
+  @@index([scheduleId, dayOfWeek, sortOrder], name: "mboi_schedule_day_sort")
+  @@check(expression: "day_of_week >= 1 AND day_of_week <= 7", name: "mboi_day_of_week_range")
+  @@check(expression: "opens_minute >= 0 AND opens_minute <= 1439", name: "mboi_opens_minute_range")
+  @@check(expression: "closes_minute >= 0 AND closes_minute <= 1439", name: "mboi_closes_minute_range")
+  @@check(expression: "sort_order >= 0", name: "mboi_sort_order_nonneg")
+  @@check(
+    expression: "(closes_next_day = false AND closes_minute > opens_minute) OR (closes_next_day = true AND ((1440 - opens_minute) + closes_minute) > 0 AND ((1440 - opens_minute) + closes_minute) <= 1440)",
+    name: "mboi_interval_duration"
+  )
+  @@map("merchant_branch_opening_intervals")
 }
 
 model MerchantMember {

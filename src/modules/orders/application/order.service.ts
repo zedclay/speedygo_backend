@@ -17,6 +17,7 @@ import {
   isMerchantApproved,
   isMerchantProfileComplete,
 } from '../../merchants/domain/merchant.policy';
+import { OpeningHoursService } from '../../merchants/application/opening-hours.service';
 import { NotificationService } from '../../notifications/application/notification.service';
 import { PromotionService } from '../../promotions/application/promotion.service';
 import { requirePositiveCustomerPayableAfterPromotion } from '../../promotions/domain/promotion.policy';
@@ -34,6 +35,8 @@ import {
   orderAddressNotFound,
   orderAddressOutsideZone,
   orderAlreadyCreated,
+  orderBranchClosed,
+  orderBranchHoursNotConfigured,
   orderBranchNotOperational,
   orderCancellationCodCollected,
   orderCancellationConflict,
@@ -75,6 +78,7 @@ export class OrderService {
     private readonly promotions: PromotionService,
     private readonly notifications: NotificationService,
     private readonly paidTerminalRefunds: PaidTerminalRefundService,
+    private readonly openingHours: OpeningHoursService,
     @Inject(CHECKOUT_CLOCK) private readonly clock: CheckoutClock,
   ) {}
 
@@ -155,6 +159,18 @@ export class OrderService {
         throw orderBranchNotOperational();
       }
 
+      const decisionAt = this.clock.now();
+      const hours = await this.openingHours.evaluateBranch(
+        cart.merchantBranchId,
+        decisionAt,
+      );
+      if (!hours.hoursConfigured) {
+        throw orderBranchHoursNotConfigured();
+      }
+      if (!hours.isOpenNow) {
+        throw orderBranchClosed();
+      }
+
       const lines: OrderLineSnapshot[] = [];
       for (const item of items) {
         const snapshot = snapshots.get(item.productId);
@@ -201,7 +217,7 @@ export class OrderService {
         throw orderDeliveryZoneAmbiguous();
       }
       const zone = zones[0];
-      const pricingInstant = this.clock.now();
+      const pricingInstant = decisionAt;
       const pricingRule = selectOrderPricingRule(
         await this.orders.listActivePricingRules(zone.id, tx),
         pricingInstant,

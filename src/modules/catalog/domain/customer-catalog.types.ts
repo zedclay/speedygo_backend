@@ -1,3 +1,22 @@
+export type CustomerStorefrontHours = {
+  hoursConfigured: boolean;
+  isOpenNow: boolean;
+  timezone: string;
+  currentClosesAt: string | null;
+  nextOpenAt: string | null;
+};
+
+export type CustomerStorefrontPublicDay = {
+  dayOfWeek: number;
+  intervals: Array<{
+    opens: string;
+    closes: string;
+    opensMinute: number;
+    closesMinute: number;
+    closesNextDay: boolean;
+  }>;
+};
+
 export type CustomerStorefrontSummary = {
   branchId: string;
   branchName: string;
@@ -7,9 +26,16 @@ export type CustomerStorefrontSummary = {
   merchantId: string;
   merchantName: string;
   merchantPublicReference: string;
+  hoursConfigured: boolean;
+  isOpenNow: boolean;
+  timezone: string;
+  currentClosesAt: string | null;
+  nextOpenAt: string | null;
 };
 
-export type CustomerStorefrontDetail = CustomerStorefrontSummary;
+export type CustomerStorefrontDetail = CustomerStorefrontSummary & {
+  days: CustomerStorefrontPublicDay[];
+};
 
 export type CustomerCategorySummary = {
   categoryId: string;

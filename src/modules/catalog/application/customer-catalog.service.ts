@@ -1,5 +1,12 @@
-import { Injectable } from '@nestjs/common';
+import { Inject, Injectable } from '@nestjs/common';
+import {
+  CHECKOUT_CLOCK,
+  type CheckoutClock,
+} from '../../checkout/domain/checkout.clock';
 import { customerProfileNotFound } from '../../customers/domain/customer.errors';
+import { OpeningHoursService } from '../../merchants/application/opening-hours.service';
+import { OPENING_HOURS_TIMEZONE } from '../../merchants/domain/opening-hours.constants';
+import type { OpeningHoursEvaluation } from '../../merchants/domain/opening-hours.evaluator';
 import {
   customerProductNotFound,
   customerStorefrontNotFound,
@@ -22,7 +29,11 @@ import { CustomerCatalogRepository } from '../infrastructure/customer-catalog.re
 
 @Injectable()
 export class CustomerCatalogService {
-  constructor(private readonly catalog: CustomerCatalogRepository) {}
+  constructor(
+    private readonly catalog: CustomerCatalogRepository,
+    private readonly openingHours: OpeningHoursService,
+    @Inject(CHECKOUT_CLOCK) private readonly clock: CheckoutClock,
+  ) {}
 
   async listStorefronts(
     accountId: string,
@@ -31,7 +42,18 @@ export class CustomerCatalogService {
     await this.requireCustomerProfile(accountId);
     resolveCustomerCatalogSort(query.sort);
     const page = normalizeCustomerCatalogPagination(query);
-    return this.catalog.listStorefronts(page);
+    const result = await this.catalog.listStorefronts(page);
+    const now = this.clock.now();
+    const hours = await this.openingHours.evaluateBranches(
+      result.items.map((item) => item.branchId),
+      now,
+    );
+    return {
+      ...result,
+      items: result.items.map((item) =>
+        this.mergeHours(item, hours.get(item.branchId)),
+      ),
+    };
   }
 
   async getStorefront(
@@ -43,7 +65,16 @@ export class CustomerCatalogService {
     if (!storefront) {
       throw customerStorefrontNotFound();
     }
-    return storefront;
+    const now = this.clock.now();
+    const projection = await this.openingHours.getCustomerProjection(
+      branchId,
+      now,
+      { includeDays: true },
+    );
+    return {
+      ...this.mergeHours(storefront, projection),
+      days: projection.days ?? [],
+    };
   }
 
   async listCategories(
@@ -107,7 +138,63 @@ export class CustomerCatalogService {
     resolveCustomerCatalogSort(query.sort);
     const normalizedQ = normalizeCustomerCatalogSearchQuery(query.q);
     const page = normalizeCustomerCatalogPagination(query);
-    return this.catalog.search({ query: normalizedQ, ...page });
+    const result = await this.catalog.search({
+      query: normalizedQ,
+      ...page,
+    });
+    const branchIds = [
+      ...new Set(result.items.map((hit) => hit.storefront.branchId)),
+    ];
+    const now = this.clock.now();
+    const hours = await this.openingHours.evaluateBranches(branchIds, now);
+    return {
+      ...result,
+      items: result.items.map((hit) => ({
+        ...hit,
+        storefront: this.mergeHours(
+          hit.storefront,
+          hours.get(hit.storefront.branchId),
+        ),
+      })),
+    };
+  }
+
+  private mergeHours(
+    storefront: Omit<
+      CustomerStorefrontSummary,
+      | 'hoursConfigured'
+      | 'isOpenNow'
+      | 'timezone'
+      | 'currentClosesAt'
+      | 'nextOpenAt'
+    > &
+      Partial<CustomerStorefrontSummary>,
+    evaluation: OpeningHoursEvaluation | undefined,
+  ): CustomerStorefrontSummary {
+    const hours = evaluation ?? {
+      hoursConfigured: false,
+      isOpenNow: false,
+      timezone: OPENING_HOURS_TIMEZONE,
+      currentClosesAt: null,
+      nextOpenAt: null,
+    };
+    return {
+      branchId: storefront.branchId,
+      branchName: storefront.branchName,
+      addressText: storefront.addressText,
+      latitude: storefront.latitude,
+      longitude: storefront.longitude,
+      merchantId: storefront.merchantId,
+      merchantName: storefront.merchantName,
+      merchantPublicReference: storefront.merchantPublicReference,
+      hoursConfigured: hours.hoursConfigured,
+      isOpenNow: hours.isOpenNow,
+      timezone: hours.timezone,
+      currentClosesAt: hours.currentClosesAt
+        ? hours.currentClosesAt.toISOString()
+        : null,
+      nextOpenAt: hours.nextOpenAt ? hours.nextOpenAt.toISOString() : null,
+    };
   }
 
   private async requireCustomerProfile(accountId: string): Promise<string> {

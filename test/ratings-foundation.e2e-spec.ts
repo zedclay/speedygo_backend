@@ -12,6 +12,10 @@ import { OTP_SENDER } from '../src/modules/auth/domain/ports/otp-sender.port';
 import { TestOtpSender } from '../src/modules/auth/infrastructure/otp/test-otp.sender';
 import { RATING_ERROR_CODES } from '../src/modules/ratings/domain/ratings.errors';
 import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
+import {
+  ensureBranchOpeningHours,
+  deleteBranchOpeningHours,
+} from './helpers/ensure-branch-opening-hours';
 import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
 
 type TokenBody = { accessToken: string };
@@ -208,6 +212,7 @@ describe('Ratings Foundation (e2e)', () => {
           }
           await db.Order.where({ id: order.id }).delete();
         }
+        await deleteBranchOpeningHours(prisma, branch.id);
         await db.MerchantBranch.where({ id: branch.id }).delete();
       }
       await db.Merchant.where({ id: merchantId }).delete();
@@ -284,6 +289,7 @@ describe('Ratings Foundation (e2e)', () => {
       });
     expect(branchRes.status).toBe(201);
     const branchId = (branchRes.body as { id: string }).id;
+    await ensureBranchOpeningHours(prisma, branchId, owner.id);
 
     const now = pgNow();
     const zoneId = createUuidV7();
@@ -499,7 +505,7 @@ describe('Ratings Foundation (e2e)', () => {
       })
       .all();
     expect(merchantRows).toHaveLength(1);
-    expect(merchantRows[0]!.score).toBe(4);
+    expect(merchantRows[0].score).toBe(4);
 
     // Driver rating derived from RELEASED historical serving assignment
     // (not open ACCEPTED; not prior REJECTED offer)

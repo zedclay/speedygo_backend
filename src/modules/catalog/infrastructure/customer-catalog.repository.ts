@@ -8,13 +8,32 @@ import { customerSearchQueryInvalid } from '../domain/customer-catalog.errors';
 import { CUSTOMER_CATALOG_SEARCH_MIN_LENGTH } from '../domain/customer-catalog.policy';
 import type {
   CustomerCatalogPage,
-  CustomerCatalogSearchHit,
   CustomerCategorySummary,
   CustomerProductDetail,
   CustomerProductOptionGroup,
   CustomerProductSummary,
-  CustomerStorefrontSummary,
 } from '../domain/customer-catalog.types';
+
+/** Storefront row before opening-hours enrichment. */
+export type CustomerStorefrontBase = Omit<
+  import('../domain/customer-catalog.types').CustomerStorefrontSummary,
+  | 'hoursConfigured'
+  | 'isOpenNow'
+  | 'timezone'
+  | 'currentClosesAt'
+  | 'nextOpenAt'
+>;
+
+type CustomerCatalogSearchHitBase =
+  | {
+      type: 'STOREFRONT';
+      storefront: CustomerStorefrontBase;
+    }
+  | {
+      type: 'PRODUCT';
+      product: CustomerProductSummary;
+      storefront: CustomerStorefrontBase;
+    };
 
 function orm(client: { orm: SpeedyGoDb['orm'] }) {
   return client.orm.public;
@@ -38,7 +57,7 @@ export class CustomerCatalogRepository {
   async listStorefronts(input: {
     limit: number;
     offset: number;
-  }): Promise<CustomerCatalogPage<CustomerStorefrontSummary>> {
+  }): Promise<CustomerCatalogPage<CustomerStorefrontBase>> {
     const db = this.db();
     const countPlan = db.raw.sql`
         SELECT COUNT(*)::int8 AS total
@@ -88,7 +107,7 @@ export class CustomerCatalogRepository {
       })
       .build();
 
-    const items: CustomerStorefrontSummary[] = [];
+    const items: CustomerStorefrontBase[] = [];
     for await (const row of db.runtime().query(pagePlan)) {
       items.push(this.toStorefront(row));
     }
@@ -97,7 +116,7 @@ export class CustomerCatalogRepository {
 
   async findVisibleStorefront(
     branchId: string,
-  ): Promise<CustomerStorefrontSummary | null> {
+  ): Promise<CustomerStorefrontBase | null> {
     const db = this.db();
     const plan = db.raw.sql`
         SELECT
@@ -387,7 +406,7 @@ export class CustomerCatalogRepository {
     query: string;
     limit: number;
     offset: number;
-  }): Promise<CustomerCatalogPage<CustomerCatalogSearchHit>> {
+  }): Promise<CustomerCatalogPage<CustomerCatalogSearchHitBase>> {
     // Defense in depth: service must normalize first; never run ILIKE '%%'.
     if (
       input.query.length < CUSTOMER_CATALOG_SEARCH_MIN_LENGTH ||
@@ -518,7 +537,7 @@ export class CustomerCatalogRepository {
       })
       .build();
 
-    const items: CustomerCatalogSearchHit[] = [];
+    const items: CustomerCatalogSearchHitBase[] = [];
     for await (const row of db.runtime().query(pagePlan)) {
       const storefront = this.toStorefront(row);
       if (row.hit_type === 'STOREFRONT') {
@@ -589,7 +608,7 @@ export class CustomerCatalogRepository {
     merchant_id: string;
     merchant_name: string;
     public_reference: string;
-  }): CustomerStorefrontSummary {
+  }): CustomerStorefrontBase {
     return {
       branchId: String(row.branch_id),
       branchName: String(row.branch_name),

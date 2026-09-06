@@ -285,6 +285,15 @@ describe('OrderService.createOrder', () => {
         }),
       } as never,
       {
+        evaluateBranch: jest.fn().mockResolvedValue({
+          hoursConfigured: true,
+          isOpenNow: true,
+          timezone: 'Africa/Algiers',
+          currentClosesAt: null,
+          nextOpenAt: null,
+        }),
+      } as never,
+      {
         now: () => instant,
       },
     );
@@ -763,6 +772,15 @@ describe('OrderService reads', () => {
           refundId: null,
           refundStatus: null,
           refundAmountMinor: null,
+        }),
+      } as never,
+      {
+        evaluateBranch: jest.fn().mockResolvedValue({
+          hoursConfigured: true,
+          isOpenNow: true,
+          timezone: 'Africa/Algiers',
+          currentClosesAt: null,
+          nextOpenAt: null,
         }),
       } as never,
       {

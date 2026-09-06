@@ -24,6 +24,7 @@ import {
   PROMOTION_TYPE_SPEEDYGO_FIXED_MINOR,
 } from '../src/modules/promotions/domain/promotion.types';
 import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
+import { deleteBranchOpeningHours } from './helpers/ensure-branch-opening-hours';
 
 type TokenBody = { accessToken: string };
 type ErrorBody = { error: { code: string; message: string } };
@@ -137,6 +138,7 @@ describe('Admin Foundation (e2e)', () => {
         merchantId: member.merchantId,
       }).all();
       for (const branch of branches) {
+        await deleteBranchOpeningHours(prisma, branch.id);
         await db.MerchantBranch.where({ id: branch.id }).delete();
       }
       await db.MerchantMember.where({ id: member.id }).delete();
@@ -269,6 +271,7 @@ describe('Admin Foundation (e2e)', () => {
       for (const branch of await db.MerchantBranch.where({
         merchantId,
       }).all()) {
+        await deleteBranchOpeningHours(prisma, branch.id);
         await db.MerchantBranch.where({ id: branch.id }).delete();
       }
       await db.Merchant.where({ id: merchantId }).delete();

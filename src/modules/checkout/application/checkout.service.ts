@@ -9,12 +9,15 @@ import {
   isMerchantApproved,
   isMerchantProfileComplete,
 } from '../../merchants/domain/merchant.policy';
+import { OpeningHoursService } from '../../merchants/application/opening-hours.service';
 import { PromotionService } from '../../promotions/application/promotion.service';
 import { CHECKOUT_CLOCK, type CheckoutClock } from '../domain/checkout.clock';
 import {
   checkoutAddressCoordinatesRequired,
   checkoutAddressNotFound,
   checkoutAddressOutsideZone,
+  checkoutBranchClosed,
+  checkoutBranchHoursNotConfigured,
   checkoutBranchNotOperational,
   checkoutCartNotReady,
   checkoutCartRequired,
@@ -41,6 +44,7 @@ export class CheckoutService {
     private readonly carts: CartService,
     private readonly checkout: CheckoutRepository,
     private readonly promotions: PromotionService,
+    private readonly openingHours: OpeningHoursService,
     @Inject(CHECKOUT_CLOCK) private readonly clock: CheckoutClock,
   ) {}
 
@@ -95,6 +99,19 @@ export class CheckoutService {
     if (!isBranchOperationallyActive(branchMerchant.branchOperationalStatus)) {
       throw checkoutBranchNotOperational();
     }
+
+    const decisionAt = this.clock.now();
+    const hours = await this.openingHours.evaluateBranch(
+      cart.branchId,
+      decisionAt,
+    );
+    if (!hours.hoursConfigured) {
+      throw checkoutBranchHoursNotConfigured();
+    }
+    if (!hours.isOpenNow) {
+      throw checkoutBranchClosed();
+    }
+
     if (!cart.cartReady) {
       throw checkoutCartNotReady();
     }
@@ -111,7 +128,6 @@ export class CheckoutService {
     }
     const zone = zones[0];
 
-    const decisionAt = this.clock.now();
     const applicable = selectApplicablePricingRules(
       await this.checkout.listActivePricingRules(zone.id),
       decisionAt,

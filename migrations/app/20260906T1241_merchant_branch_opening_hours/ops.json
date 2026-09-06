@@ -1,0 +1,365 @@
+[
+  {
+    "id": "table.merchant_branch_opening_intervals",
+    "label": "Create table \"merchant_branch_opening_intervals\"",
+    "summary": "Creates table \"merchant_branch_opening_intervals\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "merchant_branch_opening_intervals"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"merchant_branch_opening_intervals\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_opening_intervals\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"merchant_branch_opening_intervals\"",
+        "sql": "CREATE TABLE \"public\".\"merchant_branch_opening_intervals\" (\n  \"closes_minute\" int4 NOT NULL,\n  \"closes_next_day\" bool NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"day_of_week\" int4 NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"opens_minute\" int4 NOT NULL,\n  \"schedule_id\" uuid NOT NULL,\n  \"sort_order\" int4 NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"mboi_closes_minute_range_bf3125d6\" CHECK (closes_minute >= 0 AND closes_minute <= 1439),\n  CONSTRAINT \"mboi_day_of_week_range_90497d90\" CHECK (day_of_week >= 1 AND day_of_week <= 7),\n  CONSTRAINT \"mboi_interval_duration_3dca9e58\" CHECK ((closes_next_day = false AND closes_minute > opens_minute) OR (closes_next_day = true AND ((1440 - opens_minute) + closes_minute) > 0 AND ((1440 - opens_minute) + closes_minute) <= 1440)),\n  CONSTRAINT \"mboi_opens_minute_range_c4a5e691\" CHECK (opens_minute >= 0 AND opens_minute <= 1439),\n  CONSTRAINT \"mboi_sort_order_nonneg_eb4b5508\" CHECK (sort_order >= 0)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"merchant_branch_opening_intervals\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_opening_intervals\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.merchant_branch_opening_schedules",
+    "label": "Create table \"merchant_branch_opening_schedules\"",
+    "summary": "Creates table \"merchant_branch_opening_schedules\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "merchant_branch_opening_schedules"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"merchant_branch_opening_schedules\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_opening_schedules\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"merchant_branch_opening_schedules\"",
+        "sql": "CREATE TABLE \"public\".\"merchant_branch_opening_schedules\" (\n  \"branch_id\" uuid NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"updated_by_account_id\" uuid NOT NULL,\n  \"version\" int4 NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"mbos_version_positive_c2490804\" CHECK (version >= 1)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"merchant_branch_opening_schedules\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_opening_schedules\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.merchant_branch_opening_schedules.merchant_branch_opening_schedules_branch_id_key",
+    "label": "Add unique constraint on \"merchant_branch_opening_schedules\" (branch_id)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "merchant_branch_opening_schedules_branch_id_key",
+        "table": "merchant_branch_opening_schedules"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"merchant_branch_opening_schedules_branch_id_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_opening_schedules_branch_id_key",
+          "public",
+          "\"public\".\"merchant_branch_opening_schedules\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"merchant_branch_opening_schedules_branch_id_key\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_opening_schedules\" ADD CONSTRAINT \"merchant_branch_opening_schedules_branch_id_key\" UNIQUE (\"branch_id\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"merchant_branch_opening_schedules_branch_id_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_opening_schedules_branch_id_key",
+          "public",
+          "\"public\".\"merchant_branch_opening_schedules\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_branch_opening_intervals.mboi_schedule_day_sort_42d2d4fd",
+    "label": "Create index \"mboi_schedule_day_sort_42d2d4fd\" on \"merchant_branch_opening_intervals\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "mboi_schedule_day_sort_42d2d4fd",
+        "table": "merchant_branch_opening_intervals"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"mboi_schedule_day_sort_42d2d4fd\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mboi_schedule_day_sort_42d2d4fd\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"mboi_schedule_day_sort_42d2d4fd\"",
+        "sql": "CREATE INDEX \"mboi_schedule_day_sort_42d2d4fd\" ON \"public\".\"merchant_branch_opening_intervals\" (\"schedule_id\", \"day_of_week\", \"sort_order\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"mboi_schedule_day_sort_42d2d4fd\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mboi_schedule_day_sort_42d2d4fd\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_branch_opening_intervals.merchant_branch_opening_intervals_schedule_id_idx_83757f9e",
+    "label": "Create index \"merchant_branch_opening_intervals_schedule_id_idx_83757f9e\" on \"merchant_branch_opening_intervals\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "merchant_branch_opening_intervals_schedule_id_idx_83757f9e",
+        "table": "merchant_branch_opening_intervals"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"merchant_branch_opening_intervals_schedule_id_idx_83757f9e\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_opening_intervals_schedule_id_idx_83757f9e\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"merchant_branch_opening_intervals_schedule_id_idx_83757f9e\"",
+        "sql": "CREATE INDEX \"merchant_branch_opening_intervals_schedule_id_idx_83757f9e\" ON \"public\".\"merchant_branch_opening_intervals\" (\"schedule_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"merchant_branch_opening_intervals_schedule_id_idx_83757f9e\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_opening_intervals_schedule_id_idx_83757f9e\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_branch_opening_schedules.merchant_branch_opening_schedules_updated_by_account_i_8a198d5b",
+    "label": "Create index \"merchant_branch_opening_schedules_updated_by_account_i_8a198d5b\" on \"merchant_branch_opening_schedules\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "merchant_branch_opening_schedules_updated_by_account_i_8a198d5b",
+        "table": "merchant_branch_opening_schedules"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"merchant_branch_opening_schedules_updated_by_account_i_8a198d5b\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_opening_schedules_updated_by_account_i_8a198d5b\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"merchant_branch_opening_schedules_updated_by_account_i_8a198d5b\"",
+        "sql": "CREATE INDEX \"merchant_branch_opening_schedules_updated_by_account_i_8a198d5b\" ON \"public\".\"merchant_branch_opening_schedules\" (\"updated_by_account_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"merchant_branch_opening_schedules_updated_by_account_i_8a198d5b\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_opening_schedules_updated_by_account_i_8a198d5b\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_branch_opening_intervals.merchant_branch_opening_intervals_schedule_id_fkey",
+    "label": "Add foreign key \"merchant_branch_opening_intervals_schedule_id_fkey\" on \"merchant_branch_opening_intervals\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_branch_opening_intervals_schedule_id_fkey",
+        "table": "merchant_branch_opening_intervals"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_branch_opening_intervals_schedule_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_opening_intervals_schedule_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_opening_intervals\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_branch_opening_intervals_schedule_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_opening_intervals\"\nADD CONSTRAINT \"merchant_branch_opening_intervals_schedule_id_fkey\"\nFOREIGN KEY (\"schedule_id\")\nREFERENCES \"public\".\"merchant_branch_opening_schedules\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_branch_opening_intervals_schedule_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_opening_intervals_schedule_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_opening_intervals\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_branch_opening_schedules.merchant_branch_opening_schedules_branch_id_fkey",
+    "label": "Add foreign key \"merchant_branch_opening_schedules_branch_id_fkey\" on \"merchant_branch_opening_schedules\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_branch_opening_schedules_branch_id_fkey",
+        "table": "merchant_branch_opening_schedules"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_branch_opening_schedules_branch_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_opening_schedules_branch_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_opening_schedules\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_branch_opening_schedules_branch_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_opening_schedules\"\nADD CONSTRAINT \"merchant_branch_opening_schedules_branch_id_fkey\"\nFOREIGN KEY (\"branch_id\")\nREFERENCES \"public\".\"merchant_branches\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_branch_opening_schedules_branch_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_opening_schedules_branch_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_opening_schedules\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_branch_opening_schedules.merchant_branch_opening_schedules_updated_by_account_id_fkey",
+    "label": "Add foreign key \"merchant_branch_opening_schedules_updated_by_account_id_fkey\" on \"merchant_branch_opening_schedules\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_branch_opening_schedules_updated_by_account_id_fkey",
+        "table": "merchant_branch_opening_schedules"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_branch_opening_schedules_updated_by_account_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_opening_schedules_updated_by_account_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_opening_schedules\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_branch_opening_schedules_updated_by_account_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_opening_schedules\"\nADD CONSTRAINT \"merchant_branch_opening_schedules_updated_by_account_id_fkey\"\nFOREIGN KEY (\"updated_by_account_id\")\nREFERENCES \"public\".\"accounts\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_branch_opening_schedules_updated_by_account_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_opening_schedules_updated_by_account_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_opening_schedules\""
+        ]
+      }
+    ]
+  }
+]

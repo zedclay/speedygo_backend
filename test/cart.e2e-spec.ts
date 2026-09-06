@@ -4,6 +4,7 @@ import request from 'supertest';
 import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
+import { deleteBranchOpeningHours } from './helpers/ensure-branch-opening-hours';
 import { configureApp } from '../src/app.setup';
 import { isPostgresUniqueViolation } from '../src/common/errors/postgres-unique';
 import { createUuidV7 } from '../src/common/utils/uuid-v7';
@@ -192,6 +193,7 @@ describe('Cart foundation (e2e)', () => {
             .orm.public.Category.where({ id: category.id })
             .delete();
         }
+        await deleteBranchOpeningHours(prisma, branch.id);
         await prisma
           .getDb()
           .orm.public.MerchantBranch.where({ id: branch.id })

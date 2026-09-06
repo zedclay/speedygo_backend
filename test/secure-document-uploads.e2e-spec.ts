@@ -13,6 +13,7 @@ import { TestOtpSender } from '../src/modules/auth/infrastructure/otp/test-otp.s
 import { ADMIN_AUDIT_ACTIONS } from '../src/modules/admin/domain/admin-audit-actions';
 import { ADMIN_PERMISSIONS } from '../src/modules/admin/domain/admin-permissions';
 import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
+import { deleteBranchOpeningHours } from './helpers/ensure-branch-opening-hours';
 
 type TokenBody = { accessToken: string };
 type ErrorBody = { error: { code: string; message: string } };
@@ -139,6 +140,7 @@ describe('Secure document uploads (e2e)', () => {
       for (const branch of await db.MerchantBranch.where({
         merchantId: member.merchantId,
       }).all()) {
+        await deleteBranchOpeningHours(prisma, branch.id);
         await db.MerchantBranch.where({ id: branch.id }).delete();
       }
       await db.MerchantMember.where({ id: member.id }).delete();
