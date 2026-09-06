@@ -20,12 +20,24 @@ import {
 import { NotificationService } from '../../notifications/application/notification.service';
 import { PromotionService } from '../../promotions/application/promotion.service';
 import { requirePositiveCustomerPayableAfterPromotion } from '../../promotions/domain/promotion.policy';
+import { PaidTerminalRefundService } from '../../refunds/application/paid-terminal-refund.service';
+import {
+  assertCustomerCancellationAllowed,
+  electronicPaymentRequiresRefundIntent,
+  inspectCustomerCancellation,
+  normalizeCustomerCancellationReason,
+  PAID_TERMINAL_REASON_CUSTOMER_CANCEL,
+} from '../domain/customer-order-cancellation.policy';
+import { REFUND_REQUEST_ORIGIN_CUSTOMER_CANCELLATION } from '../../refunds/domain/refund.types';
 import {
   orderAddressCoordinatesRequired,
   orderAddressNotFound,
   orderAddressOutsideZone,
   orderAlreadyCreated,
   orderBranchNotOperational,
+  orderCancellationCodCollected,
+  orderCancellationConflict,
+  orderCancellationFulfillmentActive,
   orderCartNotReady,
   orderCartRequired,
   orderDeliveryZoneAmbiguous,
@@ -47,6 +59,7 @@ import {
 } from '../domain/order.policy';
 import type {
   CreateOrderInput,
+  CustomerOrderCancellationView,
   OrderDetailView,
   OrderLineSnapshot,
   OrderListView,
@@ -61,6 +74,7 @@ export class OrderService {
     private readonly commission: MerchantCommissionService,
     private readonly promotions: PromotionService,
     private readonly notifications: NotificationService,
+    private readonly paidTerminalRefunds: PaidTerminalRefundService,
     @Inject(CHECKOUT_CLOCK) private readonly clock: CheckoutClock,
   ) {}
 
@@ -314,6 +328,124 @@ export class OrderService {
       throw orderNotFound();
     }
     return detail;
+  }
+
+  /**
+   * Customer self-cancellation while awaiting Merchant acceptance.
+   * Paid electronic success couples a durable Refund intent atomically.
+   * Refund intent ≠ money returned.
+   */
+  async cancelOrder(
+    accountId: string,
+    orderId: string,
+    reasonRaw?: string,
+  ): Promise<CustomerOrderCancellationView> {
+    const reason = normalizeCustomerCancellationReason(reasonRaw);
+    let result!: CustomerOrderCancellationView;
+    let customerId = '';
+    let publicReference = '';
+
+    await this.orders.runInTransaction(async (tx) => {
+      const profile = await this.carts.findProfileByAccountId(accountId, tx);
+      if (!profile) {
+        throw customerProfileNotFound();
+      }
+      customerId = profile.id;
+      const locked = await this.orders.lockOrder(orderId, tx);
+      if (!locked || locked.customerId !== profile.id) {
+        throw orderNotFound();
+      }
+      publicReference = locked.publicReference;
+
+      const decision = inspectCustomerCancellation(
+        locked.status,
+        locked.fulfillmentStatus,
+      );
+      assertCustomerCancellationAllowed(decision);
+
+      const blocker = await this.orders.findCustomerCancellationBlocker(
+        orderId,
+        tx,
+      );
+      if (blocker === 'DELIVERY') {
+        throw orderCancellationFulfillmentActive();
+      }
+      if (blocker === 'COD') {
+        throw orderCancellationCodCollected();
+      }
+
+      if (decision === 'IDEMPOTENT_CANCELLED') {
+        const cancellation = await this.orders.findOrderCancellation(
+          orderId,
+          tx,
+        );
+        const payment = await this.orders.findPaymentByOrderId(orderId, tx);
+        let refundFields = this.paidTerminalRefunds.toPublicRefundFields(null);
+        if (payment && electronicPaymentRequiresRefundIntent(payment.status)) {
+          const intent = await this.paidTerminalRefunds.ensureRefundIntentInTx(
+            tx,
+            {
+              orderId,
+              origin: REFUND_REQUEST_ORIGIN_CUSTOMER_CANCELLATION,
+              reason: PAID_TERMINAL_REASON_CUSTOMER_CANCEL,
+            },
+          );
+          refundFields = this.paidTerminalRefunds.toPublicRefundFields(intent);
+        }
+        result = {
+          orderId,
+          orderStatus: locked.status,
+          cancellationAccepted: true,
+          cancelledAt: cancellation?.cancelledAt ?? null,
+          ...refundFields,
+        };
+        return;
+      }
+
+      const applied = await this.orders.applyCustomerCancel(
+        orderId,
+        accountId,
+        reason,
+        locked.updatedAt,
+        tx,
+      );
+      if (applied !== 'APPLIED') {
+        throw orderCancellationConflict();
+      }
+
+      const payment = await this.orders.findPaymentByOrderId(orderId, tx);
+      let refundFields = this.paidTerminalRefunds.toPublicRefundFields(null);
+      if (payment && electronicPaymentRequiresRefundIntent(payment.status)) {
+        const intent = await this.paidTerminalRefunds.ensureRefundIntentInTx(
+          tx,
+          {
+            orderId,
+            origin: REFUND_REQUEST_ORIGIN_CUSTOMER_CANCELLATION,
+            reason: PAID_TERMINAL_REASON_CUSTOMER_CANCEL,
+          },
+        );
+        refundFields = this.paidTerminalRefunds.toPublicRefundFields(intent);
+      }
+
+      const cancellation = await this.orders.findOrderCancellation(orderId, tx);
+      result = {
+        orderId,
+        orderStatus: 'CANCELLED',
+        cancellationAccepted: true,
+        cancelledAt: cancellation?.cancelledAt ?? null,
+        ...refundFields,
+      };
+    });
+
+    await this.notifications.notifyOrderCancelled({
+      orderId: result.orderId,
+      customerId,
+      publicReference,
+      refundRequired: result.refundRequired,
+      refundStatus: result.refundStatus,
+    });
+
+    return result;
   }
 
   private async requireProfile(

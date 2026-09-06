@@ -78,7 +78,7 @@ export type AdminRefundListItem = {
   status: string;
   reason: string;
   internalNote: string | null;
-  requestedByAdminId: string;
+  requestedByAdminId: string | null;
   requestedAt: string;
   completedAt: string | null;
   createdAt: string;

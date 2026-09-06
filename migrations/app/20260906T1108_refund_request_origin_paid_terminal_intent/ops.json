@@ -1,0 +1,255 @@
+[
+  {
+    "id": "column.public.refunds.paid_terminal_intent_key",
+    "label": "Add column \"paid_terminal_intent_key\" to \"refunds\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "paid_terminal_intent_key",
+        "table": "refunds"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"paid_terminal_intent_key\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "refunds",
+          "paid_terminal_intent_key"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"paid_terminal_intent_key\"",
+        "sql": "ALTER TABLE \"public\".\"refunds\" ADD COLUMN \"paid_terminal_intent_key\" character varying(128)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"paid_terminal_intent_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "refunds",
+          "paid_terminal_intent_key"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.refunds.request_origin",
+    "label": "Add column \"request_origin\" to \"refunds\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "request_origin",
+        "table": "refunds"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"request_origin\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "refunds",
+          "request_origin"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"request_origin\"",
+        "sql": "ALTER TABLE \"public\".\"refunds\" ADD COLUMN \"request_origin\" text DEFAULT 'ADMIN' NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"request_origin\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "refunds",
+          "request_origin"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "alterNullability.dropNotNull.refunds.requested_by_admin_id",
+    "label": "Drop NOT NULL on \"refunds\".\"requested_by_admin_id\"",
+    "operationClass": "widening",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "requested_by_admin_id",
+        "table": "refunds"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"requested_by_admin_id\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "refunds",
+          "requested_by_admin_id"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop NOT NULL on \"requested_by_admin_id\"",
+        "sql": "ALTER TABLE \"public\".\"refunds\" ALTER COLUMN \"requested_by_admin_id\" DROP NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"requested_by_admin_id\" is nullable",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3 AND \"is_nullable\" = $4)) AS \"result\"",
+        "params": [
+          "public",
+          "refunds",
+          "requested_by_admin_id",
+          "YES"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.refunds.refunds_origin_actor_intent_ck_67637088",
+    "label": "Add check constraint \"refunds_origin_actor_intent_ck_67637088\" on \"refunds\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "refunds_origin_actor_intent_ck_67637088",
+        "table": "refunds"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"refunds_origin_actor_intent_ck_67637088\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "refunds_origin_actor_intent_ck_67637088",
+          "public",
+          "\"public\".\"refunds\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"refunds_origin_actor_intent_ck_67637088\"",
+        "sql": "ALTER TABLE \"public\".\"refunds\" ADD CONSTRAINT \"refunds_origin_actor_intent_ck_67637088\" CHECK ((request_origin = 'ADMIN' AND requested_by_admin_id IS NOT NULL AND paid_terminal_intent_key IS NULL) OR (request_origin IN ('CUSTOMER_CANCELLATION', 'MERCHANT_REJECTION', 'LATE_PAYMENT_SUCCESS') AND requested_by_admin_id IS NULL AND paid_terminal_intent_key IS NOT NULL))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"refunds_origin_actor_intent_ck_67637088\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "refunds_origin_actor_intent_ck_67637088",
+          "public",
+          "\"public\".\"refunds\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.refunds.refunds_request_origin_check_85f8868a",
+    "label": "Add check constraint \"refunds_request_origin_check_85f8868a\" on \"refunds\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "refunds_request_origin_check_85f8868a",
+        "table": "refunds"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"refunds_request_origin_check_85f8868a\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "refunds_request_origin_check_85f8868a",
+          "public",
+          "\"public\".\"refunds\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"refunds_request_origin_check_85f8868a\"",
+        "sql": "ALTER TABLE \"public\".\"refunds\" ADD CONSTRAINT \"refunds_request_origin_check_85f8868a\" CHECK (\"request_origin\" IN ('ADMIN', 'CUSTOMER_CANCELLATION', 'MERCHANT_REJECTION', 'LATE_PAYMENT_SUCCESS'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"refunds_request_origin_check_85f8868a\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "refunds_request_origin_check_85f8868a",
+          "public",
+          "\"public\".\"refunds\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.refunds.refunds_paid_terminal_intent_key_key",
+    "label": "Add unique constraint on \"refunds\" (paid_terminal_intent_key)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "refunds_paid_terminal_intent_key_key",
+        "table": "refunds"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"refunds_paid_terminal_intent_key_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "refunds_paid_terminal_intent_key_key",
+          "public",
+          "\"public\".\"refunds\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"refunds_paid_terminal_intent_key_key\"",
+        "sql": "ALTER TABLE \"public\".\"refunds\" ADD CONSTRAINT \"refunds_paid_terminal_intent_key_key\" UNIQUE (\"paid_terminal_intent_key\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"refunds_paid_terminal_intent_key_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "refunds_paid_terminal_intent_key_key",
+          "public",
+          "\"public\".\"refunds\""
+        ]
+      }
+    ]
+  }
+]

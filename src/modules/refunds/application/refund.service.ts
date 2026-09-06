@@ -32,6 +32,7 @@ import {
 import {
   REFUND_CURRENCY_DZD,
   REFUND_METHOD_ORIGINAL_PAYMENT,
+  REFUND_REQUEST_ORIGIN_ADMIN,
   REFUND_STATUS_APPROVED,
   REFUND_STATUS_PROCESSING,
   REFUND_STATUS_REFUNDED,
@@ -162,7 +163,9 @@ export class RefundService {
         status: REFUND_STATUS_REQUESTED,
         reason,
         internalNote: command.internalNote ?? null,
+        requestOrigin: REFUND_REQUEST_ORIGIN_ADMIN,
         requestedByAdminId: command.requestedByAdminId,
+        paidTerminalIntentKey: null,
       },
       tx,
     );

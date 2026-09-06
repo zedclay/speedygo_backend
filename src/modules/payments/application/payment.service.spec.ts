@@ -200,6 +200,14 @@ describe('PaymentService', () => {
       {
         notifyPaymentSucceeded: jest.fn().mockResolvedValue(undefined),
       } as never,
+      {
+        ensureRefundIntentInTx: jest.fn().mockResolvedValue({
+          refundId: 'refund-1',
+          refundStatus: 'REQUESTED',
+          refundAmountMinor: '1700',
+          created: true,
+        }),
+      } as never,
     );
   });
 

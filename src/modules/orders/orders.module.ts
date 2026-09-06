@@ -9,6 +9,7 @@ import { MerchantCommissionsModule } from '../merchant-commissions/merchant-comm
 import { MerchantsModule } from '../merchants/merchants.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PromotionsModule } from '../promotions/promotions.module';
+import { RefundsModule } from '../refunds/refunds.module';
 import { MerchantOrderService } from './application/merchant-order.service';
 import { OrderService } from './application/order.service';
 import { OrderRepository } from './infrastructure/order.repository';
@@ -23,6 +24,7 @@ import { OrderController } from './presentation/http/order.controller';
     MerchantCommissionsModule,
     PromotionsModule,
     NotificationsModule,
+    RefundsModule,
   ],
   controllers: [OrderController, MerchantOrderController],
   providers: [

@@ -13,20 +13,25 @@ import {
   MERCHANT_CAPABILITIES,
 } from '../../merchants/domain/merchant.policy';
 import { NotificationService } from '../../notifications/application/notification.service';
+import { PaidTerminalRefundService } from '../../refunds/application/paid-terminal-refund.service';
+import { REFUND_REQUEST_ORIGIN_MERCHANT_REJECTION } from '../../refunds/domain/refund.types';
+import { PAID_TERMINAL_REASON_MERCHANT_REJECT } from '../domain/customer-order-cancellation.policy';
 import {
   merchantOrderAlreadyAccepted,
   merchantOrderInvalidTransition,
   merchantOrderNotFound,
   merchantOrderNotRejectable,
   merchantOrderPaymentNotReady,
-  merchantOrderRejectionRequiresCancellationFlow,
 } from '../domain/order.errors';
 import {
   inspectMerchantWorkflowTransition,
   merchantPreparationPaymentReady,
   MERCHANT_REJECTION_REASON_MAX_LENGTH,
   normalizeOrderListQuery,
+  PAYMENT_STATUS_FAILED,
   PAYMENT_STATUS_PENDING,
+  PAYMENT_STATUS_PROCESSING,
+  PAYMENT_STATUS_SUCCEEDED,
   type MerchantWorkflowAction,
 } from '../domain/order.policy';
 import type {
@@ -43,6 +48,7 @@ export class MerchantOrderService {
     private readonly access: MerchantAccessService,
     private readonly orders: OrderRepository,
     private readonly notifications: NotificationService,
+    private readonly paidTerminalRefunds: PaidTerminalRefundService,
     @Inject(MATCHING_JOBS) private readonly matchingJobs: MatchingJobs,
   ) {}
 
@@ -201,8 +207,15 @@ export class MerchantOrderService {
         }
       }
       if (action === 'REJECT') {
-        if (!payment || payment.status !== PAYMENT_STATUS_PENDING) {
-          throw merchantOrderRejectionRequiresCancellationFlow();
+        if (
+          !payment ||
+          (payment.status !== PAYMENT_STATUS_PENDING &&
+            payment.status !== PAYMENT_STATUS_PROCESSING &&
+            payment.status !== PAYMENT_STATUS_SUCCEEDED &&
+            payment.status !== PAYMENT_STATUS_FAILED &&
+            payment.status !== 'CANCELLED')
+        ) {
+          throw merchantOrderNotRejectable();
         }
       }
       const applied =
@@ -234,13 +247,23 @@ export class MerchantOrderService {
                   locked.updatedAt,
                   tx,
                 );
-      if (applied === 'PAYMENT_NOT_PENDING') {
-        throw merchantOrderRejectionRequiresCancellationFlow();
-      }
       if (applied !== true && applied !== 'APPLIED') {
         throw action === 'REJECT'
           ? merchantOrderNotRejectable()
           : merchantOrderInvalidTransition();
+      }
+      if (action === 'REJECT') {
+        const paymentAfter = await this.orders.findPaymentByOrderId(
+          orderId,
+          tx,
+        );
+        if (paymentAfter?.status === PAYMENT_STATUS_SUCCEEDED) {
+          await this.paidTerminalRefunds.ensureRefundIntentInTx(tx, {
+            orderId,
+            origin: REFUND_REQUEST_ORIGIN_MERCHANT_REJECTION,
+            reason: PAID_TERMINAL_REASON_MERCHANT_REJECT,
+          });
+        }
       }
     });
     const detail = await this.orders.findMerchantOrderDetail(

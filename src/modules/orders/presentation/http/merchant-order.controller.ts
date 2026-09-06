@@ -132,9 +132,11 @@ export class MerchantOrderController {
   @ApiOperation({
     summary: 'Reject a Customer-submitted Order before acceptance',
     description: [
-      'OWNER and MANAGER only. Allowed only while CREATED + PENDING_ACCEPTANCE and Payment.status=PENDING.',
-      'Atomically sets Order CANCELLED, keeps fulfillment PENDING_ACCEPTANCE, creates one OrderCancellation, one MERCHANT_REJECTED event, and Payment PENDING → CANCELLED.',
-      'Does not reactivate the Cart, create Refund, PaymentTransaction, COD, or Delivery. Post-accept or paid-order cancellation belongs to a future Cancellation + Refund workflow (MERCHANT_ORDER_REJECTION_REQUIRES_CANCELLATION_FLOW).',
+      'OWNER and MANAGER only. Allowed only while CREATED + PENDING_ACCEPTANCE.',
+      'Atomically sets Order CANCELLED, keeps fulfillment PENDING_ACCEPTANCE, creates one OrderCancellation and one MERCHANT_REJECTED event.',
+      'Payment PENDING → CANCELLED. PROCESSING is left open for possible late success. SUCCEEDED Payment stays SUCCEEDED and couples a durable Refund intent (REQUESTED) in the same transaction.',
+      'Refund intent ≠ completed Customer refund. Provider auto-refund is unsupported (MANUAL_OTHER workflow).',
+      'Does not reactivate the Cart, create PaymentTransaction, COD, or Delivery.',
       'Repeated reject returns 409 MERCHANT_ORDER_NOT_REJECTABLE.',
     ].join(' '),
   })
@@ -147,7 +149,7 @@ export class MerchantOrderController {
     status: 409,
     description: [
       ORDER_ERROR_CODES.MERCHANT_ORDER_NOT_REJECTABLE,
-      ORDER_ERROR_CODES.MERCHANT_ORDER_REJECTION_REQUIRES_CANCELLATION_FLOW,
+      ORDER_ERROR_CODES.ORDER_CANCELLATION_REFUND_REQUIRED,
       MERCHANT_ERROR_CODES.MERCHANT_STATUS_RESTRICTED,
     ].join(' or '),
   })

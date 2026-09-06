@@ -212,10 +212,20 @@ describe('MerchantOrderService', () => {
       notifyOrderRejected: jest.fn().mockResolvedValue(undefined),
       notifyOrderReady: jest.fn().mockResolvedValue(undefined),
     };
+    const paidTerminalRefunds = {
+      ensureRefundIntentInTx: jest.fn().mockResolvedValue({
+        refundId: 'refund-1',
+        refundStatus: 'REQUESTED',
+        refundAmountMinor: '1700',
+        created: true,
+      }),
+      toPublicRefundFields: jest.fn(),
+    };
     service = new MerchantOrderService(
       access as never,
       orders as never,
       notifications as never,
+      paidTerminalRefunds as never,
       matchingJobs,
     );
   });
@@ -508,22 +518,26 @@ describe('MerchantOrderService', () => {
     expect(orders.applyMerchantReject).not.toHaveBeenCalled();
   });
 
-  it('does not reject when Payment is no longer PENDING', async () => {
-    orders.findPaymentByOrderId.mockResolvedValue({
-      method: 'ELECTRONIC',
-      status: 'SUCCEEDED',
-      amountMinor: 1700n,
-    });
-    try {
-      await service.rejectOrder(ACCOUNT, MERCHANT, ORDER_ID, 'Paid already');
-      throw new Error('expected paid rejection blocked');
-    } catch (error) {
-      expectCode(
-        error,
-        ORDER_ERROR_CODES.MERCHANT_ORDER_REJECTION_REQUIRES_CANCELLATION_FLOW,
-      );
-    }
-    expect(orders.applyMerchantReject).not.toHaveBeenCalled();
+  it('rejects SUCCEEDED Payment Orders and couples Refund intent', async () => {
+    orders.findPaymentByOrderId
+      .mockResolvedValueOnce({
+        method: 'ELECTRONIC',
+        status: 'SUCCEEDED',
+        amountMinor: 1700n,
+      })
+      .mockResolvedValueOnce({
+        method: 'ELECTRONIC',
+        status: 'SUCCEEDED',
+        amountMinor: 1700n,
+      });
+    const rejected = await service.rejectOrder(
+      ACCOUNT,
+      MERCHANT,
+      ORDER_ID,
+      'Paid already',
+    );
+    expect(rejected.status).toBe('CANCELLED');
+    expect(orders.applyMerchantReject).toHaveBeenCalledTimes(1);
   });
 
   it('blocks ELECTRONIC start-preparation while Payment is PENDING', async () => {

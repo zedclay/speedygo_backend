@@ -19,11 +19,8 @@ import {
 } from '../src/infrastructure/database/pg-values';
 import { OTP_SENDER } from '../src/modules/auth/domain/ports/otp-sender.port';
 import { TestOtpSender } from '../src/modules/auth/infrastructure/otp/test-otp.sender';
-import { DeliveryService } from '../src/modules/delivery/application/delivery.service';
-import { DELIVERY_ERROR_CODES } from '../src/modules/delivery/domain/delivery.errors';
-import { MatchingProcessor } from '../src/modules/matching/infrastructure/matching.processor';
-import { PAYMENT_PROVIDER } from '../src/modules/payments/domain/payment.types';
-import { TestPaymentProvider } from '../src/modules/payments/infrastructure/providers/test-payment.provider';
+
+jest.setTimeout(120_000);
 
 type TokenBody = { accessToken: string };
 type ErrorBody = { error: { code: string; message: string } };
@@ -40,20 +37,15 @@ type PreviewBody = {
   deliveryFeeMinor: string;
   customerTotalMinor: string;
 };
-type PaymentBody = {
-  paymentId: string;
-  method: string;
-  status: string;
-  amountMinor: string;
-  currency: string;
-  provider: string | null;
-  checkoutUrl?: string | null;
-  attemptId?: string;
-};
-type MerchantOrderDetail = {
-  status: string;
-  fulfillmentStatus: string;
-  payment: { method: string; status: string };
+type CancelBody = {
+  orderId: string;
+  orderStatus: string;
+  cancellationAccepted: boolean;
+  refundRequired: boolean;
+  refundId: string | null;
+  refundStatus: string | null;
+  refundAmountMinor: string | null;
+  cancelledAt: string | null;
 };
 
 const INSIDE: [number, number] = [36.75, 3.05];
@@ -70,12 +62,11 @@ function sign(raw: Buffer): string {
   return `sha256=${createHmac('sha256', TEST_WEBHOOK_SECRET).update(raw).digest('hex')}`;
 }
 
-describe('Payments foundation (e2e)', () => {
+describe('Customer order cancellation (e2e)', () => {
   let app: INestApplication<App>;
   let sender: TestOtpSender;
   let prisma: PrismaService;
   let redis: RedisService;
-  let deliveryService: DeliveryService;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -88,7 +79,6 @@ describe('Payments foundation (e2e)', () => {
     prisma = app.get(PrismaService);
     await deactivateAllDeliveryZones(prisma);
     redis = app.get(RedisService);
-    deliveryService = app.get(DeliveryService);
     const leftover = await redis.getClient().keys('auth:test:*');
     if (leftover.length > 0) {
       await redis.getClient().del(...leftover);
@@ -96,7 +86,6 @@ describe('Payments foundation (e2e)', () => {
   });
 
   afterAll(async () => {
-    await app.get(MatchingProcessor).worker.close();
     await app.close();
   });
 
@@ -116,7 +105,7 @@ describe('Payments foundation (e2e)', () => {
         code: sender.lastCode,
         platform: 'android',
         appVersion: '1.0.0',
-        deviceName: 'payments-e2e',
+        deviceName: 'cancel-e2e',
       });
     expect(verified.status).toBe(200);
     return (verified.body as TokenBody).accessToken;
@@ -167,36 +156,6 @@ describe('Payments foundation (e2e)', () => {
         await prisma
           .getDb()
           .orm.public.Refund.where({ id: refund.id })
-          .delete();
-      }
-      const delivery = await prisma
-        .getDb()
-        .orm.public.Delivery.where({ orderId: order.id })
-        .first();
-      if (delivery) {
-        const events = await prisma
-          .getDb()
-          .orm.public.DeliveryEvent.where({ deliveryId: delivery.id })
-          .all();
-        for (const event of events) {
-          await prisma
-            .getDb()
-            .orm.public.DeliveryEvent.where({ id: event.id })
-            .delete();
-        }
-        const assignments = await prisma
-          .getDb()
-          .orm.public.DriverAssignment.where({ deliveryId: delivery.id })
-          .all();
-        for (const assignment of assignments) {
-          await prisma
-            .getDb()
-            .orm.public.DriverAssignment.where({ id: assignment.id })
-            .delete();
-        }
-        await prisma
-          .getDb()
-          .orm.public.Delivery.where({ id: delivery.id })
           .delete();
       }
       const payments = await prisma
@@ -433,35 +392,99 @@ describe('Payments foundation (e2e)', () => {
       await prisma.getDb().orm.public.Device.where({ id: device.id }).delete();
     }
     await deleteAccountNotificationArtifacts(prisma, account.id);
-
     await prisma.getDb().orm.public.Account.where({ id: account.id }).delete();
   }
 
-  it('executes ELECTRONIC payment, keeps COD pending, and integrates Merchant/Delivery gates', async () => {
+  async function postCancel(
+    token: string,
+    orderId: string,
+    reason?: string,
+  ): Promise<request.Response> {
+    return request(app.getHttpServer())
+      .post(`/api/v1/customer/orders/${orderId}/cancel`)
+      .set('Authorization', `Bearer ${token}`)
+      .send(reason === undefined ? {} : { reason });
+  }
+
+  async function payElectronicOrder(
+    token: string,
+    orderId: string,
+    amountMinor: number,
+    eventId = 'evt-paid',
+  ): Promise<void> {
+    const server = app.getHttpServer();
+    const initiated = await request(server)
+      .post(`/api/v1/customer/orders/${orderId}/payment/initiate`)
+      .set('Authorization', `Bearer ${token}`)
+      .send({});
+    expect(initiated.status).toBe(200);
+    const paymentRow = await prisma
+      .getDb()
+      .orm.public.Payment.where({ orderId })
+      .first();
+    const initiatedTx = await prisma
+      .getDb()
+      .orm.public.PaymentTransaction.where({ paymentId: paymentRow!.id })
+      .all();
+    const providerReference = initiatedTx[0].providerReference as string;
+    const successRaw = Buffer.from(
+      JSON.stringify({
+        eventId,
+        providerReference,
+        status: 'SUCCEEDED',
+        amountMinor,
+        currency: 'DZD',
+      }),
+    );
+    const webhook = await request(server)
+      .post('/api/v1/payments/webhooks/test')
+      .set('Content-Type', 'application/json')
+      .set('X-SpeedyGo-Signature', sign(successRaw))
+      .send(successRaw.toString('utf8'));
+    expect(webhook.status).toBe(200);
+  }
+
+  let tokenCustomer = '';
+  let tokenOwner = '';
+  let tokenOther = '';
+  let tokenDriver = '';
+  let merchantId = '';
+  let homeId = '';
+  let productId = '';
+  let largeId = '';
+
+  it('covers COD/unpaid/paid cancel, auth gates, idempotency, late success, and merchant paid reject coupling', async () => {
     const server = app.getHttpServer();
     const suffix = Date.now().toString().slice(-6);
     const phones = {
-      customer: `0591${suffix}`,
-      owner: `0592${suffix}`,
-      other: `0593${suffix}`,
+      customer: `0594${suffix}`,
+      owner: `0595${suffix}`,
+      other: `0596${suffix}`,
+      driver: `0597${suffix}`,
     };
     const e164: string[] = [];
     const zoneIds: string[] = [];
     const adminIds: string[] = [];
     const roleIds: string[] = [];
     try {
-      const tokenCustomer = await authenticate(phones.customer);
-      const tokenOwner = await authenticate(phones.owner);
-      const tokenOther = await authenticate(phones.other);
+      tokenCustomer = await authenticate(phones.customer);
+      tokenOwner = await authenticate(phones.owner);
+      tokenOther = await authenticate(phones.other);
+      tokenDriver = await authenticate(phones.driver);
       const accountCustomer = await authMe(tokenCustomer);
       const accountOwner = await authMe(tokenOwner);
       const accountOther = await authMe(tokenOther);
-      e164.push(accountCustomer.phone, accountOwner.phone, accountOther.phone);
+      e164.push(
+        accountCustomer.phone,
+        accountOwner.phone,
+        accountOther.phone,
+        (await authMe(tokenDriver)).phone,
+      );
 
       await request(server)
         .post('/api/v1/customer/profile')
         .set('Authorization', `Bearer ${tokenCustomer}`)
-        .send({ fullName: 'Pay Customer' });
+        .send({ fullName: 'Cancel Customer' });
       await request(server)
         .post('/api/v1/customer/profile')
         .set('Authorization', `Bearer ${tokenOther}`)
@@ -476,14 +499,14 @@ describe('Payments foundation (e2e)', () => {
           longitude: INSIDE[1],
         });
       expect(home.status).toBe(201);
-      const homeId = (home.body as AddressBody).id;
+      homeId = (home.body as AddressBody).id;
 
       const merchant = await request(server)
         .post('/api/v1/merchant/profile')
         .set('Authorization', `Bearer ${tokenOwner}`)
-        .send({ name: 'Pay Cafe' });
+        .send({ name: 'Cancel Cafe' });
       expect(merchant.status).toBe(201);
-      const merchantId = (merchant.body as MembershipBody).merchantId;
+      merchantId = (merchant.body as MembershipBody).merchantId;
       const branch = await request(server)
         .post(`/api/v1/merchant/${merchantId}/branches`)
         .set('Authorization', `Bearer ${tokenOwner}`)
@@ -512,7 +535,7 @@ describe('Payments foundation (e2e)', () => {
           name: 'Coffee',
           priceMinor: 1000,
         });
-      const productId = (product.body as ProductBody).id;
+      productId = (product.body as ProductBody).id;
       const group = await request(server)
         .post(
           `/api/v1/merchant/${merchantId}/products/${productId}/option-groups`,
@@ -530,12 +553,12 @@ describe('Payments foundation (e2e)', () => {
         )
         .set('Authorization', `Bearer ${tokenOwner}`)
         .send({ name: 'Large', additionalPriceMinor: 200 });
-      const largeId = (large.body as OptionBody).id;
+      largeId = (large.body as OptionBody).id;
 
       const zoneId = createUuidV7();
       await prisma.getDb().orm.public.DeliveryZone.create({
         id: zoneId,
-        name: pgVarchar<255>(`Pay zone ${suffix}`),
+        name: pgVarchar<255>(`Cancel zone ${suffix}`),
         geometry: {
           type: 'MultiPolygon',
           coordinates: [[COVERING_RING]],
@@ -564,7 +587,7 @@ describe('Payments foundation (e2e)', () => {
       const roleId = createUuidV7();
       await prisma.getDb().orm.public.Role.create({
         id: roleId,
-        name: pgVarchar<128>(`pay-e2e-${suffix}`),
+        name: pgVarchar<128>(`cancel-e2e-${suffix}`),
         description: null,
         active: true,
       });
@@ -574,7 +597,7 @@ describe('Payments foundation (e2e)', () => {
         id: adminId,
         accountId: accountOwner.id,
         roleId,
-        displayName: pgVarchar<255>('Pay E2E Admin'),
+        displayName: pgVarchar<255>('Cancel E2E Admin'),
         twoFactorEnabled: false,
         createdAt: now,
         updatedAt: now,
@@ -621,415 +644,217 @@ describe('Payments foundation (e2e)', () => {
         };
       }
 
-      const electronic = await addCartAndCreateOrder('ELECTRONIC');
-      const paymentRead = await request(server)
-        .get(`/api/v1/customer/orders/${electronic.orderId}/payment`)
-        .set('Authorization', `Bearer ${tokenCustomer}`);
-      expect(paymentRead.status).toBe(200);
-      const pending = paymentRead.body as PaymentBody;
-      expect(pending.status).toBe('PENDING');
-      expect(pending.method).toBe('ELECTRONIC');
-      expect(pending.amountMinor).toBe(String(electronic.amountMinor));
-      expect(pending.currency).toBe('DZD');
-      expect(pending).not.toHaveProperty('checkoutUrl');
-      expect(pending).not.toHaveProperty('merchantCommissionAmountMinor');
+      const cod = await addCartAndCreateOrder('COD');
+      const codCancel = await postCancel(tokenCustomer, cod.orderId);
+      expect(codCancel.status).toBe(200);
+      const codBody = codCancel.body as CancelBody;
+      expect(codBody.orderStatus).toBe('CANCELLED');
+      expect(codBody.cancellationAccepted).toBe(true);
+      expect(codBody.refundRequired).toBe(false);
+      expect(codBody.refundId).toBeNull();
+      expect(codBody.cancelledAt).not.toBeNull();
+      expect(
+        await prisma
+          .getDb()
+          .orm.public.Refund.where({ orderId: cod.orderId })
+          .all(),
+      ).toHaveLength(0);
+      expect(
+        (
+          await prisma
+            .getDb()
+            .orm.public.Payment.where({ orderId: cod.orderId })
+            .first()
+        )?.status,
+      ).toBe('CANCELLED');
 
-      const foreignRead = await request(server)
-        .get(`/api/v1/customer/orders/${electronic.orderId}/payment`)
-        .set('Authorization', `Bearer ${tokenOther}`);
-      expect(foreignRead.status).toBe(404);
-      expect((foreignRead.body as ErrorBody).error.code).toBe(
-        'PAYMENT_NOT_FOUND',
+      const unpaidElectronic = await addCartAndCreateOrder('ELECTRONIC');
+      const unpaidCancel = await postCancel(
+        tokenCustomer,
+        unpaidElectronic.orderId,
+      );
+      expect(unpaidCancel.status).toBe(200);
+      const unpaidBody = unpaidCancel.body as CancelBody;
+      expect(unpaidBody.refundRequired).toBe(false);
+      expect(unpaidBody.refundId).toBeNull();
+      expect(
+        await prisma
+          .getDb()
+          .orm.public.Refund.where({ orderId: unpaidElectronic.orderId })
+          .all(),
+      ).toHaveLength(0);
+      expect(
+        (
+          await prisma
+            .getDb()
+            .orm.public.Payment.where({ orderId: unpaidElectronic.orderId })
+            .first()
+        )?.status,
+      ).toBe('CANCELLED');
+
+      const paidElectronic = await addCartAndCreateOrder('ELECTRONIC');
+      await payElectronicOrder(
+        tokenCustomer,
+        paidElectronic.orderId,
+        paidElectronic.amountMinor,
+        'evt-cancel-paid',
+      );
+      const paidCancel = await postCancel(
+        tokenCustomer,
+        paidElectronic.orderId,
+        'Changed my mind',
+      );
+      expect(paidCancel.status).toBe(200);
+      const paidBody = paidCancel.body as CancelBody;
+      expect(paidBody.orderStatus).toBe('CANCELLED');
+      expect(paidBody.refundRequired).toBe(true);
+      expect(paidBody.refundStatus).toBe('REQUESTED');
+      expect(paidBody.refundAmountMinor).toBe(
+        String(paidElectronic.amountMinor),
+      );
+      expect(typeof paidBody.refundAmountMinor).toBe('string');
+      expect(paidBody.refundId).not.toBeNull();
+      const paidRefunds = await prisma
+        .getDb()
+        .orm.public.Refund.where({ orderId: paidElectronic.orderId })
+        .all();
+      expect(paidRefunds).toHaveLength(1);
+      expect(paidRefunds[0].status).toBe('REQUESTED');
+      expect(paidRefunds[0].completedAt).toBeNull();
+      expect(paidRefunds[0].refundMethod).toBe('MANUAL_OTHER');
+      expect(paidRefunds[0].requestOrigin).toBe('CUSTOMER_CANCELLATION');
+      expect(paidRefunds[0].requestedByAdminId).toBeNull();
+      expect(paidRefunds[0].paidTerminalIntentKey).toMatch(
+        /^paid-terminal:v1:/,
+      );
+      expect(JSON.stringify(paidBody)).not.toContain('paidTerminalIntentKey');
+      expect(JSON.stringify(paidBody)).not.toContain('requestedByAdminId');
+      expect(JSON.stringify(paidBody)).not.toContain('requestOrigin');
+
+      const foreignCancel = await postCancel(
+        tokenOther,
+        paidElectronic.orderId,
+      );
+      expect(foreignCancel.status).toBe(404);
+      expect((foreignCancel.body as ErrorBody).error.code).toBe(
+        'ORDER_NOT_FOUND',
       );
 
-      const injected = await request(server)
-        .post(`/api/v1/customer/orders/${electronic.orderId}/payment/initiate`)
-        .set('Authorization', `Bearer ${tokenCustomer}`)
-        .send({ amountMinor: 1, status: 'SUCCEEDED', providerReference: 'x' });
-      expect(injected.status).toBe(400);
+      const merchantCancel = await postCancel(
+        tokenOwner,
+        paidElectronic.orderId,
+      );
+      expect(merchantCancel.status).toBe(404);
+      expect((merchantCancel.body as ErrorBody).error.code).toBe(
+        'CUSTOMER_PROFILE_NOT_FOUND',
+      );
 
-      const initiated = await request(server)
-        .post(`/api/v1/customer/orders/${electronic.orderId}/payment/initiate`)
-        .set('Authorization', `Bearer ${tokenCustomer}`)
-        .send({});
-      expect(initiated.status).toBe(200);
-      const attempt = initiated.body as PaymentBody;
-      expect(attempt.status).toBe('PROCESSING');
-      expect(attempt.attemptId).toBeDefined();
-      expect(attempt.checkoutUrl).toMatch(/^test:\/\/checkout\//);
-      expect(attempt.paymentId).not.toBe(attempt.attemptId);
+      const driverCancel = await postCancel(
+        tokenDriver,
+        paidElectronic.orderId,
+      );
+      expect(driverCancel.status).toBe(404);
+      expect((driverCancel.body as ErrorBody).error.code).toBe(
+        'CUSTOMER_PROFILE_NOT_FOUND',
+      );
 
-      const reused = await request(server)
-        .post(`/api/v1/customer/orders/${electronic.orderId}/payment/initiate`)
-        .set('Authorization', `Bearer ${tokenCustomer}`)
-        .send({});
-      expect(reused.status).toBe(200);
-      expect((reused.body as PaymentBody).attemptId).toBe(attempt.attemptId);
+      const repeatCancel = await postCancel(
+        tokenCustomer,
+        paidElectronic.orderId,
+      );
+      expect(repeatCancel.status).toBe(200);
+      const repeatBody = repeatCancel.body as CancelBody;
+      expect(repeatBody.refundId).toBe(paidBody.refundId);
+      expect(
+        await prisma
+          .getDb()
+          .orm.public.Refund.where({ orderId: paidElectronic.orderId })
+          .all(),
+      ).toHaveLength(1);
 
-      const foreignInitiate = await request(server)
-        .post(`/api/v1/customer/orders/${electronic.orderId}/payment/initiate`)
-        .set('Authorization', `Bearer ${tokenOther}`)
-        .send({});
-      expect(foreignInitiate.status).toBe(404);
-
-      const paymentRow = await prisma
-        .getDb()
-        .orm.public.Payment.where({ orderId: electronic.orderId })
-        .first();
-      const initiatedTx = await prisma
-        .getDb()
-        .orm.public.PaymentTransaction.where({ paymentId: paymentRow!.id })
-        .all();
-      expect(initiatedTx).toHaveLength(1);
-      const providerReference = initiatedTx[0].providerReference as string;
-
+      const acceptedOrder = await addCartAndCreateOrder('COD');
       const accept = await request(server)
         .post(
-          `/api/v1/merchant/${merchantId}/orders/${electronic.orderId}/accept`,
+          `/api/v1/merchant/${merchantId}/orders/${acceptedOrder.orderId}/accept`,
         )
         .set('Authorization', `Bearer ${tokenOwner}`)
         .send({});
       expect(accept.status).toBe(200);
-      const unpaidPrep = await request(server)
-        .post(
-          `/api/v1/merchant/${merchantId}/orders/${electronic.orderId}/start-preparation`,
-        )
-        .set('Authorization', `Bearer ${tokenOwner}`)
-        .send({});
-      expect(unpaidPrep.status).toBe(409);
-      expect((unpaidPrep.body as ErrorBody).error.code).toBe(
-        'MERCHANT_ORDER_PAYMENT_NOT_READY',
+      const afterAcceptCancel = await postCancel(
+        tokenCustomer,
+        acceptedOrder.orderId,
+      );
+      expect(afterAcceptCancel.status).toBe(409);
+      expect((afterAcceptCancel.body as ErrorBody).error.code).toBe(
+        'ORDER_CANCELLATION_NOT_ALLOWED',
       );
 
-      const invalidRaw = Buffer.from(
-        JSON.stringify({
-          eventId: 'evt-invalid',
-          providerReference,
-          status: 'SUCCEEDED',
-          amountMinor: Number(electronic.amountMinor),
-          currency: 'DZD',
-        }),
+      const concurrentOrder = await addCartAndCreateOrder('ELECTRONIC');
+      await payElectronicOrder(
+        tokenCustomer,
+        concurrentOrder.orderId,
+        concurrentOrder.amountMinor,
+        'evt-concurrent',
       );
-      const invalidWebhook = await request(server)
-        .post('/api/v1/payments/webhooks/test')
-        .set('Content-Type', 'application/json')
-        .set('X-SpeedyGo-Signature', 'sha256=deadbeef')
-        .send(invalidRaw.toString('utf8'));
-      expect(invalidWebhook.status).toBe(401);
-      expect((invalidWebhook.body as ErrorBody).error.code).toBe(
-        'PAYMENT_WEBHOOK_INVALID_SIGNATURE',
-      );
-      expect(
-        (
-          await prisma
-            .getDb()
-            .orm.public.Payment.where({ id: paymentRow!.id })
-            .first()
-        )?.status,
-      ).toBe('PROCESSING');
-
-      const tamperRaw = Buffer.from(
-        JSON.stringify({
-          eventId: 'evt-tamper',
-          providerReference,
-          status: 'SUCCEEDED',
-          amountMinor: 1,
-          currency: 'DZD',
-        }),
-      );
-      const tamperWebhook = await request(server)
-        .post('/api/v1/payments/webhooks/test')
-        .set('Content-Type', 'application/json')
-        .set('X-SpeedyGo-Signature', sign(tamperRaw))
-        .send(tamperRaw.toString('utf8'));
-      expect(tamperWebhook.status).toBe(200);
-      expect(
-        (
-          await prisma
-            .getDb()
-            .orm.public.Payment.where({ id: paymentRow!.id })
-            .first()
-        )?.status,
-      ).toBe('PROCESSING');
-
-      const successPayload = {
-        eventId: 'evt-success',
-        providerReference,
-        status: 'SUCCEEDED',
-        amountMinor: Number(electronic.amountMinor),
-        currency: 'DZD',
-      };
-      const successRaw = Buffer.from(JSON.stringify(successPayload));
-      const successWebhook = await request(server)
-        .post('/api/v1/payments/webhooks/test')
-        .set('Content-Type', 'application/json')
-        .set('X-SpeedyGo-Signature', sign(successRaw))
-        .send(successRaw.toString('utf8'));
-      expect(successWebhook.status).toBe(200);
-
-      const duplicateWebhook = await request(server)
-        .post('/api/v1/payments/webhooks/test')
-        .set('Content-Type', 'application/json')
-        .set('X-SpeedyGo-Signature', sign(successRaw))
-        .send(successRaw.toString('utf8'));
-      expect(duplicateWebhook.status).toBe(200);
-
-      const paid = await prisma
-        .getDb()
-        .orm.public.Payment.where({ id: paymentRow!.id })
-        .first();
-      expect(paid?.status).toBe('SUCCEEDED');
-      const orderAfterPay = await prisma
-        .getDb()
-        .orm.public.Order.where({ id: electronic.orderId })
-        .first();
-      expect(orderAfterPay?.status).toBe('CONFIRMED');
-      expect(orderAfterPay?.fulfillmentStatus).toBe('ACCEPTED');
+      const [concurrentA, concurrentB] = await Promise.all([
+        postCancel(tokenCustomer, concurrentOrder.orderId),
+        postCancel(tokenCustomer, concurrentOrder.orderId),
+      ]);
+      expect(concurrentA.status).toBe(200);
+      expect(concurrentB.status).toBe(200);
+      const concurrentRefundIdA = (concurrentA.body as CancelBody).refundId;
+      const concurrentRefundIdB = (concurrentB.body as CancelBody).refundId;
+      expect(concurrentRefundIdA).toBe(concurrentRefundIdB);
       expect(
         await prisma
           .getDb()
-          .orm.public.Delivery.where({ orderId: electronic.orderId })
-          .first(),
-      ).toBeNull();
-      expect(
-        await prisma
-          .getDb()
-          .orm.public.Refund.where({ orderId: electronic.orderId })
+          .orm.public.Refund.where({ orderId: concurrentOrder.orderId })
           .all(),
-      ).toHaveLength(0);
-      expect(
-        await prisma
-          .getDb()
-          .orm.public.CodCollection.where({ orderId: electronic.orderId })
-          .all(),
-      ).toHaveLength(0);
-      expect(
-        await prisma
-          .getDb()
-          .orm.public.MerchantSettlement.where({ merchantId })
-          .all(),
-      ).toHaveLength(0);
-      const successTxs = await prisma
-        .getDb()
-        .orm.public.PaymentTransaction.where({ paymentId: paymentRow!.id })
-        .all();
-      expect(
-        successTxs.filter(
-          (row) => row.idempotencyKey === 'wh:test:evt-success',
-        ),
       ).toHaveLength(1);
 
-      const lateFailRaw = Buffer.from(
-        JSON.stringify({
-          eventId: 'evt-late-fail',
-          providerReference,
-          status: 'FAILED',
-          amountMinor: Number(electronic.amountMinor),
-          currency: 'DZD',
-        }),
-      );
-      const lateFailWebhook = await request(server)
-        .post('/api/v1/payments/webhooks/test')
-        .set('Content-Type', 'application/json')
-        .set('X-SpeedyGo-Signature', sign(lateFailRaw))
-        .send(lateFailRaw.toString('utf8'));
-      expect(lateFailWebhook.status).toBe(200);
-      expect(
-        (
-          await prisma
-            .getDb()
-            .orm.public.Payment.where({ id: paymentRow!.id })
-            .first()
-        )?.status,
-      ).toBe('SUCCEEDED');
-
-      const already = await request(server)
-        .post(`/api/v1/customer/orders/${electronic.orderId}/payment/initiate`)
-        .set('Authorization', `Bearer ${tokenCustomer}`)
-        .send({});
-      expect(already.status).toBe(409);
-      expect((already.body as ErrorBody).error.code).toBe(
-        'PAYMENT_ALREADY_SUCCEEDED',
-      );
-
-      const paidPrep = await request(server)
-        .post(
-          `/api/v1/merchant/${merchantId}/orders/${electronic.orderId}/start-preparation`,
-        )
-        .set('Authorization', `Bearer ${tokenOwner}`)
-        .send({});
-      expect(paidPrep.status).toBe(200);
-      expect((paidPrep.body as MerchantOrderDetail).fulfillmentStatus).toBe(
-        'PREPARING',
-      );
-      expect((paidPrep.body as MerchantOrderDetail).payment.status).toBe(
-        'SUCCEEDED',
-      );
-      expect((paidPrep.body as MerchantOrderDetail).payment).not.toHaveProperty(
-        'checkoutUrl',
-      );
-
-      const ready = await request(server)
-        .post(
-          `/api/v1/merchant/${merchantId}/orders/${electronic.orderId}/mark-ready`,
-        )
-        .set('Authorization', `Bearer ${tokenOwner}`)
-        .send({});
-      expect(ready.status).toBe(200);
-      const delivery = await deliveryService.createForReadyOrder(
-        electronic.orderId,
-      );
-      expect(delivery.status).toBe('SEARCHING_DRIVER');
-
-      const cod = await addCartAndCreateOrder('COD');
-      const codRead = await request(server)
-        .get(`/api/v1/customer/orders/${cod.orderId}/payment`)
-        .set('Authorization', `Bearer ${tokenCustomer}`);
-      expect(codRead.status).toBe(200);
-      expect((codRead.body as PaymentBody).status).toBe('PENDING');
-      const codInitiate = await request(server)
-        .post(`/api/v1/customer/orders/${cod.orderId}/payment/initiate`)
-        .set('Authorization', `Bearer ${tokenCustomer}`)
-        .send({});
-      expect(codInitiate.status).toBe(409);
-      expect((codInitiate.body as ErrorBody).error.code).toBe(
-        'PAYMENT_METHOD_NOT_ELECTRONIC',
-      );
-      const codPayment = await prisma
-        .getDb()
-        .orm.public.Payment.where({ orderId: cod.orderId })
-        .first();
-      expect(codPayment?.status).toBe('PENDING');
-      expect(
-        await prisma
-          .getDb()
-          .orm.public.PaymentTransaction.where({ paymentId: codPayment!.id })
-          .all(),
-      ).toHaveLength(0);
-
-      const testProvider = app.get<TestPaymentProvider>(PAYMENT_PROVIDER);
-
-      const canceledOrder = await addCartAndCreateOrder('ELECTRONIC');
-      const canceledInit = await request(server)
-        .post(
-          `/api/v1/customer/orders/${canceledOrder.orderId}/payment/initiate`,
-        )
-        .set('Authorization', `Bearer ${tokenCustomer}`)
-        .send({});
-      expect(canceledInit.status).toBe(200);
-      const canceledPayment = await prisma
-        .getDb()
-        .orm.public.Payment.where({ orderId: canceledOrder.orderId })
-        .first();
-      const canceledTx = await prisma
-        .getDb()
-        .orm.public.PaymentTransaction.where({
-          paymentId: canceledPayment!.id,
-        })
-        .all();
-      testProvider.setCheckoutStatus(
-        canceledTx[0].providerReference as string,
-        'canceled',
-      );
-      const canceledRetry = await request(server)
-        .post(
-          `/api/v1/customer/orders/${canceledOrder.orderId}/payment/initiate`,
-        )
-        .set('Authorization', `Bearer ${tokenCustomer}`)
-        .send({});
-      expect(canceledRetry.status).toBe(200);
-      expect((canceledRetry.body as PaymentBody).attemptId).not.toBe(
-        (canceledInit.body as PaymentBody).attemptId,
-      );
-      const canceledRows = await prisma
-        .getDb()
-        .orm.public.PaymentTransaction.where({
-          paymentId: canceledPayment!.id,
-        })
-        .all();
-      expect(canceledRows.some((row) => row.status === 'CANCELLED')).toBe(true);
-      expect(
-        (
-          await prisma
-            .getDb()
-            .orm.public.Order.where({ id: canceledOrder.orderId })
-            .first()
-        )?.status,
-      ).toBe('CREATED');
-
-      const failedOrder = await addCartAndCreateOrder('ELECTRONIC');
-      const failedInit = await request(server)
-        .post(`/api/v1/customer/orders/${failedOrder.orderId}/payment/initiate`)
-        .set('Authorization', `Bearer ${tokenCustomer}`)
-        .send({});
-      expect(failedInit.status).toBe(200);
-      const failedPayment = await prisma
-        .getDb()
-        .orm.public.Payment.where({ orderId: failedOrder.orderId })
-        .first();
-      const failedTx = await prisma
-        .getDb()
-        .orm.public.PaymentTransaction.where({ paymentId: failedPayment!.id })
-        .all();
-      testProvider.setCheckoutStatus(
-        failedTx[0].providerReference as string,
-        'failed',
-      );
-      const failedRetry = await request(server)
-        .post(`/api/v1/customer/orders/${failedOrder.orderId}/payment/initiate`)
-        .set('Authorization', `Bearer ${tokenCustomer}`)
-        .send({});
-      expect(failedRetry.status).toBe(200);
-      expect((failedRetry.body as PaymentBody).attemptId).not.toBe(
-        (failedInit.body as PaymentBody).attemptId,
-      );
-      expect(
-        (
-          await prisma
-            .getDb()
-            .orm.public.PaymentTransaction.where({
-              paymentId: failedPayment!.id,
-            })
-            .all()
-        ).some((row) => row.status === 'FAILED'),
-      ).toBe(true);
-
-      const late = await addCartAndCreateOrder('ELECTRONIC');
+      const lateCancelOrder = await addCartAndCreateOrder('ELECTRONIC');
       const lateInit = await request(server)
-        .post(`/api/v1/customer/orders/${late.orderId}/payment/initiate`)
+        .post(
+          `/api/v1/customer/orders/${lateCancelOrder.orderId}/payment/initiate`,
+        )
         .set('Authorization', `Bearer ${tokenCustomer}`)
         .send({});
       expect(lateInit.status).toBe(200);
+      const lateCancel = await postCancel(
+        tokenCustomer,
+        lateCancelOrder.orderId,
+      );
+      expect(lateCancel.status).toBe(200);
+      expect((lateCancel.body as CancelBody).refundRequired).toBe(false);
       const latePayment = await prisma
         .getDb()
-        .orm.public.Payment.where({ orderId: late.orderId })
+        .orm.public.Payment.where({ orderId: lateCancelOrder.orderId })
         .first();
-      const lateAttempt = await prisma
+      const lateTx = await prisma
         .getDb()
         .orm.public.PaymentTransaction.where({ paymentId: latePayment!.id })
         .all();
-      await prisma
+      expect(latePayment?.status).toBe('PROCESSING');
+      const lateOrderRow = await prisma
         .getDb()
-        .orm.public.Order.where({ id: late.orderId })
-        .update({ status: 'CANCELLED', updatedAt: pgNow() });
-      await prisma
-        .getDb()
-        .orm.public.Payment.where({ id: latePayment!.id })
-        .update({ status: 'CANCELLED', updatedAt: pgNow() });
-      const lateRaw = Buffer.from(
+        .orm.public.Order.where({ id: lateCancelOrder.orderId })
+        .first();
+      expect(lateOrderRow?.status).toBe('CANCELLED');
+
+      const lateSuccessRaw = Buffer.from(
         JSON.stringify({
-          eventId: 'evt-late-terminal',
-          providerReference: lateAttempt[0].providerReference,
+          eventId: 'evt-late-after-cancel',
+          providerReference: lateTx[0].providerReference,
           status: 'SUCCEEDED',
-          amountMinor: Number(late.amountMinor),
+          amountMinor: lateCancelOrder.amountMinor,
           currency: 'DZD',
         }),
       );
       const lateWebhook = await request(server)
         .post('/api/v1/payments/webhooks/test')
         .set('Content-Type', 'application/json')
-        .set('X-SpeedyGo-Signature', sign(lateRaw))
-        .send(lateRaw.toString('utf8'));
+        .set('X-SpeedyGo-Signature', sign(lateSuccessRaw))
+        .send(lateSuccessRaw.toString('utf8'));
       expect(lateWebhook.status).toBe(200);
       expect(
         (
@@ -1043,50 +868,70 @@ describe('Payments foundation (e2e)', () => {
         (
           await prisma
             .getDb()
-            .orm.public.Order.where({ id: late.orderId })
+            .orm.public.Order.where({ id: lateCancelOrder.orderId })
             .first()
         )?.status,
       ).toBe('CANCELLED');
       const lateRefunds = await prisma
         .getDb()
-        .orm.public.Refund.where({ orderId: late.orderId })
+        .orm.public.Refund.where({ orderId: lateCancelOrder.orderId })
         .all();
       expect(lateRefunds).toHaveLength(1);
       expect(lateRefunds[0].status).toBe('REQUESTED');
       expect(lateRefunds[0].completedAt).toBeNull();
+      expect(lateRefunds[0].requestOrigin).toBe('LATE_PAYMENT_SUCCESS');
+      expect(lateRefunds[0].requestedByAdminId).toBeNull();
+      expect(lateRefunds[0].paidTerminalIntentKey).toMatch(
+        /^paid-terminal:v1:/,
+      );
+
+      const lateReplay = await request(server)
+        .post('/api/v1/payments/webhooks/test')
+        .set('Content-Type', 'application/json')
+        .set('X-SpeedyGo-Signature', sign(lateSuccessRaw))
+        .send(lateSuccessRaw.toString('utf8'));
+      expect(lateReplay.status).toBe(200);
       expect(
         await prisma
           .getDb()
-          .orm.public.Delivery.where({ orderId: late.orderId })
-          .first(),
-      ).toBeNull();
+          .orm.public.Refund.where({ orderId: lateCancelOrder.orderId })
+          .all(),
+      ).toHaveLength(1);
 
-      const pendingElectronic = await addCartAndCreateOrder('ELECTRONIC');
-      await request(server)
-        .post(
-          `/api/v1/merchant/${merchantId}/orders/${pendingElectronic.orderId}/accept`,
-        )
-        .set('Authorization', `Bearer ${tokenOwner}`)
-        .send({});
+      const merchantRejectOrder = await addCartAndCreateOrder('ELECTRONIC');
       await prisma
         .getDb()
-        .orm.public.Order.where({ id: pendingElectronic.orderId })
+        .orm.public.Payment.where({ orderId: merchantRejectOrder.orderId })
         .update({
-          status: 'ACTIVE',
-          fulfillmentStatus: 'READY',
+          status: 'SUCCEEDED',
           updatedAt: pgNow(),
         });
-      await expect(
-        deliveryService.createForReadyOrder(pendingElectronic.orderId),
-      ).rejects.toMatchObject({
-        code: DELIVERY_ERROR_CODES.DELIVERY_PAYMENT_NOT_READY,
-      });
+      const merchantReject = await request(server)
+        .post(
+          `/api/v1/merchant/${merchantId}/orders/${merchantRejectOrder.orderId}/reject`,
+        )
+        .set('Authorization', `Bearer ${tokenOwner}`)
+        .send({ reason: 'Cannot fulfill paid order' });
+      expect(merchantReject.status).toBe(200);
+      const rejectRefunds = await prisma
+        .getDb()
+        .orm.public.Refund.where({ orderId: merchantRejectOrder.orderId })
+        .all();
+      expect(rejectRefunds).toHaveLength(1);
+      expect(rejectRefunds[0].status).toBe('REQUESTED');
+      expect(rejectRefunds[0].completedAt).toBeNull();
+      expect(rejectRefunds[0].requestOrigin).toBe('MERCHANT_REJECTION');
+      expect(rejectRefunds[0].requestedByAdminId).toBeNull();
+      expect(rejectRefunds[0].paidTerminalIntentKey).toMatch(
+        /^paid-terminal:v1:/,
+      );
     } finally {
       await cleanupByPhone(e164[0] ?? '');
       await cleanupCommission(adminIds, roleIds);
       await cleanupZones(zoneIds);
       await cleanupByPhone(e164[1] ?? '');
       await cleanupByPhone(e164[2] ?? '');
+      await cleanupByPhone(e164[3] ?? '');
     }
   });
 });

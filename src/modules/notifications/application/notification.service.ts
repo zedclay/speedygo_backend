@@ -11,6 +11,7 @@ import {
   copyMatchOffer,
   copyMerchantOrderCreated,
   copyOrderAccepted,
+  copyOrderCancelled,
   copyOrderReady,
   copyOrderRejected,
   copyPaymentSucceeded,
@@ -35,6 +36,7 @@ import {
   NOTIFICATION_TYPE_MATCH_OFFER,
   NOTIFICATION_TYPE_MERCHANT_ORDER_CREATED,
   NOTIFICATION_TYPE_ORDER_ACCEPTED,
+  NOTIFICATION_TYPE_ORDER_CANCELLED,
   NOTIFICATION_TYPE_ORDER_READY,
   NOTIFICATION_TYPE_ORDER_REJECTED,
   NOTIFICATION_TYPE_PAYMENT_SUCCEEDED,
@@ -177,6 +179,30 @@ export class NotificationService {
     const copy = copyOrderRejected(input.publicReference);
     await this.emitSafe({
       type: NOTIFICATION_TYPE_ORDER_REJECTED,
+      sourceId: input.orderId,
+      accountId,
+      ...copy,
+    });
+  }
+
+  async notifyOrderCancelled(input: {
+    orderId: string;
+    customerId: string;
+    publicReference: string;
+    refundRequired: boolean;
+    refundStatus: string | null;
+  }): Promise<void> {
+    const accountId =
+      await this.notifications.findCustomerAccountIdByCustomerId(
+        input.customerId,
+      );
+    if (!accountId) return;
+    const copy = copyOrderCancelled(
+      input.publicReference,
+      input.refundRequired,
+    );
+    await this.emitSafe({
+      type: NOTIFICATION_TYPE_ORDER_CANCELLED,
       sourceId: input.orderId,
       accountId,
       ...copy,

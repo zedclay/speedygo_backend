@@ -13,10 +13,12 @@ import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import { PAYMENT_TX_SUCCEEDED } from '../../payments/domain/payment.policy';
 import {
   REFUND_CURRENCY_DZD,
+  REFUND_REQUEST_ORIGINS,
   REFUND_STATUS_REFUNDED,
   type RefundFinancialContext,
   type RefundMethod,
   type RefundRecord,
+  type RefundRequestOrigin,
   type RefundStatus,
 } from '../domain/refund.types';
 import { isRefundMethod, isRefundStatus } from '../domain/refund.policy';
@@ -25,6 +27,10 @@ export type OrmClient = { orm: SpeedyGoDb['orm'] };
 
 function orm(client: OrmClient) {
   return client.orm.public;
+}
+
+function isRefundRequestOrigin(value: string): value is RefundRequestOrigin {
+  return (REFUND_REQUEST_ORIGINS as readonly string[]).includes(value);
 }
 
 function toRefund(row: {
@@ -36,13 +42,19 @@ function toRefund(row: {
   status: string;
   reason: string;
   internalNote: string | null;
-  requestedByAdminId: string;
+  requestOrigin: string;
+  requestedByAdminId: string | null;
+  paidTerminalIntentKey: string | null;
   requestedAt: string;
   completedAt: string | null;
   createdAt: string;
 }): RefundRecord {
-  if (!isRefundMethod(row.refundMethod) || !isRefundStatus(row.status)) {
-    throw new Error('Persisted Refund has invalid method or status');
+  if (
+    !isRefundMethod(row.refundMethod) ||
+    !isRefundStatus(row.status) ||
+    !isRefundRequestOrigin(row.requestOrigin)
+  ) {
+    throw new Error('Persisted Refund has invalid method, status, or origin');
   }
   return {
     id: row.id,
@@ -53,7 +65,9 @@ function toRefund(row: {
     status: row.status,
     reason: row.reason,
     internalNote: row.internalNote,
+    requestOrigin: row.requestOrigin,
     requestedByAdminId: row.requestedByAdminId,
+    paidTerminalIntentKey: row.paidTerminalIntentKey,
     requestedAt: row.requestedAt,
     completedAt: row.completedAt,
     createdAt: row.createdAt,
@@ -271,7 +285,9 @@ export class RefundRepository {
       status: RefundStatus;
       reason: string;
       internalNote: string | null;
-      requestedByAdminId: string;
+      requestOrigin: RefundRequestOrigin;
+      requestedByAdminId: string | null;
+      paidTerminalIntentKey: string | null;
     },
     client: OrmClient,
   ): Promise<RefundRecord> {
@@ -286,7 +302,11 @@ export class RefundRepository {
       status: input.status,
       reason: pgVarchar<255>(input.reason),
       internalNote: input.internalNote,
+      requestOrigin: input.requestOrigin,
       requestedByAdminId: input.requestedByAdminId,
+      paidTerminalIntentKey: input.paidTerminalIntentKey
+        ? pgVarchar<128>(input.paidTerminalIntentKey)
+        : null,
       requestedAt: now,
       completedAt: null,
       createdAt: now,
@@ -296,6 +316,18 @@ export class RefundRepository {
       throw new Error('Refund create did not persist');
     }
     return toRefund(row);
+  }
+
+  async findByPaidTerminalIntentKey(
+    paidTerminalIntentKey: string,
+    client?: OrmClient,
+  ): Promise<RefundRecord | null> {
+    const row = await orm(client ?? this.db())
+      .Refund.where({
+        paidTerminalIntentKey: pgVarchar<128>(paidTerminalIntentKey),
+      })
+      .first();
+    return row ? toRefund(row) : null;
   }
 
   async findById(
@@ -389,8 +421,13 @@ export class RefundRepository {
     };
   }
 
-  async findOrderStatus(orderId: string): Promise<string | null> {
-    const row = await orm(this.db()).Order.where({ id: orderId }).first();
+  async findOrderStatus(
+    orderId: string,
+    client?: OrmClient,
+  ): Promise<string | null> {
+    const row = await orm(client ?? this.db())
+      .Order.where({ id: orderId })
+      .first();
     return row?.status ?? null;
   }
 

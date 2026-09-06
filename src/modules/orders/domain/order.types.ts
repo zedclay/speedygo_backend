@@ -185,6 +185,22 @@ export type MerchantOrderListView = {
   total: number;
 };
 
+/**
+ * Customer cancellation response.
+ * refundRequired means durable Refund workflow intent — not money returned.
+ * Never set refunded=true; clients must use refundStatus === REFUNDED + completedAt via Refunds API.
+ */
+export type CustomerOrderCancellationView = {
+  orderId: string;
+  orderStatus: string;
+  cancellationAccepted: boolean;
+  refundRequired: boolean;
+  refundId: string | null;
+  refundStatus: string | null;
+  refundAmountMinor: string | null;
+  cancelledAt: string | null;
+};
+
 export type PersistCreatedOrderInput = {
   orderId: string;
   publicReference: string;
