@@ -10,6 +10,7 @@ import { PromotionsModule } from '../promotions/promotions.module';
 import { RefundsModule } from '../refunds/refunds.module';
 import { AdminAuditService } from './application/admin-audit.service';
 import { AdminCodCommandsService } from './application/admin-cod-commands.service';
+import { AdminDocumentAccessService } from './application/admin-document-access.service';
 import { AdminDriverCommandsService } from './application/admin-driver-commands.service';
 import { AdminMerchantCommandsService } from './application/admin-merchant-commands.service';
 import { AdminProfileService } from './application/admin-profile.service';
@@ -63,6 +64,7 @@ import { AdminSettlementController } from './presentation/http/controllers/admin
     AdminQueryRepository,
     AdminMerchantCommandsService,
     AdminDriverCommandsService,
+    AdminDocumentAccessService,
     AdminRefundCommandsService,
     AdminCodCommandsService,
     AdminSettlementCommandsService,

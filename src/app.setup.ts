@@ -9,9 +9,11 @@ import { assertDriverDeliveryConfig } from './config/driver-delivery-config.vali
 import { assertMatchingConfig } from './config/matching-config.validation';
 import { assertPaymentConfig } from './config/payment-config.validation';
 import { assertTrackingConfig } from './config/tracking-config.validation';
+import { storageConfigInvalid } from './infrastructure/storage/domain/storage.errors';
 
 export function configureApp(app: INestApplication): void {
   const config = app.get(ConfigService);
+  assertStorageRuntimeConfig(config);
   assertAuthSecurityConfig({
     nodeEnv: config.get<string>('nodeEnv', 'development'),
     jwtAccessSecret: config.get<string>('auth.jwtAccessSecret', ''),
@@ -108,4 +110,54 @@ export function configureApp(app: INestApplication): void {
     app,
     SwaggerModule.createDocument(app, swaggerConfig),
   );
+}
+
+function assertStorageRuntimeConfig(config: ConfigService): void {
+  const nodeEnv = config.get<string>('nodeEnv', 'development');
+  const uploadsEnabled = config.get<boolean>('storage.uploadsEnabled', true);
+  if (!uploadsEnabled) {
+    return;
+  }
+  const driver = config.get<string>('storage.driver', 'local');
+  if (nodeEnv === 'production') {
+    if (driver === 'local') {
+      throw storageConfigInvalid(
+        'Production must not use local disk object storage (set STORAGE_DRIVER=s3)',
+      );
+    }
+    if (driver !== 's3') {
+      throw storageConfigInvalid(`Unknown STORAGE_DRIVER: ${driver}`);
+    }
+    const bucket = config.get<string>('storage.s3.bucket', '');
+    const region = config.get<string>('storage.s3.region', '');
+    const accessKeyId = config.get<string>('storage.s3.accessKeyId', '');
+    const secretAccessKey = config.get<string>(
+      'storage.s3.secretAccessKey',
+      '',
+    );
+    if (!bucket || !region || !accessKeyId || !secretAccessKey) {
+      throw storageConfigInvalid(
+        'Production S3 storage requires STORAGE_S3_BUCKET, STORAGE_S3_REGION, STORAGE_S3_ACCESS_KEY_ID, STORAGE_S3_SECRET_ACCESS_KEY',
+      );
+    }
+    if (!config.get<boolean>('storage.malwareScanRequired', false)) {
+      throw storageConfigInvalid(
+        'Production uploads require STORAGE_MALWARE_SCAN_REQUIRED=true',
+      );
+    }
+    if (config.get<string>('storage.malwareScannerDriver', '') !== 'clamav') {
+      throw storageConfigInvalid(
+        'Production uploads require STORAGE_MALWARE_SCANNER_DRIVER=clamav',
+      );
+    }
+    return;
+  }
+  if (driver === 'local') {
+    const localRoot = config.get<string>('storage.localRoot', '');
+    if (!localRoot.trim()) {
+      throw storageConfigInvalid(
+        'STORAGE_LOCAL_ROOT is required when STORAGE_DRIVER=local',
+      );
+    }
+  }
 }

@@ -46,6 +46,17 @@ export class UpsertMerchantDocumentDto {
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   expiryDate?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Opaque upload reference from POST .../documents/:type/content (sg-upload:v1:...). Never a path or URL.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => trimString(value))
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(128)
+  uploadReference?: string;
 }
 
 export class CreateMerchantBranchDto {

@@ -101,6 +101,7 @@ export type UpdateDriverProfileInput = {
 export type UpsertDocumentInput = {
   type: string;
   expiryDate: string | null;
+  uploadReference?: string;
 };
 
 export type CreateVehicleInput = {

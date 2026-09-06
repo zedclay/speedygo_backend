@@ -171,6 +171,17 @@ class MemoryDriverRepository {
     return Promise.resolve(created);
   }
 
+  updateDocumentFileUrl(documentId: string, fileUrl: string): Promise<void> {
+    for (const rows of this.documents.values()) {
+      const row = rows.find((doc) => doc.id === documentId);
+      if (row) {
+        row.fileUrl = fileUrl;
+        row.updatedAt = now();
+      }
+    }
+    return Promise.resolve();
+  }
+
   listVehicles(driverId: string): Promise<DriverVehicleRecord[]> {
     return Promise.resolve([...(this.vehicles.get(driverId) ?? [])]);
   }
@@ -286,7 +297,16 @@ describe('DriverService', () => {
 
   beforeEach(() => {
     repo = new MemoryDriverRepository();
-    service = new DriverService(repo as never);
+    service = new DriverService(
+      repo as never,
+      {
+        uploadPending: jest.fn(),
+        promotePendingToPermanent: jest.fn(),
+        deletePermanentLocator: jest.fn(),
+        readDurableContent: jest.fn(),
+        readBoundContent: jest.fn(),
+      } as never,
+    );
     review = new DriverReviewService(repo as never);
   });
 

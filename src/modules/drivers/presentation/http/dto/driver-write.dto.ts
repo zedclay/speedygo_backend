@@ -44,6 +44,17 @@ export class UpsertDriverDocumentDto {
   @IsString()
   @Matches(/^\d{4}-\d{2}-\d{2}$/)
   expiryDate?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'Opaque upload reference from POST /driver/documents/:type/content (sg-upload:v1:...). Binds private object bytes to this document. Never a path or URL.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => trimString(value))
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(128)
+  uploadReference?: string;
 }
 
 export class CreateDriverVehicleDto {

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { SecureDocumentStorageService } from '../../../infrastructure/storage/application/secure-document-storage.service';
 import {
   merchantDocumentInvalid,
   merchantNotFound,
@@ -36,6 +37,7 @@ export class MerchantVerificationService {
   constructor(
     private readonly merchants: MerchantRepository,
     private readonly access: MerchantAccessService,
+    private readonly secureDocuments: SecureDocumentStorageService,
   ) {}
 
   async getVerification(
@@ -81,6 +83,55 @@ export class MerchantVerificationService {
     return toVerificationPackageView({ merchant, documents });
   }
 
+  async uploadDocumentContent(
+    accountId: string,
+    merchantId: string,
+    type: string,
+    input: {
+      body: Buffer;
+      declaredMime?: string;
+      originalFilename?: string;
+    },
+  ): Promise<{
+    uploadReference: string;
+    contentType: string;
+    sizeBytes: number;
+    purpose: string;
+  }> {
+    if (!isMerchantDocumentType(type)) {
+      throw merchantDocumentInvalid('Unsupported document type');
+    }
+    await this.access.requireCapability(
+      accountId,
+      merchantId,
+      MERCHANT_CAPABILITIES.MERCHANT_VERIFICATION_MUTATE,
+    );
+    const merchant = await this.merchants.findMerchant(merchantId);
+    if (!merchant) {
+      throw merchantNotFound();
+    }
+    const documents = await this.merchants.listDocumentSummaries(merchantId);
+    if (
+      !canEditVerificationEvidence({
+        status: merchant.status,
+        documents,
+      })
+    ) {
+      throw merchantVerificationInvalidState(
+        'Verification evidence cannot be changed in the current review state',
+      );
+    }
+    return this.secureDocuments.uploadPending(
+      {
+        accountId,
+        ownerType: 'MERCHANT',
+        ownerId: merchantId,
+        purpose: type,
+      },
+      input,
+    );
+  }
+
   async upsertDocument(
     accountId: string,
     merchantId: string,
@@ -104,7 +155,7 @@ export class MerchantVerificationService {
       MERCHANT_CAPABILITIES.MERCHANT_VERIFICATION_MUTATE,
     );
 
-    await this.merchants.runInTransaction(async (tx) => {
+    const document = await this.merchants.runInTransaction(async (tx) => {
       const locked = await this.merchants.lockMerchant(merchantId, tx);
       if (!locked) {
         throw merchantNotFound();
@@ -128,13 +179,34 @@ export class MerchantVerificationService {
           'Verification evidence cannot be changed in the current review state',
         );
       }
-      await this.merchants.upsertDocument(
+      return this.merchants.upsertDocument(
         merchantId,
         input.type,
         input.expiryDate ?? null,
         tx,
       );
     });
+
+    if (input.uploadReference) {
+      const promoted = await this.secureDocuments.promotePendingToPermanent({
+        uploadReference: input.uploadReference,
+        accountId,
+        ownerType: 'MERCHANT',
+        ownerId: merchantId,
+        purpose: input.type,
+      });
+      try {
+        await this.merchants.updateDocumentFileUrl(
+          document.id,
+          promoted.durableLocator,
+        );
+      } catch (error) {
+        await this.secureDocuments.deletePermanentLocator(
+          promoted.durableLocator,
+        );
+        throw error;
+      }
+    }
 
     return this.loadMembershipView(accountId, merchantId);
   }

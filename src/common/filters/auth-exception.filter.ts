@@ -51,6 +51,28 @@ export class AuthExceptionFilter implements ExceptionFilter {
       return;
     }
 
+    const multerCode =
+      exception &&
+      typeof exception === 'object' &&
+      'code' in exception &&
+      typeof exception.code === 'string'
+        ? (exception as { code: string }).code
+        : null;
+    if (multerCode?.startsWith('LIMIT_')) {
+      const tooLarge = multerCode === 'LIMIT_FILE_SIZE';
+      response.status(HttpStatus.BAD_REQUEST).json({
+        error: {
+          code: tooLarge
+            ? 'STORAGE_FILE_TOO_LARGE'
+            : 'STORAGE_MALFORMED_MULTIPART',
+          message: tooLarge
+            ? 'File exceeds the maximum allowed size'
+            : 'Multipart payload is invalid',
+        },
+      } satisfies ErrorEnvelope);
+      return;
+    }
+
     if (exception instanceof HttpException) {
       const status = exception.getStatus();
       const body = exception.getResponse();
@@ -62,6 +84,27 @@ export class AuthExceptionFilter implements ExceptionFilter {
               ? ((body as { message: string[] }).message[0] ?? 'Request failed')
               : String(body.message)
             : exception.message;
+      const lower = message.toLowerCase();
+      if (
+        status === 400 &&
+        (lower.includes('unexpected field') ||
+          lower.includes('too many') ||
+          lower.includes('file too large') ||
+          lower.includes('limits'))
+      ) {
+        const tooLarge = lower.includes('file too large');
+        response.status(400).json({
+          error: {
+            code: tooLarge
+              ? 'STORAGE_FILE_TOO_LARGE'
+              : 'STORAGE_MALFORMED_MULTIPART',
+            message: tooLarge
+              ? 'File exceeds the maximum allowed size'
+              : 'Multipart payload is invalid',
+          },
+        } satisfies ErrorEnvelope);
+        return;
+      }
       response.status(status).json({
         error: {
           code: status === 400 ? 'VALIDATION_ERROR' : 'HTTP_ERROR',
