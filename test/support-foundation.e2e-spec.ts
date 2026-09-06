@@ -15,6 +15,7 @@ import { ADMIN_PERMISSIONS } from '../src/modules/admin/domain/admin-permissions
 import { ADMIN_AUDIT_ACTIONS } from '../src/modules/admin/domain/admin-audit-actions';
 import { SUPPORT_ERROR_CODES } from '../src/modules/support/domain/support.errors';
 import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
+import { deleteBranchOpeningHours } from './helpers/ensure-branch-opening-hours';
 
 type TokenBody = { accessToken: string };
 type ErrorBody = { error: { code: string; message: string } };
@@ -196,6 +197,7 @@ describe('Support Foundation (e2e)', () => {
         merchantId: member.merchantId,
       }).all();
       for (const branch of branches) {
+        await deleteBranchOpeningHours(prisma, branch.id);
         await db.MerchantBranch.where({ id: branch.id }).delete();
       }
       const allMembers = await db.MerchantMember.where({

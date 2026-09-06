@@ -112,6 +112,14 @@
       "model": "FinancialLedgerEntry",
       "namespace": "public"
     },
+    "merchant_branch_opening_intervals": {
+      "model": "MerchantBranchOpeningInterval",
+      "namespace": "public"
+    },
+    "merchant_branch_opening_schedules": {
+      "model": "MerchantBranchOpeningSchedule",
+      "namespace": "public"
+    },
     "merchant_branches": {
       "model": "MerchantBranch",
       "namespace": "public"
@@ -629,7 +637,23 @@
                 }
               }
             },
-            "relations": {},
+            "relations": {
+              "merchantBranchOpeningSchedulesUpdated": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "updatedByAccountId"
+                  ]
+                },
+                "to": {
+                  "model": "MerchantBranchOpeningSchedule",
+                  "namespace": "public"
+                }
+              }
+            },
             "storage": {
               "fields": {
                 "createdAt": {
@@ -4146,6 +4170,21 @@
                   "model": "Merchant",
                   "namespace": "public"
                 }
+              },
+              "openingSchedule": {
+                "cardinality": "1:1",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "branchId"
+                  ]
+                },
+                "to": {
+                  "model": "MerchantBranchOpeningSchedule",
+                  "namespace": "public"
+                }
               }
             },
             "storage": {
@@ -4183,6 +4222,239 @@
               },
               "namespaceId": "public",
               "table": "merchant_branches"
+            }
+          },
+          "MerchantBranchOpeningInterval": {
+            "fields": {
+              "closesMinute": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "closesNextDay": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/bool@1",
+                  "kind": "scalar"
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 6
+                  }
+                }
+              },
+              "dayOfWeek": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "opensMinute": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              },
+              "scheduleId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "sortOrder": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "schedule": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "scheduleId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "MerchantBranchOpeningSchedule",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "closesMinute": {
+                  "column": "closes_minute"
+                },
+                "closesNextDay": {
+                  "column": "closes_next_day"
+                },
+                "createdAt": {
+                  "column": "created_at"
+                },
+                "dayOfWeek": {
+                  "column": "day_of_week"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "opensMinute": {
+                  "column": "opens_minute"
+                },
+                "scheduleId": {
+                  "column": "schedule_id"
+                },
+                "sortOrder": {
+                  "column": "sort_order"
+                }
+              },
+              "namespaceId": "public",
+              "table": "merchant_branch_opening_intervals"
+            }
+          },
+          "MerchantBranchOpeningSchedule": {
+            "fields": {
+              "branchId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 6
+                  }
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "updatedAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 6
+                  }
+                }
+              },
+              "updatedByAccountId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "version": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/int4@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "branch": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "branchId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "MerchantBranch",
+                  "namespace": "public"
+                }
+              },
+              "intervals": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "scheduleId"
+                  ]
+                },
+                "to": {
+                  "model": "MerchantBranchOpeningInterval",
+                  "namespace": "public"
+                }
+              },
+              "updatedBy": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "updatedByAccountId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "Account",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "branchId": {
+                  "column": "branch_id"
+                },
+                "createdAt": {
+                  "column": "created_at"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "updatedAt": {
+                  "column": "updated_at"
+                },
+                "updatedByAccountId": {
+                  "column": "updated_by_account_id"
+                },
+                "version": {
+                  "column": "version"
+                }
+              },
+              "namespaceId": "public",
+              "table": "merchant_branch_opening_schedules"
             }
           },
           "MerchantCommissionRule": {
@@ -11703,6 +11975,242 @@
               },
               "uniques": []
             },
+            "merchant_branch_opening_intervals": {
+              "checks": [
+                {
+                  "expression": "closes_minute >= 0 AND closes_minute <= 1439",
+                  "name": "mboi_closes_minute_range_bf3125d6",
+                  "prefix": "mboi_closes_minute_range"
+                },
+                {
+                  "expression": "day_of_week >= 1 AND day_of_week <= 7",
+                  "name": "mboi_day_of_week_range_90497d90",
+                  "prefix": "mboi_day_of_week_range"
+                },
+                {
+                  "expression": "(closes_next_day = false AND closes_minute > opens_minute) OR (closes_next_day = true AND ((1440 - opens_minute) + closes_minute) > 0 AND ((1440 - opens_minute) + closes_minute) <= 1440)",
+                  "name": "mboi_interval_duration_3dca9e58",
+                  "prefix": "mboi_interval_duration"
+                },
+                {
+                  "expression": "opens_minute >= 0 AND opens_minute <= 1439",
+                  "name": "mboi_opens_minute_range_c4a5e691",
+                  "prefix": "mboi_opens_minute_range"
+                },
+                {
+                  "expression": "sort_order >= 0",
+                  "name": "mboi_sort_order_nonneg_eb4b5508",
+                  "prefix": "mboi_sort_order_nonneg"
+                }
+              ],
+              "columns": {
+                "closes_minute": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "closes_next_day": {
+                  "codecId": "pg/bool@1",
+                  "nativeType": "bool",
+                  "nullable": false
+                },
+                "created_at": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 6
+                  }
+                },
+                "day_of_week": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "opens_minute": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                },
+                "schedule_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "sort_order": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "onDelete": "cascade",
+                  "source": {
+                    "columns": [
+                      "schedule_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "merchant_branch_opening_intervals"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "merchant_branch_opening_schedules"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "schedule_id",
+                    "day_of_week",
+                    "sort_order"
+                  ],
+                  "name": "mboi_schedule_day_sort_42d2d4fd",
+                  "prefix": "mboi_schedule_day_sort",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "schedule_id"
+                  ],
+                  "name": "merchant_branch_opening_intervals_schedule_id_idx_83757f9e",
+                  "prefix": "merchant_branch_opening_intervals_schedule_id_idx",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
+            "merchant_branch_opening_schedules": {
+              "checks": [
+                {
+                  "expression": "version >= 1",
+                  "name": "mbos_version_positive_c2490804",
+                  "prefix": "mbos_version_positive"
+                }
+              ],
+              "columns": {
+                "branch_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "created_at": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 6
+                  }
+                },
+                "id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "updated_at": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 6
+                  }
+                },
+                "updated_by_account_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "version": {
+                  "codecId": "pg/int4@1",
+                  "nativeType": "int4",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "onDelete": "restrict",
+                  "source": {
+                    "columns": [
+                      "branch_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "merchant_branch_opening_schedules"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "merchant_branches"
+                  }
+                },
+                {
+                  "onDelete": "restrict",
+                  "source": {
+                    "columns": [
+                      "updated_by_account_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "merchant_branch_opening_schedules"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "accounts"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "updated_by_account_id"
+                  ],
+                  "name": "merchant_branch_opening_schedules_updated_by_account_i_8a198d5b",
+                  "prefix": "merchant_branch_opening_schedules_updated_by_account_i",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": [
+                {
+                  "columns": [
+                    "branch_id"
+                  ]
+                }
+              ]
+            },
             "merchant_branches": {
               "columns": {
                 "address_text": {
@@ -16149,7 +16657,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "814b83f78028a55cb5444bb79fa2f11b6a556d1b20c87e259f2ea3d2774f7ca1"
+    "storageHash": "134bbe82722dda2d4908708df09b9028dd77cb1a57dbc6754e6d46cbb133f039"
   },
   "capabilities": {
     "postgres": {

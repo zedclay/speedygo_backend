@@ -21,6 +21,10 @@ import {
   PROMOTION_TYPE_SPEEDYGO_FIXED_MINOR,
 } from '../src/modules/promotions/domain/promotion.types';
 import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
+import {
+  ensureBranchOpeningHours,
+  deleteBranchOpeningHours,
+} from './helpers/ensure-branch-opening-hours';
 import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
 
 type TokenBody = { accessToken: string };
@@ -220,6 +224,7 @@ describe('Promotions Foundation (e2e)', () => {
         }).all()) {
           await db.Category.where({ id: cat.id }).delete();
         }
+        await deleteBranchOpeningHours(prisma, branch.id);
         await db.MerchantBranch.where({ id: branch.id }).delete();
       }
       for (const member of await db.MerchantMember.where({
@@ -296,6 +301,7 @@ describe('Promotions Foundation (e2e)', () => {
         longitude: INSIDE[1],
       });
     const branchId = (branch.body as { id: string }).id;
+    await ensureBranchOpeningHours(prisma, branchId, accounts[1].id);
     await prisma
       .getDb()
       .orm.public.Merchant.where({ id: merchantId })

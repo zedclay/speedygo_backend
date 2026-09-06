@@ -13,6 +13,8 @@ export const CHECKOUT_ERROR_CODES = {
     'CHECKOUT_PRICING_CONFIGURATION_INVALID',
   CHECKOUT_MERCHANT_NOT_OPERATIONAL: 'CHECKOUT_MERCHANT_NOT_OPERATIONAL',
   CHECKOUT_BRANCH_NOT_OPERATIONAL: 'CHECKOUT_BRANCH_NOT_OPERATIONAL',
+  CHECKOUT_BRANCH_CLOSED: 'CHECKOUT_BRANCH_CLOSED',
+  CHECKOUT_BRANCH_HOURS_NOT_CONFIGURED: 'CHECKOUT_BRANCH_HOURS_NOT_CONFIGURED',
 } as const;
 
 export type CheckoutErrorCode =
@@ -103,6 +105,22 @@ export function checkoutBranchNotOperational(): CheckoutError {
   return new CheckoutError(
     CHECKOUT_ERROR_CODES.CHECKOUT_BRANCH_NOT_OPERATIONAL,
     'Branch is not operational for Checkout',
+    409,
+  );
+}
+
+export function checkoutBranchClosed(): CheckoutError {
+  return new CheckoutError(
+    CHECKOUT_ERROR_CODES.CHECKOUT_BRANCH_CLOSED,
+    'Branch is closed at the requested time',
+    409,
+  );
+}
+
+export function checkoutBranchHoursNotConfigured(): CheckoutError {
+  return new CheckoutError(
+    CHECKOUT_ERROR_CODES.CHECKOUT_BRANCH_HOURS_NOT_CONFIGURED,
+    'Branch opening hours are not configured',
     409,
   );
 }

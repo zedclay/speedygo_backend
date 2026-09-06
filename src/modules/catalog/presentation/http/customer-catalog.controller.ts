@@ -20,7 +20,7 @@ import {
   CustomerProductDetailResponseDto,
   CustomerProductListResponseDto,
   CustomerStorefrontListResponseDto,
-  CustomerStorefrontResponseDto,
+  CustomerStorefrontDetailResponseDto,
 } from './dto/customer-catalog.dto';
 
 @ApiTags('customer-catalog')
@@ -33,7 +33,7 @@ export class CustomerCatalogController {
   @ApiOperation({
     summary: 'List Customer-visible storefronts (MerchantBranch)',
     description:
-      'Authenticated CustomerProfile required. Returns Branches where Merchant is ACTIVE+verified with non-empty name and Branch operationalStatus=ACTIVE. No openNow, distance, ETA, delivery fee, ratings, or images. Does not claim delivery eligibility.',
+      'Authenticated CustomerProfile required. Returns Branches where Merchant is ACTIVE+verified with non-empty name and Branch operationalStatus=ACTIVE. Includes opening-hours projection (hoursConfigured/isOpenNow/timezone/currentClosesAt/nextOpenAt). Does not claim delivery eligibility.',
   })
   @ApiOkResponse({ type: CustomerStorefrontListResponseDto })
   @ApiResponse({
@@ -53,7 +53,7 @@ export class CustomerCatalogController {
     description:
       'Fail-closed: hidden or ineligible Branches return CUSTOMER_STOREFRONT_NOT_FOUND. Omits phone, verification, commission, and settlement fields.',
   })
-  @ApiOkResponse({ type: CustomerStorefrontResponseDto })
+  @ApiOkResponse({ type: CustomerStorefrontDetailResponseDto })
   @ApiResponse({
     status: 404,
     description: `${CUSTOMER_ERROR_CODES.CUSTOMER_PROFILE_NOT_FOUND} or ${CUSTOMER_CATALOG_ERROR_CODES.CUSTOMER_STOREFRONT_NOT_FOUND}`,

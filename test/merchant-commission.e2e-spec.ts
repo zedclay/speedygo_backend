@@ -5,6 +5,10 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
+import {
+  ensureBranchOpeningHours,
+  deleteBranchOpeningHours,
+} from './helpers/ensure-branch-opening-hours';
 import { deactivateOpenGlobalCommissionDefaults } from './helpers/sanitize-commission-globals';
 import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
 import { createUuidV7 } from '../src/common/utils/uuid-v7';
@@ -297,6 +301,7 @@ describe('Merchant Commission Foundation (e2e)', () => {
             .orm.public.Category.where({ id: category.id })
             .delete();
         }
+        await deleteBranchOpeningHours(prisma, branch.id);
         await prisma
           .getDb()
           .orm.public.MerchantBranch.where({ id: branch.id })
@@ -399,6 +404,8 @@ describe('Merchant Commission Foundation (e2e)', () => {
             longitude: 3.05,
           });
         const branchId = (branch.body as BranchBody).id;
+        const merchantAccount = await authMe(token);
+        await ensureBranchOpeningHours(prisma, branchId, merchantAccount.id);
         await approveMerchant(merchantId);
         const category = await request(server)
           .post(`/api/v1/merchant/${merchantId}/categories`)
@@ -766,19 +773,22 @@ describe('Merchant Commission Foundation (e2e)', () => {
           latitude: 36.75,
           longitude: 3.05,
         });
+      const branchId = (branch.body as BranchBody).id;
+      const merchantAccount = await authMe(tokenMerchant);
+      await ensureBranchOpeningHours(prisma, branchId, merchantAccount.id);
       await approveMerchant(merchantId);
       const category = await request(server)
         .post(`/api/v1/merchant/${merchantId}/categories`)
         .set('Authorization', `Bearer ${tokenMerchant}`)
         .send({
-          branchId: (branch.body as BranchBody).id,
+          branchId,
           name: 'Drinks',
         });
       const product = await request(server)
         .post(`/api/v1/merchant/${merchantId}/products`)
         .set('Authorization', `Bearer ${tokenMerchant}`)
         .send({
-          branchId: (branch.body as BranchBody).id,
+          branchId,
           categoryId: (category.body as CategoryBody).id,
           name: 'Coffee',
           priceMinor: 1200,

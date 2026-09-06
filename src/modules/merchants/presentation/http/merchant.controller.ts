@@ -31,7 +31,9 @@ import { storageMalformedMultipart } from '../../../../infrastructure/storage/do
 import { MerchantBranchService } from '../../application/merchant-branch.service';
 import { MerchantProfileService } from '../../application/merchant-profile.service';
 import { MerchantVerificationService } from '../../application/merchant-verification.service';
+import { OpeningHoursService } from '../../application/opening-hours.service';
 import { MERCHANT_ERROR_CODES } from '../../domain/merchant.errors';
+import { OPENING_HOURS_ERROR_CODES } from '../../domain/opening-hours.errors';
 import { MERCHANT_DOCUMENT_TYPES } from '../../domain/merchant.policy';
 import {
   MerchantBranchListResponseDto,
@@ -48,6 +50,10 @@ import {
   UpdateMerchantProfileDto,
   UpsertMerchantDocumentDto,
 } from './dto/merchant-write.dto';
+import {
+  OpeningHoursResponseDto,
+  PutOpeningHoursDto,
+} from './dto/opening-hours.dto';
 
 @ApiTags('merchant')
 @ApiBearerAuth()
@@ -57,6 +63,7 @@ export class MerchantController {
     private readonly profiles: MerchantProfileService,
     private readonly branches: MerchantBranchService,
     private readonly verification: MerchantVerificationService,
+    private readonly openingHours: OpeningHoursService,
   ) {}
 
   @Get('me')
@@ -369,5 +376,72 @@ export class MerchantController {
     @Param('branchId', new ParseUUIDPipe()) branchId: string,
   ) {
     return this.branches.remove(principal.accountId, merchantId, branchId);
+  }
+
+  @Get(':merchantId/branches/:branchId/opening-hours')
+  @ApiOperation({
+    summary: 'Get Branch weekly opening hours',
+    description:
+      'MERCHANT_READ. Missing schedule returns hoursConfigured=false with empty days. Timezone is Africa/Algiers. operationalStatus is separate from hours.',
+  })
+  @ApiOkResponse({ type: OpeningHoursResponseDto })
+  @ApiResponse({
+    status: 403,
+    description: MERCHANT_ERROR_CODES.MERCHANT_ROLE_FORBIDDEN,
+  })
+  @ApiResponse({
+    status: 404,
+    description: MERCHANT_ERROR_CODES.MERCHANT_BRANCH_NOT_FOUND,
+  })
+  getOpeningHours(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+  ) {
+    return this.openingHours.getForMerchant(
+      principal.accountId,
+      merchantId,
+      branchId,
+    );
+  }
+
+  @Put(':merchantId/branches/:branchId/opening-hours')
+  @ApiOperation({
+    summary: 'Replace Branch weekly opening hours',
+    description:
+      'MERCHANT_BRANCH_UPDATE. Body requires expectedVersion (0 creates) and exactly 7 unique ISO days. Empty intervals = closed day. All empty = configured always closed. Optimistic concurrency → OPENING_HOURS_VERSION_CONFLICT.',
+  })
+  @ApiOkResponse({ type: OpeningHoursResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: OPENING_HOURS_ERROR_CODES.OPENING_HOURS_INVALID,
+  })
+  @ApiResponse({
+    status: 403,
+    description: MERCHANT_ERROR_CODES.MERCHANT_ROLE_FORBIDDEN,
+  })
+  @ApiResponse({
+    status: 404,
+    description: MERCHANT_ERROR_CODES.MERCHANT_BRANCH_NOT_FOUND,
+  })
+  @ApiResponse({
+    status: 409,
+    description: OPENING_HOURS_ERROR_CODES.OPENING_HOURS_VERSION_CONFLICT,
+  })
+  putOpeningHours(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+    @Body() body: PutOpeningHoursDto,
+  ) {
+    return this.openingHours.putForMerchant(
+      principal.accountId,
+      merchantId,
+      branchId,
+      {
+        expectedVersion: body.expectedVersion,
+        days: body.days,
+      },
+    );
   }
 }

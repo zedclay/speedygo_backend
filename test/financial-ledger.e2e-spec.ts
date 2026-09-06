@@ -7,6 +7,10 @@ import { App } from 'supertest/types';
 import { AppModule } from '../src/app.module';
 import { configureApp } from '../src/app.setup';
 import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
+import {
+  ensureBranchOpeningHours,
+  deleteBranchOpeningHours,
+} from './helpers/ensure-branch-opening-hours';
 import { deactivateOpenGlobalCommissionDefaults } from './helpers/sanitize-commission-globals';
 import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
 import { MONEY_MINOR_ABOVE_SAFE_INTEGER } from '../src/common/money/money-minor';
@@ -427,6 +431,7 @@ describe('Financial Ledger Foundation (e2e)', () => {
         }).all()) {
           await db.Category.where({ id: category.id }).delete();
         }
+        await deleteBranchOpeningHours(prisma, branch.id);
         await db.MerchantBranch.where({ id: branch.id }).delete();
       }
       for (const member of await db.MerchantMember.where({
@@ -507,6 +512,7 @@ describe('Financial Ledger Foundation (e2e)', () => {
         longitude: INSIDE[1],
       });
     const branchId = (branch.body as { id: string }).id;
+    await ensureBranchOpeningHours(prisma, branchId, accounts[1].id);
     await prisma
       .getDb()
       .orm.public.Merchant.where({ id: merchantId })

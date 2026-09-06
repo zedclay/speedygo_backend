@@ -12,6 +12,8 @@ export const ORDER_ERROR_CODES = {
   ORDER_PRICING_CONFIGURATION_INVALID: 'ORDER_PRICING_CONFIGURATION_INVALID',
   ORDER_MERCHANT_NOT_OPERATIONAL: 'ORDER_MERCHANT_NOT_OPERATIONAL',
   ORDER_BRANCH_NOT_OPERATIONAL: 'ORDER_BRANCH_NOT_OPERATIONAL',
+  ORDER_BRANCH_CLOSED: 'ORDER_BRANCH_CLOSED',
+  ORDER_BRANCH_HOURS_NOT_CONFIGURED: 'ORDER_BRANCH_HOURS_NOT_CONFIGURED',
   ORDER_ALREADY_CREATED: 'ORDER_ALREADY_CREATED',
   ORDER_NOT_FOUND: 'ORDER_NOT_FOUND',
   ORDER_PAYMENT_METHOD_INVALID: 'ORDER_PAYMENT_METHOD_INVALID',
@@ -128,6 +130,22 @@ export function orderBranchNotOperational(): OrderError {
   return new OrderError(
     ORDER_ERROR_CODES.ORDER_BRANCH_NOT_OPERATIONAL,
     'Branch is not operational for Order creation',
+    409,
+  );
+}
+
+export function orderBranchClosed(): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.ORDER_BRANCH_CLOSED,
+    'Branch is closed at the requested time',
+    409,
+  );
+}
+
+export function orderBranchHoursNotConfigured(): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.ORDER_BRANCH_HOURS_NOT_CONFIGURED,
+    'Branch opening hours are not configured',
     409,
   );
 }

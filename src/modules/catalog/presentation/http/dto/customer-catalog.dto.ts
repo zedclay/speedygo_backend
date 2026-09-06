@@ -103,6 +103,65 @@ export class CustomerStorefrontResponseDto {
 
   @ApiProperty()
   merchantPublicReference!: string;
+
+  @ApiProperty({
+    description:
+      'false when no MerchantBranchOpeningSchedule exists; checkout/order reject',
+  })
+  hoursConfigured!: boolean;
+
+  @ApiProperty()
+  isOpenNow!: boolean;
+
+  @ApiProperty({ example: 'Africa/Algiers' })
+  timezone!: string;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description: 'ISO timestamptz when currently open; null when closed',
+  })
+  currentClosesAt!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'ISO timestamptz of next open when closed; null when open/unconfigured',
+  })
+  nextOpenAt!: string | null;
+}
+
+export class CustomerStorefrontOpeningIntervalDto {
+  @ApiProperty({ example: '09:00' })
+  opens!: string;
+
+  @ApiProperty({ example: '17:00' })
+  closes!: string;
+
+  @ApiProperty()
+  opensMinute!: number;
+
+  @ApiProperty()
+  closesMinute!: number;
+
+  @ApiProperty()
+  closesNextDay!: boolean;
+}
+
+export class CustomerStorefrontOpeningDayDto {
+  @ApiProperty({ minimum: 1, maximum: 7 })
+  dayOfWeek!: number;
+
+  @ApiProperty({ type: [CustomerStorefrontOpeningIntervalDto] })
+  intervals!: CustomerStorefrontOpeningIntervalDto[];
+}
+
+export class CustomerStorefrontDetailResponseDto extends CustomerStorefrontResponseDto {
+  @ApiProperty({
+    type: [CustomerStorefrontOpeningDayDto],
+    description:
+      'Public weekly schedule when hoursConfigured; empty days when not configured. No version/actor/interval ids.',
+  })
+  days!: CustomerStorefrontOpeningDayDto[];
 }
 
 export class CustomerStorefrontListResponseDto {
