@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import { MerchantAccessService } from '../../merchants/application/merchant-access.service';
 import { MERCHANT_CAPABILITIES } from '../../merchants/domain/merchant.policy';
 import { FinancialLedgerService } from '../../financial-ledger/application/financial-ledger.service';
@@ -253,7 +254,7 @@ export class MerchantSettlementService {
       input.merchantLiabilityMinor,
       refund.amountMinor,
     );
-    if (liability === 0) {
+    if (liability === 0n) {
       return null;
     }
 
@@ -385,7 +386,7 @@ export class MerchantSettlementService {
 
     const lines = await this.settlements.listLines(input.settlementId, tx);
     const totals = deriveSettlementTotals(lines);
-    if (totals.grossSalesMinor < 0 || totals.commissionMinor < 0) {
+    if (totals.grossSalesMinor < 0n || totals.commissionMinor < 0n) {
       throw merchantSettlementFinancialStateInvalid(
         'Settlement gross/commission totals cannot be negative',
       );
@@ -457,10 +458,12 @@ function toSummaryView(
     periodEnd: row.periodEnd,
     status: row.status,
     currency: SETTLEMENT_CURRENCY_DZD,
-    grossSalesMinor: row.grossSalesMinor,
-    commissionMinor: row.commissionMinor,
-    refundAdjustmentTotalMinor: row.refundAdjustmentsMinor,
-    netPayableMinor: row.netPayableMinor,
+    grossSalesMinor: moneyMinorToDecimalString(row.grossSalesMinor),
+    commissionMinor: moneyMinorToDecimalString(row.commissionMinor),
+    refundAdjustmentTotalMinor: moneyMinorToDecimalString(
+      row.refundAdjustmentsMinor,
+    ),
+    netPayableMinor: moneyMinorToDecimalString(row.netPayableMinor),
     createdAt: row.createdAt,
   };
 }
@@ -476,10 +479,10 @@ function toLineView(
       row.type === SETTLEMENT_LINE_TYPE_REFUND_ADJUSTMENT
         ? row.reference
         : null,
-    grossMerchandiseMinor: row.grossMerchandiseMinor,
-    commissionMinor: row.commissionMinor,
-    merchantNetMinor: row.merchantNetMinor,
-    adjustmentMinor: row.adjustmentMinor,
+    grossMerchandiseMinor: moneyMinorToDecimalString(row.grossMerchandiseMinor),
+    commissionMinor: moneyMinorToDecimalString(row.commissionMinor),
+    merchantNetMinor: moneyMinorToDecimalString(row.merchantNetMinor),
+    adjustmentMinor: moneyMinorToDecimalString(row.adjustmentMinor),
     createdAt: row.createdAt,
   };
 }

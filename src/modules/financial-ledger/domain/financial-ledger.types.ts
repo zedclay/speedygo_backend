@@ -64,7 +64,7 @@ export type FinancialLedgerEntryRecord = {
   driverId: string | null;
   type: string;
   direction: LedgerDirection;
-  amountMinor: number;
+  amountMinor: string;
   currency: string;
   reversalOfId: string | null;
   reference: string;
@@ -90,17 +90,17 @@ export const LEDGER_LIST_MAX_LIMIT = 100;
 export type MerchantLedgerPosition = {
   merchantId: string;
   currency: typeof LEDGER_CURRENCY_DZD;
-  creditMinor: number;
-  debitMinor: number;
+  creditMinor: string;
+  debitMinor: string;
   /** CREDIT − DEBIT for MERCHANT_PAYABLE (positive = SpeedyGo owes Merchant). */
-  netPayableMinor: number;
+  netPayableMinor: string;
 };
 
 export type DriverLedgerPositions = {
   driverId: string;
   currency: typeof LEDGER_CURRENCY_DZD;
   /** CREDIT − DEBIT DRIVER_PAYABLE (outstanding unpaid earnings). */
-  driverPayableMinor: number;
+  driverPayableMinor: string;
   /** DEBIT − CREDIT COD_CUSTODY (cash still held by Driver). */
-  codCustodyMinor: number;
+  codCustodyMinor: string;
 };

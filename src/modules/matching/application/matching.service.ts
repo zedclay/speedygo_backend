@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import { ConfigService } from '@nestjs/config';
 import { DeliveryService } from '../../delivery/application/delivery.service';
 import {
@@ -496,7 +497,9 @@ export class MatchingService {
         assignment.assignedAt,
         this.config.get<number>('matching.offerTimeoutMs', 30_000),
       ),
-      driverRemunerationMinor: context.driverRemunerationMinor,
+      driverRemunerationMinor: moneyMinorToDecimalString(
+        context.driverRemunerationMinor,
+      ),
       pickup: { name: context.pickup.name },
       pickupDistanceMeters: roundDistanceMeters(pickupDistance),
       deliveryDistanceMeters:
@@ -516,7 +519,9 @@ export class MatchingService {
       orderPublicReference: context.publicReference,
       status: assignment.status,
       acceptedAt: assignment.acceptedAt,
-      driverRemunerationMinor: context.driverRemunerationMinor,
+      driverRemunerationMinor: moneyMinorToDecimalString(
+        context.driverRemunerationMinor,
+      ),
       pickup: {
         name: context.pickup.name,
         addressText: context.pickup.addressText,

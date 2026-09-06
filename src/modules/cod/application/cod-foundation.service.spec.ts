@@ -408,9 +408,9 @@ describe('CodFoundationService', () => {
   it('increases outstanding custody by full collected amount', async () => {
     await service.collectCod(ACCOUNT, AMOUNT);
     const summary = await service.getDriverCodSummary(ACCOUNT);
-    expect(summary.outstandingCustodyMinor).toBe(AMOUNT);
-    expect(summary.collectedAmountMinor).toBe(AMOUNT);
-    expect(summary.confirmedAllocatedMinor).toBe(0);
+    expect(summary.outstandingCustodyMinor).toBe(String(AMOUNT));
+    expect(summary.collectedAmountMinor).toBe(String(AMOUNT));
+    expect(summary.confirmedAllocatedMinor).toBe('0');
   });
 
   it('rejects remittance declare <= 0 or above custody', async () => {
@@ -432,7 +432,7 @@ describe('CodFoundationService', () => {
     const declared = await service.submitCodRemittance(ACCOUNT, 500);
     expect(declared.status).toBe(COD_REMITTANCE_STATUS_DECLARED);
     const summary = await service.getDriverCodSummary(ACCOUNT);
-    expect(summary.outstandingCustodyMinor).toBe(AMOUNT);
+    expect(summary.outstandingCustodyMinor).toBe(String(AMOUNT));
     expect(summary.openDeclaredCount).toBe(1);
     await expect(
       service.submitCodRemittance(ACCOUNT, 100),
@@ -453,7 +453,7 @@ describe('CodFoundationService', () => {
     expect(allocations[0].allocatedAmountMinor).toBe(500);
     expect(discrepancies).toHaveLength(0);
     const summary = await service.getDriverCodSummary(ACCOUNT);
-    expect(summary.outstandingCustodyMinor).toBe(AMOUNT - 500);
+    expect(summary.outstandingCustodyMinor).toBe(String(AMOUNT - 500));
   });
 
   it('records discrepancy when confirmed differs from declared', async () => {
@@ -465,7 +465,7 @@ describe('CodFoundationService', () => {
     );
     expect(discrepancies).toHaveLength(1);
     const summary = await service.getDriverCodSummary(ACCOUNT);
-    expect(summary.outstandingCustodyMinor).toBe(AMOUNT - 800);
+    expect(summary.outstandingCustodyMinor).toBe(String(AMOUNT - 800));
   });
 
   it('allows confirmed over declaration within custody and records discrepancy', async () => {
@@ -578,7 +578,7 @@ describe('CodFoundationService', () => {
     expect(rejected).toHaveLength(1);
     expect(remittances).toHaveLength(1);
     const summary = await service.getDriverCodSummary(ACCOUNT);
-    expect(summary.outstandingCustodyMinor).toBe(AMOUNT);
+    expect(summary.outstandingCustodyMinor).toBe(String(AMOUNT));
   });
 
   it('rejects foreign Driver ownership on collection reuse', async () => {

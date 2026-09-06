@@ -21,14 +21,14 @@ type CategoryBody = { id: string; name: string; branchId: string };
 type ProductBody = {
   id: string;
   name: string;
-  priceMinor: number;
+  priceMinor: string;
   available: boolean;
   optionGroups: Array<{ id: string }>;
 };
 type OptionGroupBody = { id: string; name: string };
 type OptionBody = {
   id: string;
-  additionalPriceMinor: number;
+  additionalPriceMinor: string;
   available: boolean;
 };
 type MeBody = {
@@ -245,7 +245,7 @@ describe('Catalog foundation (e2e)', () => {
         });
       expect(product.status).toBe(201);
       const productBody = product.body as ProductBody;
-      expect(productBody.priceMinor).toBe(1099);
+      expect(productBody.priceMinor).toBe('1099');
       expect(productBody.available).toBe(true);
 
       const floatPrice = await request(server)
@@ -314,7 +314,7 @@ describe('Catalog foundation (e2e)', () => {
           priceMinor: 0,
         });
       expect(freeItem.status).toBe(201);
-      expect((freeItem.body as ProductBody).priceMinor).toBe(0);
+      expect((freeItem.body as ProductBody).priceMinor).toBe('0');
 
       const negativePrice = await request(server)
         .post(`/api/v1/merchant/${merchantId}/products`)
@@ -488,7 +488,9 @@ describe('Catalog foundation (e2e)', () => {
         .set('Authorization', `Bearer ${tokenA}`)
         .send({ additionalPriceMinor: 300 });
       expect(patchedOption.status).toBe(200);
-      expect((patchedOption.body as OptionBody).additionalPriceMinor).toBe(300);
+      expect((patchedOption.body as OptionBody).additionalPriceMinor).toBe(
+        '300',
+      );
 
       const merchantB = await request(server)
         .post('/api/v1/merchant/profile')

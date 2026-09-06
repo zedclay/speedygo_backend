@@ -6,6 +6,10 @@ import {
   ApiProperty,
   ApiTags,
 } from '@nestjs/swagger';
+import {
+  MONEY_MINOR_DECIMAL_STRING_PATTERN,
+  MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+} from '../../../../common/money/money-minor';
 import type { AuthenticatedPrincipal } from '../../../auth/domain/auth.types';
 import { CurrentPrincipal } from '../../../auth/presentation/http/decorators/current-principal.decorator';
 import { MerchantSettlementService } from '../../application/merchant-settlement.service';
@@ -23,20 +27,31 @@ export class MerchantSettlementLineResponseDto {
   @ApiProperty({ nullable: true, type: String })
   refundId!: string | null;
 
-  @ApiProperty()
-  grossMerchandiseMinor!: number;
-
-  @ApiProperty()
-  commissionMinor!: number;
-
-  @ApiProperty()
-  merchantNetMinor!: number;
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+  })
+  grossMerchandiseMinor!: string;
 
   @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+  })
+  commissionMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+  })
+  merchantNetMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_DECIMAL_STRING_PATTERN,
     description:
       'Signed. REFUND_ADJUSTMENT uses negative adjustmentMinor (= -merchantLiability).',
   })
-  adjustmentMinor!: number;
+  adjustmentMinor!: string;
 
   @ApiProperty()
   createdAt!: string;
@@ -61,22 +76,32 @@ export class MerchantSettlementSummaryResponseDto {
   @ApiProperty({ example: 'DZD' })
   currency!: string;
 
-  @ApiProperty()
-  grossSalesMinor!: number;
-
-  @ApiProperty()
-  commissionMinor!: number;
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+  })
+  grossSalesMinor!: string;
 
   @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+  })
+  commissionMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_DECIMAL_STRING_PATTERN,
     description: 'Signed sum of REFUND_ADJUSTMENT.adjustmentMinor values',
   })
-  refundAdjustmentTotalMinor!: number;
+  refundAdjustmentTotalMinor!: string;
 
   @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_DECIMAL_STRING_PATTERN,
     description:
       'Signed net Merchant payable for this batch (may be negative — Merchant owes platform)',
   })
-  netPayableMinor!: number;
+  netPayableMinor!: string;
 
   @ApiProperty()
   createdAt!: string;

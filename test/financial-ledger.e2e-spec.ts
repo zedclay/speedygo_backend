@@ -9,15 +9,19 @@ import { configureApp } from '../src/app.setup';
 import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
 import { deactivateOpenGlobalCommissionDefaults } from './helpers/sanitize-commission-globals';
 import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
+import { MONEY_MINOR_ABOVE_SAFE_INTEGER } from '../src/common/money/money-minor';
 import { createUuidV7 } from '../src/common/utils/uuid-v7';
 import { RedisService } from '../src/infrastructure/cache/redis.service';
 import { PrismaService } from '../src/infrastructure/database/database.module';
 import {
   pgBigInt,
+  pgChar,
   pgNow,
   pgTimestamptz,
   pgVarchar,
 } from '../src/infrastructure/database/pg-values';
+import { ADMIN_PERMISSIONS } from '../src/modules/admin/domain/admin-permissions';
+import { PermissionService } from '../src/modules/authorization/permission.service';
 import { OTP_SENDER } from '../src/modules/auth/domain/ports/otp-sender.port';
 import { TestOtpSender } from '../src/modules/auth/infrastructure/otp/test-otp.sender';
 import { CodFoundationService } from '../src/modules/cod/application/cod-foundation.service';
@@ -37,9 +41,9 @@ import { REFUND_METHOD_MANUAL_OTHER } from '../src/modules/refunds/domain/refund
 type TokenBody = { accessToken: string };
 type AuthMeBody = { account: { id: string; phone: string } };
 type PreviewBody = {
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
 };
 
 const INSIDE: [number, number] = [36.75, 3.05];
@@ -73,6 +77,7 @@ describe('Financial Ledger Foundation (e2e)', () => {
   let settlements: MerchantSettlementService;
   let ledger: FinancialLedgerService;
   let cod: CodFoundationService;
+  let permissions: PermissionService;
 
   beforeAll(async () => {
     const moduleRef = await Test.createTestingModule({
@@ -94,6 +99,7 @@ describe('Financial Ledger Foundation (e2e)', () => {
     settlements = app.get(MerchantSettlementService);
     ledger = app.get(FinancialLedgerService);
     cod = app.get(CodFoundationService);
+    permissions = app.get(PermissionService);
 
     await queue.obliterate({ force: true });
     for (const pattern of [
@@ -649,12 +655,15 @@ describe('Financial Ledger Foundation (e2e)', () => {
       .send({
         addressId: fixture.addressId,
         paymentMethod,
-        expectedMerchandiseSubtotalMinor: (preview.body as PreviewBody)
-          .merchandiseSubtotalMinor,
-        expectedDeliveryFeeMinor: (preview.body as PreviewBody)
-          .deliveryFeeMinor,
-        expectedCustomerTotalMinor: (preview.body as PreviewBody)
-          .customerTotalMinor,
+        expectedMerchandiseSubtotalMinor: Number(
+          (preview.body as PreviewBody).merchandiseSubtotalMinor,
+        ),
+        expectedDeliveryFeeMinor: Number(
+          (preview.body as PreviewBody).deliveryFeeMinor,
+        ),
+        expectedCustomerTotalMinor: Number(
+          (preview.body as PreviewBody).customerTotalMinor,
+        ),
       });
     expect(created.status).toBe(201);
     const orderId = (created.body as { id: string }).id;
@@ -764,12 +773,12 @@ describe('Financial Ledger Foundation (e2e)', () => {
       expect(paymentEntries[0]?.direction).toBe('DEBIT');
 
       const positions = await ledger.getDriverPositions(fixture.driverId);
-      expect(positions.driverPayableMinor).toBe(300);
-      expect(positions.codCustodyMinor).toBe(0);
+      expect(positions.driverPayableMinor).toBe('300');
+      expect(positions.codCustodyMinor).toBe('0');
 
       const merchantPos = await ledger.getMerchantPosition(fixture.merchantId);
       expect(merchantPos.netPayableMinor).toBe(
-        Number(snapshot!.merchantNetAmountMinor),
+        String(Number(snapshot!.merchantNetAmountMinor)),
       );
       expect(finalized.paidAt).toBeNull();
 
@@ -818,8 +827,8 @@ describe('Financial Ledger Foundation (e2e)', () => {
       expect(completed.status).toBe(200);
 
       let positions = await ledger.getDriverPositions(fixture.driverId);
-      expect(positions.codCustodyMinor).toBe(Number(payment!.amountMinor));
-      expect(positions.driverPayableMinor).toBe(300);
+      expect(positions.codCustodyMinor).toBe(payment!.amountMinor.toString());
+      expect(positions.driverPayableMinor).toBe('300');
 
       const remittance = await request(server)
         .post('/api/v1/driver/cod/remittances')
@@ -833,9 +842,9 @@ describe('Financial Ledger Foundation (e2e)', () => {
 
       positions = await ledger.getDriverPositions(fixture.driverId);
       expect(positions.codCustodyMinor).toBe(
-        Number(payment!.amountMinor) - 500,
+        String(Number(payment!.amountMinor) - 500),
       );
-      expect(positions.driverPayableMinor).toBe(300);
+      expect(positions.driverPayableMinor).toBe('300');
 
       const customerPaymentLegs = await prisma
         .getDb()
@@ -955,9 +964,9 @@ describe('Financial Ledger Foundation (e2e)', () => {
         .all();
       expect(settlementEntries).toHaveLength(1);
       expect(Number(settlementEntries[0]?.amountMinor)).toBe(
-        Math.abs(finalized.netPayableMinor),
+        Math.abs(Number(finalized.netPayableMinor)),
       );
-      expect(finalized.refundAdjustmentsMinor).toBe(-2500);
+      expect(finalized.refundAdjustmentsMinor).toBe(-2500n);
       await ledger.reconcileUnposted(50);
       const refundAfter = await prisma
         .getDb()
@@ -997,7 +1006,7 @@ describe('Financial Ledger Foundation (e2e)', () => {
         netPayableMinor: 8000,
       });
       const position = await ledger.getMerchantPosition(fixture.merchantId);
-      expect(position.netPayableMinor).toBe(6000);
+      expect(position.netPayableMinor).toBe('6000');
 
       const zeroSettlementId = createUuidV7();
       const zeroEarningId = createUuidV7();
@@ -1017,12 +1026,12 @@ describe('Financial Ledger Foundation (e2e)', () => {
         `MERCHANT_SETTLEMENT:${zeroSettlementId}`,
       );
       expect(zeroSettlement?.direction).toBe('CREDIT');
-      expect(zeroSettlement?.amountMinor).toBe(0);
+      expect(zeroSettlement?.amountMinor).toBe('0');
       const zeroEarning = await ledger.getBySourceReference(
         `DRIVER_EARNING:${zeroEarningId}`,
       );
       expect(zeroEarning?.direction).toBe('CREDIT');
-      expect(zeroEarning?.amountMinor).toBe(0);
+      expect(zeroEarning?.amountMinor).toBe('0');
 
       await ledger.postMerchantSettlementFinalized({
         settlementId: zeroSettlementId,
@@ -1069,6 +1078,105 @@ describe('Financial Ledger Foundation (e2e)', () => {
       expect(positiveRefs[0]?.direction).toBe('CREDIT');
     } finally {
       if (fixture) await cleanupFixture(fixture);
+    }
+  });
+
+  it('returns above-safe-integer amountMinor as exact decimal string via admin ledger list', async () => {
+    const suffix = (Date.now() + 4).toString().slice(-6);
+    const phone = `0599${suffix}`;
+    let accountId: string | undefined;
+    let roleId: string | undefined;
+    let adminId: string | undefined;
+    let entryId: string | undefined;
+    const reference = `PAYMENT:${createUuidV7()}`;
+    try {
+      const token = await authenticate(phone);
+      const account = await authMe(token);
+      accountId = account.id;
+      const now = pgNow();
+      roleId = createUuidV7();
+      await prisma.getDb().orm.public.Role.create({
+        id: roleId,
+        name: pgVarchar<128>(`ledger-precision-${suffix}`),
+        description: null,
+        active: true,
+      });
+      const permissionCode = ADMIN_PERMISSIONS.LEDGER_READ;
+      const existing = await prisma
+        .getDb()
+        .orm.public.Permission.where({ code: pgVarchar<128>(permissionCode) })
+        .first();
+      const permissionId = existing?.id ?? createUuidV7();
+      if (!existing) {
+        await prisma.getDb().orm.public.Permission.create({
+          id: permissionId,
+          code: pgVarchar<128>(permissionCode),
+          description: null,
+        });
+      }
+      await prisma.getDb().orm.public.RolePermission.create({
+        roleId,
+        permissionId,
+      });
+      adminId = createUuidV7();
+      await prisma.getDb().orm.public.AdminProfile.create({
+        id: adminId,
+        accountId,
+        roleId,
+        displayName: pgVarchar<255>('Ledger Precision Admin'),
+        twoFactorEnabled: false,
+        createdAt: now,
+        updatedAt: now,
+      });
+      await permissions.invalidate(accountId);
+
+      entryId = createUuidV7();
+      await prisma.getDb().orm.public.FinancialLedgerEntry.create({
+        id: entryId,
+        orderId: null,
+        merchantId: null,
+        driverId: null,
+        type: pgVarchar<64>('CUSTOMER_PAYMENT'),
+        direction: 'DEBIT',
+        amountMinor: pgBigInt(MONEY_MINOR_ABOVE_SAFE_INTEGER),
+        currency: pgChar<3>('DZD'),
+        reversalOfId: null,
+        reference: pgVarchar<128>(reference),
+        createdAt: now,
+      });
+
+      const listed = await request(app.getHttpServer())
+        .get('/api/v1/admin/ledger')
+        .query({ reference })
+        .set('Authorization', `Bearer ${token}`);
+      expect(listed.status).toBe(200);
+      const body = listed.body as {
+        items: Array<{ id: string; amountMinor: string; reference: string }>;
+      };
+      expect(body.items).toHaveLength(1);
+      expect(body.items[0]?.id).toBe(entryId);
+      expect(body.items[0]?.amountMinor).toBe(MONEY_MINOR_ABOVE_SAFE_INTEGER);
+      expect(body.items[0]?.reference).toBe(reference);
+    } finally {
+      const db = prisma.getDb().orm.public;
+      if (entryId) {
+        await db.FinancialLedgerEntry.where({ id: entryId }).delete();
+      }
+      if (adminId) {
+        await db.AdminProfile.where({ id: adminId }).delete();
+      }
+      if (roleId) {
+        for (const rp of await db.RolePermission.where({ roleId }).all()) {
+          await db.RolePermission.where({
+            roleId: rp.roleId,
+            permissionId: rp.permissionId,
+          }).delete();
+        }
+        await db.Role.where({ id: roleId }).delete();
+      }
+      if (accountId) {
+        await cleanupByPhone(phone);
+      }
     }
   });
 });

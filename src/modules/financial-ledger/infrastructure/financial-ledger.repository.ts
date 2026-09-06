@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import { createUuidV7 } from '../../../common/utils/uuid-v7';
 import {
   PrismaService,
@@ -98,7 +99,9 @@ function toEntry(row: {
     driverId: row.driverId,
     type: row.type,
     direction: row.direction,
-    amountMinor: Number(row.amountMinor),
+    amountMinor: moneyMinorToDecimalString(
+      row.amountMinor as bigint | number | string,
+    ),
     currency: row.currency,
     reversalOfId: row.reversalOfId,
     reference: row.reference,
@@ -168,7 +171,7 @@ export class FinancialLedgerRepository {
       driverId: string | null;
       type: string;
       direction: LedgerDirection;
-      amountMinor: number;
+      amountMinor: number | bigint;
       currency: string;
       reference: string;
     },
@@ -242,7 +245,7 @@ export class FinancialLedgerRepository {
     type: string,
     direction: LedgerDirection,
     client?: OrmClient,
-  ): Promise<number> {
+  ): Promise<bigint> {
     const rows = await orm(this.asClient(client))
       .FinancialLedgerEntry.where({
         merchantId,
@@ -250,7 +253,10 @@ export class FinancialLedgerRepository {
         direction,
       })
       .all();
-    return rows.reduce((sum, row) => sum + Number(row.amountMinor), 0);
+    return rows.reduce(
+      (sum, row) => sum + BigInt(row.amountMinor as bigint | number | string),
+      0n,
+    );
   }
 
   async sumDirectionForDriver(
@@ -258,7 +264,7 @@ export class FinancialLedgerRepository {
     type: string,
     direction: LedgerDirection,
     client?: OrmClient,
-  ): Promise<number> {
+  ): Promise<bigint> {
     const rows = await orm(this.asClient(client))
       .FinancialLedgerEntry.where({
         driverId,
@@ -266,14 +272,17 @@ export class FinancialLedgerRepository {
         direction,
       })
       .all();
-    return rows.reduce((sum, row) => sum + Number(row.amountMinor), 0);
+    return rows.reduce(
+      (sum, row) => sum + BigInt(row.amountMinor as bigint | number | string),
+      0n,
+    );
   }
 
   async findUnpostedElectronicPayments(limit: number): Promise<
     Array<{
       paymentId: string;
       orderId: string;
-      amountMinor: number;
+      amountMinor: bigint;
       currency: string;
     }>
   > {
@@ -310,7 +319,7 @@ export class FinancialLedgerRepository {
     return rows.map((row) => ({
       paymentId: row.payment_id,
       orderId: row.order_id,
-      amountMinor: Number(row.amount_minor),
+      amountMinor: BigInt(row.amount_minor),
       currency: String(row.currency),
     }));
   }
@@ -320,7 +329,7 @@ export class FinancialLedgerRepository {
       collectionId: string;
       orderId: string;
       driverId: string;
-      amountMinor: number;
+      amountMinor: bigint;
     }>
   > {
     const referencePrefix = ledgerReferencePrefix(LEDGER_SOURCE_COD_COLLECTION);
@@ -355,7 +364,7 @@ export class FinancialLedgerRepository {
       collectionId: row.collection_id,
       orderId: row.order_id,
       driverId: row.driver_id,
-      amountMinor: Number(row.collected_amount_minor),
+      amountMinor: BigInt(row.collected_amount_minor),
     }));
   }
 
@@ -363,7 +372,7 @@ export class FinancialLedgerRepository {
     Array<{
       remittanceId: string;
       driverId: string;
-      amountMinor: number;
+      amountMinor: bigint;
     }>
   > {
     const referencePrefix = ledgerReferencePrefix(LEDGER_SOURCE_COD_REMITTANCE);
@@ -395,7 +404,7 @@ export class FinancialLedgerRepository {
     return rows.map((row) => ({
       remittanceId: row.remittance_id,
       driverId: row.driver_id,
-      amountMinor: Number(row.confirmed_amount_minor),
+      amountMinor: BigInt(row.confirmed_amount_minor),
     }));
   }
 
@@ -405,7 +414,7 @@ export class FinancialLedgerRepository {
       deliveryId: string;
       driverId: string;
       orderId: string;
-      amountMinor: number;
+      amountMinor: bigint;
     }>
   > {
     const referencePrefix = ledgerReferencePrefix(LEDGER_SOURCE_DRIVER_EARNING);
@@ -444,7 +453,7 @@ export class FinancialLedgerRepository {
       deliveryId: row.delivery_id,
       driverId: row.driver_id,
       orderId: row.order_id,
-      amountMinor: Number(row.net_earning_minor),
+      amountMinor: BigInt(row.net_earning_minor),
     }));
   }
 
@@ -452,7 +461,7 @@ export class FinancialLedgerRepository {
     Array<{
       refundId: string;
       orderId: string;
-      amountMinor: number;
+      amountMinor: bigint;
     }>
   > {
     const referencePrefix = ledgerReferencePrefix(LEDGER_SOURCE_REFUND);
@@ -484,7 +493,7 @@ export class FinancialLedgerRepository {
     return rows.map((row) => ({
       refundId: row.refund_id,
       orderId: row.order_id,
-      amountMinor: Number(row.amount_minor),
+      amountMinor: BigInt(row.amount_minor),
     }));
   }
 
@@ -492,7 +501,7 @@ export class FinancialLedgerRepository {
     Array<{
       settlementId: string;
       merchantId: string;
-      netPayableMinor: number;
+      netPayableMinor: bigint;
     }>
   > {
     const referencePrefix = ledgerReferencePrefix(
@@ -526,7 +535,7 @@ export class FinancialLedgerRepository {
     return rows.map((row) => ({
       settlementId: row.settlement_id,
       merchantId: row.merchant_id,
-      netPayableMinor: Number(row.net_payable_minor),
+      netPayableMinor: BigInt(row.net_payable_minor),
     }));
   }
 

@@ -37,14 +37,14 @@ type OptionGroupBody = { id: string };
 type OptionBody = { id: string };
 type AddressBody = { id: string };
 type PreviewBody = {
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
 };
 type PaymentBody = {
   paymentId: string;
   status: string;
-  amountMinor: number;
+  amountMinor: string;
   checkoutUrl?: string | null;
   attemptId?: string;
 };
@@ -622,14 +622,16 @@ describe('Payments Chargily Pay V2 adapter (e2e)', () => {
           .send({
             addressId: homeId,
             paymentMethod,
-            expectedMerchandiseSubtotalMinor: preview.merchandiseSubtotalMinor,
-            expectedDeliveryFeeMinor: preview.deliveryFeeMinor,
-            expectedCustomerTotalMinor: preview.customerTotalMinor,
+            expectedMerchandiseSubtotalMinor: Number(
+              preview.merchandiseSubtotalMinor,
+            ),
+            expectedDeliveryFeeMinor: Number(preview.deliveryFeeMinor),
+            expectedCustomerTotalMinor: Number(preview.customerTotalMinor),
           });
         expect(created.status).toBe(201);
         return {
           orderId: (created.body as { id: string }).id,
-          amountMinor: preview.customerTotalMinor,
+          amountMinor: Number(preview.customerTotalMinor),
         };
       }
 
@@ -645,7 +647,7 @@ describe('Payments Chargily Pay V2 adapter (e2e)', () => {
         /^https:\/\/pay\.chargily\.net\/test\/checkouts\/chk_/,
       );
       expect(fakeHttp.lastCreateBody).toMatchObject({
-        amount: electronic.amountMinor,
+        amount: Number(electronic.amountMinor),
         currency: 'dzd',
         chargily_pay_fees_allocation: 'merchant',
       });

@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN } from '../../../../../common/money/money-minor';
 
 export class AssignmentOfferPickupDto {
   @ApiProperty({ description: 'Safe Merchant display name. No phone.' })
@@ -27,9 +28,12 @@ export class AssignmentOfferResponseDto {
   expiresAt!: string;
 
   @ApiProperty({
+    type: String,
     description: 'Frozen OrderFinancialSnapshot.driverRemunerationMinor',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '300',
   })
-  driverRemunerationMinor!: number;
+  driverRemunerationMinor!: string;
 
   @ApiProperty({ type: AssignmentOfferPickupDto })
   pickup!: AssignmentOfferPickupDto;
@@ -87,8 +91,13 @@ export class AcceptedAssignmentResponseDto {
   @ApiProperty({ nullable: true, type: String })
   acceptedAt!: string | null;
 
-  @ApiProperty()
-  driverRemunerationMinor!: number;
+  @ApiProperty({
+    type: String,
+    description: 'Frozen OrderFinancialSnapshot.driverRemunerationMinor',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '300',
+  })
+  driverRemunerationMinor!: string;
 
   @ApiProperty({ type: AcceptedAssignmentPickupDto })
   pickup!: AcceptedAssignmentPickupDto;

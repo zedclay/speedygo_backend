@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { parseMoneyMinorDecimalString } from '../../../common/money/money-minor';
 import { createUuidV7 } from '../../../common/utils/uuid-v7';
 import {
   PrismaService,
@@ -64,10 +65,10 @@ export class DriverEarningRepository {
     input: {
       deliveryId: string;
       driverId: string;
-      baseRemunerationMinor: number;
-      bonusMinor: number;
-      adjustmentMinor: number;
-      netEarningMinor: number;
+      baseRemunerationMinor: number | bigint;
+      bonusMinor: number | bigint;
+      adjustmentMinor: number | bigint;
+      netEarningMinor: number | bigint;
       validatedAt: string;
     },
     client?: OrmClient,
@@ -96,8 +97,8 @@ export class DriverEarningRepository {
   }
 
   async aggregateDriverEarnings(driverId: string): Promise<{
-    totalEarnedMinor: number;
-    unpaidEarnedMinor: number;
+    totalEarnedMinor: bigint;
+    unpaidEarnedMinor: bigint;
     earningCount: number;
   }> {
     const plan = this.db().raw.sql`
@@ -128,14 +129,14 @@ export class DriverEarningRepository {
     const row = rows[0];
     if (!row) {
       return {
-        totalEarnedMinor: 0,
-        unpaidEarnedMinor: 0,
+        totalEarnedMinor: 0n,
+        unpaidEarnedMinor: 0n,
         earningCount: 0,
       };
     }
     return {
-      totalEarnedMinor: Number(row.total_earned_minor),
-      unpaidEarnedMinor: Number(row.unpaid_earned_minor),
+      totalEarnedMinor: parseMoneyMinorDecimalString(row.total_earned_minor),
+      unpaidEarnedMinor: parseMoneyMinorDecimalString(row.unpaid_earned_minor),
       earningCount: Number(row.earning_count),
     };
   }
@@ -189,10 +190,14 @@ export class DriverEarningRepository {
         id: String(row.id),
         deliveryId: String(row.delivery_id),
         driverId: String(row.driver_id),
-        baseRemunerationMinor: Number(row.base_remuneration_minor),
-        bonusMinor: Number(row.bonus_minor),
-        adjustmentMinor: Number(row.adjustment_minor),
-        netEarningMinor: Number(row.net_earning_minor),
+        baseRemunerationMinor: parseMoneyMinorDecimalString(
+          row.base_remuneration_minor,
+        ),
+        bonusMinor: parseMoneyMinorDecimalString(row.bonus_minor),
+        adjustmentMinor: parseMoneyMinorDecimalString(row.adjustment_minor, {
+          allowNegative: true,
+        }),
+        netEarningMinor: parseMoneyMinorDecimalString(row.net_earning_minor),
         status: String(row.status),
         validatedAt: row.validated_at ? String(row.validated_at) : null,
         createdAt: String(row.created_at),
@@ -234,10 +239,14 @@ function toRecord(row: {
     id: row.id,
     deliveryId: row.deliveryId,
     driverId: row.driverId,
-    baseRemunerationMinor: parseMinorUnits(row.baseRemunerationMinor),
-    bonusMinor: parseMinorUnits(row.bonusMinor),
-    adjustmentMinor: parseMinorUnits(row.adjustmentMinor),
-    netEarningMinor: parseMinorUnits(row.netEarningMinor),
+    baseRemunerationMinor: parseMoneyMinorDecimalString(
+      row.baseRemunerationMinor,
+    ),
+    bonusMinor: parseMoneyMinorDecimalString(row.bonusMinor),
+    adjustmentMinor: parseMoneyMinorDecimalString(row.adjustmentMinor, {
+      allowNegative: true,
+    }),
+    netEarningMinor: parseMoneyMinorDecimalString(row.netEarningMinor),
     status: row.status,
     validatedAt: row.validatedAt,
     createdAt: row.createdAt,

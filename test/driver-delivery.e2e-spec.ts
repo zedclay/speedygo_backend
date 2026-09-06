@@ -41,9 +41,9 @@ type OptionGroupBody = { id: string };
 type OptionBody = { id: string };
 type AddressBody = { id: string };
 type PreviewBody = {
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
 };
 type DriverDeliveryBody = {
   assignmentId: string;
@@ -765,12 +765,15 @@ describe('Driver Delivery Workflow (e2e)', () => {
           .send({
             addressId: homeId,
             paymentMethod,
-            expectedMerchandiseSubtotalMinor: (preview.body as PreviewBody)
-              .merchandiseSubtotalMinor,
-            expectedDeliveryFeeMinor: (preview.body as PreviewBody)
-              .deliveryFeeMinor,
-            expectedCustomerTotalMinor: (preview.body as PreviewBody)
-              .customerTotalMinor,
+            expectedMerchandiseSubtotalMinor: Number(
+              (preview.body as PreviewBody).merchandiseSubtotalMinor,
+            ),
+            expectedDeliveryFeeMinor: Number(
+              (preview.body as PreviewBody).deliveryFeeMinor,
+            ),
+            expectedCustomerTotalMinor: Number(
+              (preview.body as PreviewBody).customerTotalMinor,
+            ),
           });
         expect(created.status).toBe(201);
         const orderId = (created.body as { id: string }).id;
@@ -1151,9 +1154,9 @@ describe('Driver Delivery Workflow (e2e)', () => {
         .set('Authorization', `Bearer ${tokenA}`);
       expect(summary.status).toBe(200);
       expect(
-        (summary.body as { outstandingCustodyMinor: number })
+        (summary.body as { outstandingCustodyMinor: string })
           .outstandingCustodyMinor,
-      ).toBe(collectedMinor);
+      ).toBe(String(collectedMinor));
       const declared = await request(server)
         .post('/api/v1/driver/cod/remittances')
         .set('Authorization', `Bearer ${tokenA}`)
@@ -1164,9 +1167,9 @@ describe('Driver Delivery Workflow (e2e)', () => {
         .get('/api/v1/driver/cod/summary')
         .set('Authorization', `Bearer ${tokenA}`);
       expect(
-        (afterDeclare.body as { outstandingCustodyMinor: number })
+        (afterDeclare.body as { outstandingCustodyMinor: string })
           .outstandingCustodyMinor,
-      ).toBe(collectedMinor);
+      ).toBe(String(collectedMinor));
       const confirmed = await cod.confirmCodRemittance(
         (declared.body as { remittanceId: string }).remittanceId,
         400,
@@ -1187,9 +1190,9 @@ describe('Driver Delivery Workflow (e2e)', () => {
         .get('/api/v1/driver/cod/summary')
         .set('Authorization', `Bearer ${tokenA}`);
       expect(
-        (afterConfirm.body as { outstandingCustodyMinor: number })
+        (afterConfirm.body as { outstandingCustodyMinor: string })
           .outstandingCustodyMinor,
-      ).toBe(collectedMinor - 400);
+      ).toBe(String(collectedMinor - 400));
       expect(
         (
           await prisma
@@ -1438,12 +1441,15 @@ describe('Driver Delivery Workflow (e2e)', () => {
           .send({
             addressId: homeId,
             paymentMethod: 'ELECTRONIC',
-            expectedMerchandiseSubtotalMinor: (preview.body as PreviewBody)
-              .merchandiseSubtotalMinor,
-            expectedDeliveryFeeMinor: (preview.body as PreviewBody)
-              .deliveryFeeMinor,
-            expectedCustomerTotalMinor: (preview.body as PreviewBody)
-              .customerTotalMinor,
+            expectedMerchandiseSubtotalMinor: Number(
+              (preview.body as PreviewBody).merchandiseSubtotalMinor,
+            ),
+            expectedDeliveryFeeMinor: Number(
+              (preview.body as PreviewBody).deliveryFeeMinor,
+            ),
+            expectedCustomerTotalMinor: Number(
+              (preview.body as PreviewBody).customerTotalMinor,
+            ),
           });
         expect(created.status).toBe(201);
         const orderId = (created.body as { id: string }).id;

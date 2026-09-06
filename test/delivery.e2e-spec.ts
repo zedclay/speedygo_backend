@@ -31,9 +31,9 @@ type OptionGroupBody = { id: string };
 type OptionBody = { id: string };
 type AddressBody = { id: string };
 type PreviewBody = {
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
 };
 type DeliveryBody = {
   id: string;
@@ -599,9 +599,11 @@ describe('Delivery foundation (e2e)', () => {
           .send({
             addressId: homeId,
             paymentMethod,
-            expectedMerchandiseSubtotalMinor: preview.merchandiseSubtotalMinor,
-            expectedDeliveryFeeMinor: preview.deliveryFeeMinor,
-            expectedCustomerTotalMinor: preview.customerTotalMinor,
+            expectedMerchandiseSubtotalMinor: Number(
+              preview.merchandiseSubtotalMinor,
+            ),
+            expectedDeliveryFeeMinor: Number(preview.deliveryFeeMinor),
+            expectedCustomerTotalMinor: Number(preview.customerTotalMinor),
           });
         expect(created.status).toBe(201);
         return (created.body as { id: string }).id;
@@ -743,7 +745,7 @@ describe('Delivery foundation (e2e)', () => {
       );
       expect(customerBody.pickup).not.toHaveProperty('phone');
       expect(customerBody).not.toHaveProperty('driverRemunerationMinor');
-      expect(customerBody.deliveryFeeMinor).toBe(500);
+      expect(customerBody.deliveryFeeMinor).toBe('500');
 
       const merchantRead = await request(server)
         .get(`/api/v1/merchant/${merchantId}/orders/${orderId}/delivery`)

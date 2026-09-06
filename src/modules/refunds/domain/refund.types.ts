@@ -87,7 +87,7 @@ export type RefundCapacitySummary = {
 
 export type CustomerRefundView = {
   refundId: string;
-  amountMinor: number;
+  amountMinor: string;
   currency: string;
   status: RefundStatus;
   method: RefundMethod;
@@ -98,10 +98,10 @@ export type CustomerRefundView = {
 
 export type CustomerOrderRefundsView = {
   orderId: string;
-  originalPaidMinor: number;
-  reservedRefundMinor: number;
-  successfulRefundMinor: number;
-  remainingRefundableMinor: number;
+  originalPaidMinor: string;
+  reservedRefundMinor: string;
+  successfulRefundMinor: string;
+  remainingRefundableMinor: string;
   currency: string;
   refunds: CustomerRefundView[];
 };

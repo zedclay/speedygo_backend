@@ -14,10 +14,10 @@ export type DriverEarningRecord = {
   id: string;
   deliveryId: string;
   driverId: string;
-  baseRemunerationMinor: number;
-  bonusMinor: number;
-  adjustmentMinor: number;
-  netEarningMinor: number;
+  baseRemunerationMinor: bigint;
+  bonusMinor: bigint;
+  adjustmentMinor: bigint;
+  netEarningMinor: bigint;
   status: string;
   validatedAt: string | null;
   createdAt: string;
@@ -28,7 +28,7 @@ export type DriverEarningListItemView = {
   earningId: string;
   deliveryId: string;
   orderId: string;
-  amountMinor: number;
+  amountMinor: string;
   currency: typeof DRIVER_EARNING_CURRENCY_DZD;
   status: string;
   earnedAt: string;
@@ -42,8 +42,8 @@ export type DriverEarningListView = {
 };
 
 export type DriverEarningSummaryView = {
-  totalEarnedMinor: number;
-  unpaidEarnedMinor: number;
+  totalEarnedMinor: string;
+  unpaidEarnedMinor: string;
   earningCount: number;
   currency: typeof DRIVER_EARNING_CURRENCY_DZD;
 };

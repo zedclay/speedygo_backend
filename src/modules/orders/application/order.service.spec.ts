@@ -8,6 +8,7 @@ import type {
 } from '../../cart/domain/cart.types';
 import { OrderService } from './order.service';
 import { ORDER_ERROR_CODES } from '../domain/order.errors';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import type {
   OrderAddressRecord,
   OrderDetailView,
@@ -175,19 +176,29 @@ describe('OrderService.createOrder', () => {
       merchantBranchId: payload.merchantBranchId,
       financial: {
         currency: payload.financial.currency,
-        merchandiseSubtotalMinor:
+        merchandiseSubtotalMinor: moneyMinorToDecimalString(
           payload.financial.grossMerchandiseSubtotalMinor,
-        deliveryFeeMinor: payload.financial.customerDeliveryFeeMinor,
-        customerTotalMinor: payload.financial.customerPayableMinor,
+        ),
+        deliveryFeeMinor: moneyMinorToDecimalString(
+          payload.financial.customerDeliveryFeeMinor,
+        ),
+        customerTotalMinor: moneyMinorToDecimalString(
+          payload.financial.customerPayableMinor,
+        ),
       },
       items: payload.lines.map((line, index) => ({
         id: `order-item-${index}`,
         productId: line.productId,
         productNameSnapshot: line.productNameSnapshot,
         quantity: line.quantity,
-        unitPriceMinor: line.unitPriceMinor,
-        lineTotalMinor: line.lineTotalMinor,
-        options: line.options,
+        unitPriceMinor: moneyMinorToDecimalString(line.unitPriceMinor),
+        lineTotalMinor: moneyMinorToDecimalString(line.lineTotalMinor),
+        options: line.options.map((option) => ({
+          optionNameSnapshot: option.optionNameSnapshot,
+          additionalPriceMinor: moneyMinorToDecimalString(
+            option.additionalPriceMinor,
+          ),
+        })),
       })),
       deliveryAddress: {
         addressText: payload.address.addressText,
@@ -274,10 +285,10 @@ describe('OrderService.createOrder', () => {
     expect(created.status).toBe('CREATED');
     expect(created.fulfillmentStatus).toBe('PENDING_ACCEPTANCE');
     expect(created.paymentMethod).toBe('COD');
-    expect(created.financial.merchandiseSubtotalMinor).toBe(1200);
-    expect(created.financial.deliveryFeeMinor).toBe(500);
-    expect(created.financial.customerTotalMinor).toBe(1700);
-    expect(created.items[0].unitPriceMinor).toBe(1200);
+    expect(created.financial.merchandiseSubtotalMinor).toBe('1200');
+    expect(created.financial.deliveryFeeMinor).toBe('500');
+    expect(created.financial.customerTotalMinor).toBe('1700');
+    expect(created.items[0].unitPriceMinor).toBe('1200');
     expect(created.items[0].productNameSnapshot).toBe('Coffee');
     expect(created.deliveryAddress.instructions).toBeNull();
     expect(persisted?.financial.merchantCommissionAmountMinor).toBe(84);
@@ -449,8 +460,8 @@ describe('OrderService.createOrder', () => {
         expectedCustomerTotalMinor: 2000,
       }),
     );
-    expect(created.financial.deliveryFeeMinor).toBe(800);
-    expect(created.financial.customerTotalMinor).toBe(2000);
+    expect(created.financial.deliveryFeeMinor).toBe('800');
+    expect(created.financial.customerTotalMinor).toBe('2000');
     expect(created.paymentMethod).toBe('ELECTRONIC');
     expect(persisted?.financial.customerPayableMinor).toBe(2000);
 
@@ -583,9 +594,9 @@ describe('OrderService.createOrder', () => {
         (error as { details: { changes: string[] } }).details.changes,
       ).toEqual(['DELIVERY_FEE', 'CUSTOMER_TOTAL']);
       expect(
-        (error as { details: { current: { deliveryFeeMinor: number } } })
+        (error as { details: { current: { deliveryFeeMinor: string } } })
           .details.current.deliveryFeeMinor,
-      ).toBe(800);
+      ).toBe('800');
     }
 
     carts.loadProductSnapshot.mockResolvedValue(
@@ -611,8 +622,8 @@ describe('OrderService.createOrder', () => {
         expectedCustomerTotalMinor: 2000,
       }),
     );
-    expect(retried.financial.deliveryFeeMinor).toBe(800);
-    expect(retried.financial.customerTotalMinor).toBe(2000);
+    expect(retried.financial.deliveryFeeMinor).toBe('800');
+    expect(retried.financial.customerTotalMinor).toBe('2000');
     expect(orders.persistCreatedOrder).toHaveBeenCalledTimes(1);
     expect(cartStatus).toBe('CONVERTED');
   });
@@ -690,9 +701,9 @@ describe('OrderService reads', () => {
             createdAt: nowIso(),
             financial: {
               currency: 'DZD',
-              merchandiseSubtotalMinor: 1200,
-              deliveryFeeMinor: 500,
-              customerTotalMinor: 1700,
+              merchandiseSubtotalMinor: '1200',
+              deliveryFeeMinor: '500',
+              customerTotalMinor: '1700',
             },
           },
         ],
@@ -708,9 +719,9 @@ describe('OrderService reads', () => {
         merchantBranchId: 'branch-1',
         financial: {
           currency: 'DZD',
-          merchandiseSubtotalMinor: 1200,
-          deliveryFeeMinor: 500,
-          customerTotalMinor: 1700,
+          merchandiseSubtotalMinor: '1200',
+          deliveryFeeMinor: '500',
+          customerTotalMinor: '1700',
         },
         items: [],
         deliveryAddress: {

@@ -94,7 +94,7 @@ describe('financial-ledger.policy', () => {
     expect(electronicPaymentPosting(1700)).toEqual({
       type: LEDGER_TYPE_CUSTOMER_PAYMENT,
       direction: LEDGER_DIRECTION_DEBIT,
-      amountMinor: 1700,
+      amountMinor: 1700n,
     });
   });
 
@@ -102,55 +102,55 @@ describe('financial-ledger.policy', () => {
     expect(codCollectionPosting(10000)).toEqual({
       type: LEDGER_TYPE_COD_CUSTODY,
       direction: LEDGER_DIRECTION_DEBIT,
-      amountMinor: 10000,
+      amountMinor: 10000n,
     });
     expect(codRemittancePosting(4000)).toEqual({
       type: LEDGER_TYPE_COD_CUSTODY,
       direction: LEDGER_DIRECTION_CREDIT,
-      amountMinor: 4000,
+      amountMinor: 4000n,
     });
-    expect(deriveCodCustody(10000, 4000)).toBe(6000);
+    expect(deriveCodCustody(10000n, 4000n)).toBe(6000n);
   });
 
   it('keeps Driver payable separate from COD custody', () => {
     expect(driverEarningPosting(1000)).toEqual({
       type: LEDGER_TYPE_DRIVER_PAYABLE,
       direction: LEDGER_DIRECTION_CREDIT,
-      amountMinor: 1000,
+      amountMinor: 1000n,
     });
     expect(driverEarningPosting(0)).toEqual({
       type: LEDGER_TYPE_DRIVER_PAYABLE,
       direction: LEDGER_DIRECTION_CREDIT,
-      amountMinor: 0,
+      amountMinor: 0n,
     });
-    expect(deriveDriverPayable(1000, 0)).toBe(1000);
-    expect(deriveCodCustody(10000, 0)).toBe(10000);
+    expect(deriveDriverPayable(1000n, 0n)).toBe(1000n);
+    expect(deriveCodCustody(10000n, 0n)).toBe(10000n);
   });
 
   it('posts positive/negative/zero Merchant settlements via MERCHANT_PAYABLE', () => {
     expect(merchantSettlementPosting(8000)).toEqual({
       type: LEDGER_TYPE_MERCHANT_PAYABLE,
       direction: LEDGER_DIRECTION_CREDIT,
-      amountMinor: 8000,
+      amountMinor: 8000n,
     });
     expect(merchantSettlementPosting(-2000)).toEqual({
       type: LEDGER_TYPE_MERCHANT_PAYABLE,
       direction: LEDGER_DIRECTION_DEBIT,
-      amountMinor: 2000,
+      amountMinor: 2000n,
     });
     expect(merchantSettlementPosting(0)).toEqual({
       type: LEDGER_TYPE_MERCHANT_PAYABLE,
       direction: LEDGER_DIRECTION_CREDIT,
-      amountMinor: 0,
+      amountMinor: 0n,
     });
-    expect(deriveMerchantNetPayable(10000, 2000)).toBe(8000);
+    expect(deriveMerchantNetPayable(10000n, 2000n)).toBe(8000n);
   });
 
   it('posts Refund as REFUND DEBIT using Refund.amountMinor only', () => {
     expect(refundPosting(4000)).toEqual({
       type: LEDGER_TYPE_REFUND,
       direction: LEDGER_DIRECTION_DEBIT,
-      amountMinor: 4000,
+      amountMinor: 4000n,
     });
   });
 

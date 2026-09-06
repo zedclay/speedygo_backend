@@ -49,7 +49,7 @@ function detail(
       longitude: 3.05,
       instructions: null,
     },
-    deliveryFeeMinor: 500,
+    deliveryFeeMinor: '500',
     events: [
       {
         type: 'DELIVERY_CREATED',
@@ -292,7 +292,7 @@ describe('DeliveryService', () => {
     expect(read.status).toBe('SEARCHING_DRIVER');
     expect(read.assignedDriverId).toBeNull();
     expect(read.pickup).not.toHaveProperty('phone');
-    expect(read.deliveryFeeMinor).toBe(500);
+    expect(read.deliveryFeeMinor).toBe('500');
     expect(read).not.toHaveProperty('driverRemunerationMinor');
   });
 

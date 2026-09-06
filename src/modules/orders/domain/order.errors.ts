@@ -1,4 +1,5 @@
 import { AppError } from '../../../common/errors/app.error';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 
 export const ORDER_ERROR_CODES = {
   ORDER_CART_REQUIRED: 'ORDER_CART_REQUIRED',
@@ -188,9 +189,11 @@ export function orderReconfirmationRequired(input: {
     {
       changes: input.changes,
       current: {
-        merchandiseSubtotalMinor: input.merchandiseSubtotalMinor,
-        deliveryFeeMinor: input.deliveryFeeMinor,
-        customerTotalMinor: input.customerTotalMinor,
+        merchandiseSubtotalMinor: moneyMinorToDecimalString(
+          input.merchandiseSubtotalMinor,
+        ),
+        deliveryFeeMinor: moneyMinorToDecimalString(input.deliveryFeeMinor),
+        customerTotalMinor: moneyMinorToDecimalString(input.customerTotalMinor),
       },
     },
   );

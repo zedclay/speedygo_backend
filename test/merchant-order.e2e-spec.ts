@@ -30,9 +30,9 @@ type OptionGroupBody = { id: string };
 type OptionBody = { id: string };
 type AddressBody = { id: string };
 type PreviewBody = {
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
 };
 type MerchantOrderDetail = {
   id: string;
@@ -42,14 +42,14 @@ type MerchantOrderDetail = {
   customerFullName: string | null;
   payment: { method: string; status: string };
   financial: {
-    grossMerchandiseSubtotalMinor: number;
-    merchantNetAmountMinor: number;
-    merchantCommissionAmountMinor: number;
+    grossMerchandiseSubtotalMinor: string;
+    merchantNetAmountMinor: string;
+    merchantCommissionAmountMinor: string;
   };
   items: Array<{
     productNameSnapshot: string;
-    unitPriceMinor: number;
-    options: Array<{ additionalPriceMinor: number }>;
+    unitPriceMinor: string;
+    options: Array<{ additionalPriceMinor: string }>;
   }>;
   statusHistory: Array<{ eventType: string; actorType: string }>;
 };
@@ -615,9 +615,11 @@ describe('Merchant order workflow (e2e)', () => {
         .send({
           addressId: homeId,
           paymentMethod: 'COD',
-          expectedMerchandiseSubtotalMinor: preview.merchandiseSubtotalMinor,
-          expectedDeliveryFeeMinor: preview.deliveryFeeMinor,
-          expectedCustomerTotalMinor: preview.customerTotalMinor,
+          expectedMerchandiseSubtotalMinor: Number(
+            preview.merchandiseSubtotalMinor,
+          ),
+          expectedDeliveryFeeMinor: Number(preview.deliveryFeeMinor),
+          expectedCustomerTotalMinor: Number(preview.customerTotalMinor),
         });
       expect(created.status).toBe(201);
       const orderId = (created.body as { id: string }).id;
@@ -745,8 +747,8 @@ describe('Merchant order workflow (e2e)', () => {
         ?.body as MerchantOrderDetail;
       expect(ready.status).toBe('ACTIVE');
       expect(ready.fulfillmentStatus).toBe('READY');
-      expect(ready.items[0].unitPriceMinor).toBe(snapshotUnit);
-      expect(ready.financial.merchantNetAmountMinor).toBe(snapshotNet);
+      expect(ready.items[0].unitPriceMinor).toBe(String(snapshotUnit));
+      expect(ready.financial.merchantNetAmountMinor).toBe(String(snapshotNet));
       expect(ready.payment.status).toBe('PENDING');
       expect(
         ready.statusHistory.filter(
@@ -813,10 +815,11 @@ describe('Merchant order workflow (e2e)', () => {
           .send({
             addressId: homeId,
             paymentMethod,
-            expectedMerchandiseSubtotalMinor:
+            expectedMerchandiseSubtotalMinor: Number(
               nextPreview.merchandiseSubtotalMinor,
-            expectedDeliveryFeeMinor: nextPreview.deliveryFeeMinor,
-            expectedCustomerTotalMinor: nextPreview.customerTotalMinor,
+            ),
+            expectedDeliveryFeeMinor: Number(nextPreview.deliveryFeeMinor),
+            expectedCustomerTotalMinor: Number(nextPreview.customerTotalMinor),
           });
         expect(next.status).toBe(201);
         return (next.body as { id: string }).id;

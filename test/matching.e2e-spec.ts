@@ -44,15 +44,15 @@ type OptionGroupBody = { id: string };
 type OptionBody = { id: string };
 type AddressBody = { id: string };
 type PreviewBody = {
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
 };
 type OfferBody = {
   offer: {
     assignmentId: string;
     status: string;
-    driverRemunerationMinor: number;
+    driverRemunerationMinor: string;
     pickup: { name: string };
   } | null;
 };
@@ -641,12 +641,15 @@ describe('Driver matching (e2e)', () => {
           .send({
             addressId: homeId,
             paymentMethod: 'COD',
-            expectedMerchandiseSubtotalMinor: (preview.body as PreviewBody)
-              .merchandiseSubtotalMinor,
-            expectedDeliveryFeeMinor: (preview.body as PreviewBody)
-              .deliveryFeeMinor,
-            expectedCustomerTotalMinor: (preview.body as PreviewBody)
-              .customerTotalMinor,
+            expectedMerchandiseSubtotalMinor: Number(
+              (preview.body as PreviewBody).merchandiseSubtotalMinor,
+            ),
+            expectedDeliveryFeeMinor: Number(
+              (preview.body as PreviewBody).deliveryFeeMinor,
+            ),
+            expectedCustomerTotalMinor: Number(
+              (preview.body as PreviewBody).customerTotalMinor,
+            ),
           });
         expect(created.status).toBe(201);
         const orderId = (created.body as { id: string }).id;
@@ -767,7 +770,7 @@ describe('Driver matching (e2e)', () => {
       expect(offerA.status).toBe(200);
       const offerBody = offerA.body as OfferBody;
       expect(offerBody.offer?.assignmentId).toBe(first.assignment?.id);
-      expect(offerBody.offer?.driverRemunerationMinor).toBe(300);
+      expect(offerBody.offer?.driverRemunerationMinor).toBe('300');
       expect(JSON.stringify(offerBody)).not.toContain('0550123499');
       expect(JSON.stringify(offerBody)).not.toContain('Secret dropoff 12');
       const foreignOffer = await request(server)

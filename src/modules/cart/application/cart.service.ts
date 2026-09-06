@@ -1,4 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import {
+  moneyMinorToDecimalString,
+  sumMoneyMinorToDecimalString,
+} from '../../../common/money/money-minor';
 import { customerProfileNotFound } from '../../customers/domain/customer.errors';
 import {
   cartBranchMismatch,
@@ -15,6 +19,7 @@ import {
   optionSetsEqual,
   requireCartQuantity,
   validateCartOptionSelections,
+  type CartSelectionView,
 } from '../domain/cart.policy';
 import type {
   AddCartItemInput,
@@ -277,9 +282,8 @@ export class CartService {
       this.toItemView(item, snapshots[index] ?? null),
     );
     const warnings = [...new Set(itemViews.flatMap((item) => item.warnings))];
-    const cartSubtotalMinor = itemViews.reduce(
-      (sum, item) => sum + item.lineSubtotalMinor,
-      0,
+    const cartSubtotalMinor = sumMoneyMinorToDecimalString(
+      itemViews.map((item) => item.lineSubtotalMinor),
     );
     const merchantId = snapshots.find((row) => row)?.merchantId ?? '';
     return {
@@ -320,7 +324,7 @@ export class CartService {
       warnings.push('CART_PRODUCT_NOT_AVAILABLE');
     }
     let optionUnitAdditionalMinor = 0;
-    let selectedOptions: CartItemView['selectedOptions'] = [];
+    let selectedOptions: CartSelectionView[] = [];
     if (snapshot) {
       const evaluated = evaluatePersistedSelections({
         groups: snapshot.groups,
@@ -340,18 +344,26 @@ export class CartService {
       warnings.push('CART_OPTION_NOT_AVAILABLE');
     }
     const unitPriceMinor = liveBase + optionUnitAdditionalMinor;
+    const lineSubtotalMinor = multiplyMinorUnits(unitPriceMinor, item.quantity);
     return {
       id: item.id,
       productId: item.productId,
       productName: snapshot?.name ?? 'Unknown product',
       quantity: item.quantity,
-      baseUnitPriceMinor: liveBase,
-      optionUnitAdditionalMinor,
-      unitPriceMinor,
-      lineSubtotalMinor: multiplyMinorUnits(unitPriceMinor, item.quantity),
-      storedUnitPriceMinor: item.unitPriceMinor,
+      baseUnitPriceMinor: moneyMinorToDecimalString(liveBase),
+      optionUnitAdditionalMinor: moneyMinorToDecimalString(
+        optionUnitAdditionalMinor,
+      ),
+      unitPriceMinor: moneyMinorToDecimalString(unitPriceMinor),
+      lineSubtotalMinor: moneyMinorToDecimalString(lineSubtotalMinor),
+      storedUnitPriceMinor: moneyMinorToDecimalString(item.unitPriceMinor),
       itemAvailable: offerable,
-      selectedOptions,
+      selectedOptions: selectedOptions.map((option) => ({
+        ...option,
+        additionalPriceMinor: moneyMinorToDecimalString(
+          option.additionalPriceMinor,
+        ),
+      })),
       warnings: [...new Set(warnings)],
     };
   }

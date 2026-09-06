@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN } from '../../../../../common/money/money-minor';
 
 export class CustomerPaymentResponseDto {
   @ApiProperty()
@@ -13,10 +14,13 @@ export class CustomerPaymentResponseDto {
   status!: string;
 
   @ApiProperty({
+    type: String,
     description:
       'Authoritative Payment.amountMinor in integer minor units. Never client-supplied.',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1700',
   })
-  amountMinor!: number;
+  amountMinor!: string;
 
   @ApiProperty({ example: 'DZD' })
   currency!: string;

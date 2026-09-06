@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN } from '../../../../../common/money/money-minor';
 
 export class OrderItemOptionResponseDto {
   @ApiProperty({
@@ -7,9 +8,12 @@ export class OrderItemOptionResponseDto {
   optionNameSnapshot!: string;
 
   @ApiProperty({
+    type: String,
     description: 'Integer minor units snapshotted at Order creation',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '200',
   })
-  additionalPriceMinor!: number;
+  additionalPriceMinor!: string;
 }
 
 export class OrderItemResponseDto {
@@ -30,11 +34,21 @@ export class OrderItemResponseDto {
   @ApiProperty()
   quantity!: number;
 
-  @ApiProperty({ description: 'Integer minor units at Order creation' })
-  unitPriceMinor!: number;
+  @ApiProperty({
+    type: String,
+    description: 'Integer minor units at Order creation',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1200',
+  })
+  unitPriceMinor!: string;
 
-  @ApiProperty({ description: 'Integer minor units at Order creation' })
-  lineTotalMinor!: number;
+  @ApiProperty({
+    type: String,
+    description: 'Integer minor units at Order creation',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1200',
+  })
+  lineTotalMinor!: string;
 
   @ApiProperty({ type: [OrderItemOptionResponseDto] })
   options!: OrderItemOptionResponseDto[];
@@ -64,22 +78,31 @@ export class OrderCustomerFinancialResponseDto {
   currency!: string;
 
   @ApiProperty({
+    type: String,
     description:
       'Customer-visible merchandise subtotal in integer minor units (OrderFinancialSnapshot.grossMerchandiseSubtotalMinor). Commission, merchant net, driver remuneration, and SpeedyGo share are not exposed.',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1200',
   })
-  merchandiseSubtotalMinor!: number;
+  merchandiseSubtotalMinor!: string;
 
   @ApiProperty({
+    type: String,
     description:
       'Live Delivery Fee snapshotted at Order creation (customerDeliveryFeeMinor)',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '500',
   })
-  deliveryFeeMinor!: number;
+  deliveryFeeMinor!: string;
 
   @ApiProperty({
+    type: String,
     description:
       'Customer payable total in integer minor units (maps from OrderFinancialSnapshot.customerPayableMinor). Public API name is customerTotalMinor.',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1700',
   })
-  customerTotalMinor!: number;
+  customerTotalMinor!: string;
 }
 
 export class OrderSummaryResponseDto {

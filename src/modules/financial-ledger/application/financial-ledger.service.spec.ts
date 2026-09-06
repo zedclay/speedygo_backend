@@ -49,7 +49,7 @@ describe('FinancialLedgerService', () => {
             driverId: string | null;
             type: string;
             direction: string;
-            amountMinor: number;
+            amountMinor: number | bigint;
             currency: string;
             reference: string;
           }) =>
@@ -60,7 +60,10 @@ describe('FinancialLedgerService', () => {
               driverId: input.driverId,
               type: input.type,
               direction: input.direction,
-              amountMinor: input.amountMinor,
+              amountMinor:
+                typeof input.amountMinor === 'bigint'
+                  ? input.amountMinor.toString(10)
+                  : String(input.amountMinor),
               currency: input.currency,
               reference: input.reference,
               reversalOfId: null,
@@ -72,12 +75,12 @@ describe('FinancialLedgerService', () => {
         .mockImplementation(
           (_merchantId: string, _type: string, direction: string) => {
             if (direction === LEDGER_DIRECTION_CREDIT) {
-              return Promise.resolve(10000);
+              return Promise.resolve(10000n);
             }
-            return Promise.resolve(2000);
+            return Promise.resolve(2000n);
           },
         ),
-      sumDirectionForDriver: jest.fn().mockResolvedValue(0),
+      sumDirectionForDriver: jest.fn().mockResolvedValue(0n),
       findUnpostedElectronicPayments: jest.fn().mockResolvedValue([]),
       findUnpostedCodCollections: jest.fn().mockResolvedValue([]),
       findUnpostedCodRemittances: jest.fn().mockResolvedValue([]),
@@ -127,7 +130,7 @@ describe('FinancialLedgerService', () => {
       expect.objectContaining({
         type: LEDGER_TYPE_COD_CUSTODY,
         direction: LEDGER_DIRECTION_DEBIT,
-        amountMinor: 10000,
+        amountMinor: 10000n,
         reference: buildLedgerReference(
           LEDGER_SOURCE_COD_COLLECTION,
           'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
@@ -147,7 +150,7 @@ describe('FinancialLedgerService', () => {
       expect.objectContaining({
         type: LEDGER_TYPE_COD_CUSTODY,
         direction: LEDGER_DIRECTION_CREDIT,
-        amountMinor: 4000,
+        amountMinor: 4000n,
         reference: buildLedgerReference(
           LEDGER_SOURCE_COD_REMITTANCE,
           'rrrrrrrr-rrrr-7rrr-8rrr-rrrrrrrrrrrr',
@@ -169,7 +172,7 @@ describe('FinancialLedgerService', () => {
       expect.objectContaining({
         type: LEDGER_TYPE_DRIVER_PAYABLE,
         direction: LEDGER_DIRECTION_CREDIT,
-        amountMinor: 0,
+        amountMinor: 0n,
         reference: buildLedgerReference(
           LEDGER_SOURCE_DRIVER_EARNING,
           'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
@@ -189,7 +192,7 @@ describe('FinancialLedgerService', () => {
       expect.objectContaining({
         type: LEDGER_TYPE_MERCHANT_PAYABLE,
         direction: LEDGER_DIRECTION_DEBIT,
-        amountMinor: 2000,
+        amountMinor: 2000n,
       }),
       tx,
     );
@@ -205,7 +208,7 @@ describe('FinancialLedgerService', () => {
       expect.objectContaining({
         type: LEDGER_TYPE_MERCHANT_PAYABLE,
         direction: LEDGER_DIRECTION_CREDIT,
-        amountMinor: 0,
+        amountMinor: 0n,
       }),
       tx,
     );
@@ -221,7 +224,7 @@ describe('FinancialLedgerService', () => {
       expect.objectContaining({
         type: LEDGER_TYPE_REFUND,
         direction: LEDGER_DIRECTION_DEBIT,
-        amountMinor: 4000,
+        amountMinor: 4000n,
         reference: buildLedgerReference(
           LEDGER_SOURCE_REFUND,
           'ffffffff-ffff-7fff-8fff-ffffffffffff',
@@ -235,7 +238,7 @@ describe('FinancialLedgerService', () => {
     const position = await service.getMerchantPosition(
       'mmmmmmmm-mmmm-7mmm-8mmm-mmmmmmmmmmmm',
     );
-    expect(position.netPayableMinor).toBe(8000);
+    expect(position.netPayableMinor).toBe('8000');
   });
 
   it('rejects arbitrary non-canonical references', async () => {
@@ -318,7 +321,7 @@ describe('FinancialLedgerService', () => {
       reference: string;
       type: string;
       direction: string;
-      amountMinor: number;
+      amountMinor: number | bigint;
       currency: string;
       orderId: string | null;
       merchantId: string | null;
@@ -361,13 +364,17 @@ describe('FinancialLedgerService', () => {
         driverId: string | null;
         type: string;
         direction: string;
-        amountMinor: number;
+        amountMinor: number | bigint;
         currency: string;
         reference: string;
       }) => {
         stored = {
           id: 'entry-1',
           ...input,
+          amountMinor:
+            typeof input.amountMinor === 'bigint'
+              ? input.amountMinor.toString(10)
+              : String(input.amountMinor),
           reversalOfId: null,
           createdAt: '2026-02-01T00:00:00.000Z',
         };

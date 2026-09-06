@@ -39,23 +39,23 @@ import { REFUND_ERROR_CODES } from '../src/modules/refunds/domain/refund.errors'
 type TokenBody = { accessToken: string };
 type AuthMeBody = { account: { id: string; phone: string } };
 type PreviewBody = {
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
 };
 type AcceptedBody = {
   assignmentId: string;
   deliveryId: string;
-  driverRemunerationMinor: number;
+  driverRemunerationMinor: string;
 };
 type RefundsBody = {
   orderId: string;
-  originalPaidMinor: number;
-  reservedRefundMinor: number;
-  successfulRefundMinor: number;
-  remainingRefundableMinor: number;
+  originalPaidMinor: string;
+  reservedRefundMinor: string;
+  successfulRefundMinor: string;
+  remainingRefundableMinor: string;
   currency: string;
-  refunds: Array<{ refundId: string; amountMinor: number; status: string }>;
+  refunds: Array<{ refundId: string; amountMinor: string; status: string }>;
 };
 
 const INSIDE: [number, number] = [36.75, 3.05];
@@ -653,12 +653,15 @@ describe('Refunds Foundation (e2e)', () => {
       .send({
         addressId: fixture.addressId,
         paymentMethod,
-        expectedMerchandiseSubtotalMinor: (preview.body as PreviewBody)
-          .merchandiseSubtotalMinor,
-        expectedDeliveryFeeMinor: (preview.body as PreviewBody)
-          .deliveryFeeMinor,
-        expectedCustomerTotalMinor: (preview.body as PreviewBody)
-          .customerTotalMinor,
+        expectedMerchandiseSubtotalMinor: Number(
+          (preview.body as PreviewBody).merchandiseSubtotalMinor,
+        ),
+        expectedDeliveryFeeMinor: Number(
+          (preview.body as PreviewBody).deliveryFeeMinor,
+        ),
+        expectedCustomerTotalMinor: Number(
+          (preview.body as PreviewBody).customerTotalMinor,
+        ),
       });
     expect(created.status).toBe(201);
     const orderId = (created.body as { id: string }).id;
@@ -704,7 +707,7 @@ describe('Refunds Foundation (e2e)', () => {
       .send({});
     expect(accepted.status).toBe(200);
     const acceptedBody = accepted.body as AcceptedBody;
-    expect(acceptedBody.driverRemunerationMinor).toBe(300);
+    expect(acceptedBody.driverRemunerationMinor).toBe('300');
     for (const action of LOGISTICS_ACTIONS) {
       if (action === 'arrive-pickup' || action === 'arrive-customer') {
         await locations.upsert(
@@ -835,9 +838,11 @@ describe('Refunds Foundation (e2e)', () => {
         .set('Authorization', `Bearer ${fixture.customerToken}`);
       expect(listed.status).toBe(200);
       const body = listed.body as RefundsBody;
-      expect(body.originalPaidMinor).toBe(paidMinor);
-      expect(body.successfulRefundMinor).toBe(partialAmount);
-      expect(body.remainingRefundableMinor).toBe(paidMinor - partialAmount);
+      expect(body.originalPaidMinor).toBe(String(paidMinor));
+      expect(body.successfulRefundMinor).toBe(String(partialAmount));
+      expect(body.remainingRefundableMinor).toBe(
+        String(paidMinor - partialAmount),
+      );
       expect(body.refunds).toHaveLength(1);
       expect(body.refunds[0]?.status).toBe('REFUNDED');
 

@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN } from '../../../../../common/money/money-minor';
 import {
   OrderAddressSnapshotResponseDto,
   OrderItemResponseDto,
@@ -8,26 +9,45 @@ export class MerchantOrderFinancialResponseDto {
   @ApiProperty({ example: 'DZD' })
   currency!: string;
 
-  @ApiProperty()
-  grossMerchandiseSubtotalMinor!: number;
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1200',
+  })
+  grossMerchandiseSubtotalMinor!: string;
 
-  @ApiProperty()
-  merchantDiscountMinor!: number;
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '0',
+  })
+  merchantDiscountMinor!: string;
 
   @ApiProperty()
   merchantCommissionRateBps!: number;
 
-  @ApiProperty()
-  merchantCommissionAmountMinor!: number;
-
-  @ApiProperty()
-  merchantNetAmountMinor!: number;
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '84',
+  })
+  merchantCommissionAmountMinor!: string;
 
   @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1116',
+  })
+  merchantNetAmountMinor!: string;
+
+  @ApiProperty({
+    type: String,
     description:
       'Customer Delivery Fee snapshotted at Order creation. Not Merchant revenue.',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '500',
   })
-  deliveryFeeMinor!: number;
+  deliveryFeeMinor!: string;
 }
 
 export class MerchantOrderPaymentResponseDto {

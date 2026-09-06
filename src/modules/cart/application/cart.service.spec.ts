@@ -271,9 +271,9 @@ describe('Cart foundation services', () => {
     expect(cart.status).toBe(CART_STATUS_ACTIVE);
     expect(cart.branchId).toBe('branch-1');
     expect(cart.items).toHaveLength(1);
-    expect(cart.items[0]?.baseUnitPriceMinor).toBe(1000);
-    expect(cart.items[0]?.lineSubtotalMinor).toBe(2000);
-    expect(cart.cartSubtotalMinor).toBe(2000);
+    expect(cart.items[0]?.baseUnitPriceMinor).toBe('1000');
+    expect(cart.items[0]?.lineSubtotalMinor).toBe('2000');
+    expect(cart.cartSubtotalMinor).toBe('2000');
     expect(cart.cartReady).toBe(true);
     expect(repo.carts).toHaveLength(1);
   });
@@ -292,7 +292,7 @@ describe('Cart foundation services', () => {
     });
     expect(cart.items).toHaveLength(1);
     expect(cart.items[0]?.quantity).toBe(3);
-    expect(cart.cartSubtotalMinor).toBe(3000);
+    expect(cart.cartSubtotalMinor).toBe('3000');
   });
 
   it('rejects a Product from another Branch on an existing Active Cart', async () => {
@@ -430,15 +430,15 @@ describe('Cart foundation services', () => {
       optionIds: ['o-large'],
     });
     expect(cart.cartReady).toBe(true);
-    expect(cart.items[0]?.storedUnitPriceMinor).toBe(1200);
-    expect(cart.items[0]?.optionUnitAdditionalMinor).toBe(200);
-    expect(cart.items[0]?.unitPriceMinor).toBe(1200);
-    expect(cart.items[0]?.lineSubtotalMinor).toBe(1200);
+    expect(cart.items[0]?.storedUnitPriceMinor).toBe('1200');
+    expect(cart.items[0]?.optionUnitAdditionalMinor).toBe('200');
+    expect(cart.items[0]?.unitPriceMinor).toBe('1200');
+    expect(cart.items[0]?.lineSubtotalMinor).toBe('1200');
     expect(cart.items[0]?.selectedOptions).toEqual([
       {
         optionId: 'o-large',
         name: 'Large',
-        additionalPriceMinor: 200,
+        additionalPriceMinor: '200',
         available: true,
       },
     ]);
@@ -460,7 +460,7 @@ describe('Cart foundation services', () => {
     });
     expect(merged.items).toHaveLength(1);
     expect(merged.items[0]?.quantity).toBe(2);
-    expect(merged.cartSubtotalMinor).toBe(2500);
+    expect(merged.cartSubtotalMinor).toBe('2500');
     const split = await service.addItem(ACCOUNT_A, {
       productId: 'product-opt',
       quantity: 1,
@@ -521,7 +521,7 @@ describe('Cart foundation services', () => {
     });
     expect(updated.items[0]?.quantity).toBe(2);
     expect(updated.items[0]?.selectedOptions[0]?.optionId).toBe('o-small');
-    expect(updated.items[0]?.storedUnitPriceMinor).toBe(1000);
+    expect(updated.items[0]?.storedUnitPriceMinor).toBe('1000');
     await expect(
       service.updateItem(ACCOUNT_A, itemId, {
         quantity: 2,
@@ -549,7 +549,7 @@ describe('Cart foundation services', () => {
       quantity: 1,
       optionIds: [],
     });
-    expect(cart.cartSubtotalMinor).toBe(0);
+    expect(cart.cartSubtotalMinor).toBe('0');
     await expect(
       service.addItem(ACCOUNT_A, {
         productId: 'free',

@@ -36,15 +36,15 @@ type OptionGroupBody = { id: string };
 type OptionBody = { id: string };
 type AddressBody = { id: string };
 type PreviewBody = {
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
 };
 type PaymentBody = {
   paymentId: string;
   method: string;
   status: string;
-  amountMinor: number;
+  amountMinor: string;
   currency: string;
   provider: string | null;
   checkoutUrl?: string | null;
@@ -599,14 +599,16 @@ describe('Payments foundation (e2e)', () => {
           .send({
             addressId: homeId,
             paymentMethod,
-            expectedMerchandiseSubtotalMinor: preview.merchandiseSubtotalMinor,
-            expectedDeliveryFeeMinor: preview.deliveryFeeMinor,
-            expectedCustomerTotalMinor: preview.customerTotalMinor,
+            expectedMerchandiseSubtotalMinor: Number(
+              preview.merchandiseSubtotalMinor,
+            ),
+            expectedDeliveryFeeMinor: Number(preview.deliveryFeeMinor),
+            expectedCustomerTotalMinor: Number(preview.customerTotalMinor),
           });
         expect(created.status).toBe(201);
         return {
           orderId: (created.body as { id: string }).id,
-          amountMinor: preview.customerTotalMinor,
+          amountMinor: Number(preview.customerTotalMinor),
         };
       }
 
@@ -618,7 +620,7 @@ describe('Payments foundation (e2e)', () => {
       const pending = paymentRead.body as PaymentBody;
       expect(pending.status).toBe('PENDING');
       expect(pending.method).toBe('ELECTRONIC');
-      expect(pending.amountMinor).toBe(electronic.amountMinor);
+      expect(pending.amountMinor).toBe(String(electronic.amountMinor));
       expect(pending.currency).toBe('DZD');
       expect(pending).not.toHaveProperty('checkoutUrl');
       expect(pending).not.toHaveProperty('merchantCommissionAmountMinor');
@@ -695,7 +697,7 @@ describe('Payments foundation (e2e)', () => {
           eventId: 'evt-invalid',
           providerReference,
           status: 'SUCCEEDED',
-          amountMinor: electronic.amountMinor,
+          amountMinor: Number(electronic.amountMinor),
           currency: 'DZD',
         }),
       );
@@ -745,7 +747,7 @@ describe('Payments foundation (e2e)', () => {
         eventId: 'evt-success',
         providerReference,
         status: 'SUCCEEDED',
-        amountMinor: electronic.amountMinor,
+        amountMinor: Number(electronic.amountMinor),
         currency: 'DZD',
       };
       const successRaw = Buffer.from(JSON.stringify(successPayload));
@@ -813,7 +815,7 @@ describe('Payments foundation (e2e)', () => {
           eventId: 'evt-late-fail',
           providerReference,
           status: 'FAILED',
-          amountMinor: electronic.amountMinor,
+          amountMinor: Number(electronic.amountMinor),
           currency: 'DZD',
         }),
       );
@@ -1010,7 +1012,7 @@ describe('Payments foundation (e2e)', () => {
           eventId: 'evt-late-terminal',
           providerReference: lateAttempt[0].providerReference,
           status: 'SUCCEEDED',
-          amountMinor: late.amountMinor,
+          amountMinor: Number(late.amountMinor),
           currency: 'DZD',
         }),
       );

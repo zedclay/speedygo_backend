@@ -98,18 +98,30 @@ export function requireDzd(currency: string): void {
 }
 
 /** Nonnegative integer minor units (zero allowed for DriverEarning / Settlement audit postings). */
-export function requireNonNegativeMinor(amountMinor: number): number {
+export function requireNonNegativeMinor(amountMinor: number | bigint): bigint {
+  if (typeof amountMinor === 'bigint') {
+    if (amountMinor < 0n) {
+      throw ledgerInvalidAmount();
+    }
+    return amountMinor;
+  }
   if (!Number.isInteger(amountMinor) || amountMinor < 0) {
     throw ledgerInvalidAmount();
   }
-  return amountMinor;
+  return BigInt(amountMinor);
 }
 
-export function requirePositiveMinor(amountMinor: number): number {
+export function requirePositiveMinor(amountMinor: number | bigint): bigint {
+  if (typeof amountMinor === 'bigint') {
+    if (amountMinor <= 0n) {
+      throw ledgerInvalidAmount();
+    }
+    return amountMinor;
+  }
   if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
     throw ledgerInvalidAmount();
   }
-  return amountMinor;
+  return BigInt(amountMinor);
 }
 
 /**
@@ -122,10 +134,10 @@ export function requirePositiveMinor(amountMinor: number): number {
  *
  * Never interpret SUM(all DEBIT) = SUM(all CREDIT) or a global platform cash balance.
  */
-export function electronicPaymentPosting(amountMinor: number): {
+export function electronicPaymentPosting(amountMinor: number | bigint): {
   type: typeof LEDGER_TYPE_CUSTOMER_PAYMENT;
   direction: typeof LEDGER_DIRECTION_DEBIT;
-  amountMinor: number;
+  amountMinor: bigint;
 } {
   return {
     type: LEDGER_TYPE_CUSTOMER_PAYMENT,
@@ -134,10 +146,10 @@ export function electronicPaymentPosting(amountMinor: number): {
   };
 }
 
-export function codCollectionPosting(amountMinor: number): {
+export function codCollectionPosting(amountMinor: number | bigint): {
   type: typeof LEDGER_TYPE_COD_CUSTODY;
   direction: typeof LEDGER_DIRECTION_DEBIT;
-  amountMinor: number;
+  amountMinor: bigint;
 } {
   return {
     type: LEDGER_TYPE_COD_CUSTODY,
@@ -146,10 +158,10 @@ export function codCollectionPosting(amountMinor: number): {
   };
 }
 
-export function codRemittancePosting(amountMinor: number): {
+export function codRemittancePosting(amountMinor: number | bigint): {
   type: typeof LEDGER_TYPE_COD_CUSTODY;
   direction: typeof LEDGER_DIRECTION_CREDIT;
-  amountMinor: number;
+  amountMinor: bigint;
 } {
   return {
     type: LEDGER_TYPE_COD_CUSTODY,
@@ -158,10 +170,10 @@ export function codRemittancePosting(amountMinor: number): {
   };
 }
 
-export function driverEarningPosting(amountMinor: number): {
+export function driverEarningPosting(amountMinor: number | bigint): {
   type: typeof LEDGER_TYPE_DRIVER_PAYABLE;
   direction: typeof LEDGER_DIRECTION_CREDIT;
-  amountMinor: number;
+  amountMinor: bigint;
 } {
   return {
     type: LEDGER_TYPE_DRIVER_PAYABLE,
@@ -174,32 +186,40 @@ export function driverEarningPosting(amountMinor: number): {
  * Positive/zero net → CREDIT; negative net → DEBIT of abs(net).
  * Zero uses CREDIT 0 deterministically (audit + reconciler idempotency marker).
  */
-export function merchantSettlementPosting(netPayableMinor: number): {
+export function merchantSettlementPosting(netPayableMinor: number | bigint): {
   type: typeof LEDGER_TYPE_MERCHANT_PAYABLE;
   direction: LedgerDirection;
-  amountMinor: number;
+  amountMinor: bigint;
 } {
-  if (!Number.isInteger(netPayableMinor)) {
-    throw ledgerInvalidAmount('Settlement netPayableMinor must be an integer');
-  }
-  if (netPayableMinor >= 0) {
+  const net =
+    typeof netPayableMinor === 'bigint'
+      ? netPayableMinor
+      : (() => {
+          if (!Number.isInteger(netPayableMinor)) {
+            throw ledgerInvalidAmount(
+              'Settlement netPayableMinor must be an integer',
+            );
+          }
+          return BigInt(netPayableMinor);
+        })();
+  if (net >= 0n) {
     return {
       type: LEDGER_TYPE_MERCHANT_PAYABLE,
       direction: LEDGER_DIRECTION_CREDIT,
-      amountMinor: netPayableMinor,
+      amountMinor: net,
     };
   }
   return {
     type: LEDGER_TYPE_MERCHANT_PAYABLE,
     direction: LEDGER_DIRECTION_DEBIT,
-    amountMinor: Math.abs(netPayableMinor),
+    amountMinor: -net,
   };
 }
 
-export function refundPosting(amountMinor: number): {
+export function refundPosting(amountMinor: number | bigint): {
   type: typeof LEDGER_TYPE_REFUND;
   direction: typeof LEDGER_DIRECTION_DEBIT;
-  amountMinor: number;
+  amountMinor: bigint;
 } {
   return {
     type: LEDGER_TYPE_REFUND,
@@ -210,25 +230,25 @@ export function refundPosting(amountMinor: number): {
 
 /** Category-local: MERCHANT_PAYABLE credits − debits. Not a global ledger balance. */
 export function deriveMerchantNetPayable(
-  creditMinor: number,
-  debitMinor: number,
-): number {
+  creditMinor: bigint,
+  debitMinor: bigint,
+): bigint {
   return creditMinor - debitMinor;
 }
 
 /** Category-local: DRIVER_PAYABLE credits − debits. */
 export function deriveDriverPayable(
-  creditMinor: number,
-  debitMinor: number,
-): number {
+  creditMinor: bigint,
+  debitMinor: bigint,
+): bigint {
   return creditMinor - debitMinor;
 }
 
 /** Category-local: COD_CUSTODY debits − credits. Never net with DRIVER_PAYABLE. */
 export function deriveCodCustody(
-  debitMinor: number,
-  creditMinor: number,
-): number {
+  debitMinor: bigint,
+  creditMinor: bigint,
+): bigint {
   return debitMinor - creditMinor;
 }
 
@@ -248,7 +268,7 @@ export function normalizeLedgerListQuery(input: {
 export type PlannedLedgerEntry = {
   type: string;
   direction: LedgerDirection;
-  amountMinor: number;
+  amountMinor: bigint;
   orderId: string | null;
   merchantId: string | null;
   driverId: string | null;

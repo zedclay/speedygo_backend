@@ -27,11 +27,11 @@ export type MerchantSettlementRecord = {
   merchantId: string;
   periodStart: string;
   periodEnd: string;
-  grossSalesMinor: number;
-  commissionMinor: number;
-  refundAdjustmentsMinor: number;
-  manualAdjustmentsMinor: number;
-  netPayableMinor: number;
+  grossSalesMinor: bigint;
+  commissionMinor: bigint;
+  refundAdjustmentsMinor: bigint;
+  manualAdjustmentsMinor: bigint;
+  netPayableMinor: bigint;
   status: SettlementStatus;
   paidAt: string | null;
   createdAt: string;
@@ -42,20 +42,20 @@ export type MerchantSettlementLineRecord = {
   settlementId: string;
   orderId: string | null;
   type: SettlementLineTypeV1;
-  grossMerchandiseMinor: number;
-  commissionMinor: number;
-  merchantNetMinor: number;
-  adjustmentMinor: number;
+  grossMerchandiseMinor: bigint;
+  commissionMinor: bigint;
+  merchantNetMinor: bigint;
+  adjustmentMinor: bigint;
   reference: string | null;
   createdAt: string;
 };
 
 export type SettlementTotals = {
-  grossSalesMinor: number;
-  commissionMinor: number;
-  refundAdjustmentsMinor: number;
-  manualAdjustmentsMinor: number;
-  netPayableMinor: number;
+  grossSalesMinor: bigint;
+  commissionMinor: bigint;
+  refundAdjustmentsMinor: bigint;
+  manualAdjustmentsMinor: bigint;
+  netPayableMinor: bigint;
 };
 
 export type MerchantSettlementSummaryView = {
@@ -65,10 +65,10 @@ export type MerchantSettlementSummaryView = {
   periodEnd: string;
   status: SettlementStatus;
   currency: string;
-  grossSalesMinor: number;
-  commissionMinor: number;
-  refundAdjustmentTotalMinor: number;
-  netPayableMinor: number;
+  grossSalesMinor: string;
+  commissionMinor: string;
+  refundAdjustmentTotalMinor: string;
+  netPayableMinor: string;
   createdAt: string;
 };
 
@@ -77,10 +77,10 @@ export type MerchantSettlementLineView = {
   type: SettlementLineTypeV1;
   orderId: string | null;
   refundId: string | null;
-  grossMerchandiseMinor: number;
-  commissionMinor: number;
-  merchantNetMinor: number;
-  adjustmentMinor: number;
+  grossMerchandiseMinor: string;
+  commissionMinor: string;
+  merchantNetMinor: string;
+  adjustmentMinor: string;
   createdAt: string;
 };
 

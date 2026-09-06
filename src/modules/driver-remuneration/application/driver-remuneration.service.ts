@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import { isPostgresUniqueViolation } from '../../../common/errors/postgres-unique';
 import { driverProfileNotFound } from '../../drivers/domain/driver.errors';
 import { DriverRepository } from '../../drivers/infrastructure/driver.repository';
@@ -126,7 +127,7 @@ export class DriverRemunerationService {
       if (
         raced &&
         raced.driverId === input.driverId &&
-        raced.netEarningMinor === amounts.netEarningMinor &&
+        raced.netEarningMinor === BigInt(amounts.netEarningMinor) &&
         raced.status === DRIVER_EARNING_STATUS_EARNED
       ) {
         await this.ledger.postDriverEarning(
@@ -151,8 +152,10 @@ export class DriverRemunerationService {
     }
     const aggregates = await this.earnings.aggregateDriverEarnings(profile.id);
     return {
-      totalEarnedMinor: aggregates.totalEarnedMinor,
-      unpaidEarnedMinor: aggregates.unpaidEarnedMinor,
+      totalEarnedMinor: moneyMinorToDecimalString(aggregates.totalEarnedMinor),
+      unpaidEarnedMinor: moneyMinorToDecimalString(
+        aggregates.unpaidEarnedMinor,
+      ),
       earningCount: aggregates.earningCount,
       currency: DRIVER_EARNING_CURRENCY_DZD,
     };
@@ -173,7 +176,7 @@ export class DriverRemunerationService {
         earningId: row.id,
         deliveryId: row.deliveryId,
         orderId: row.orderId,
-        amountMinor: row.netEarningMinor,
+        amountMinor: moneyMinorToDecimalString(row.netEarningMinor),
         currency: DRIVER_EARNING_CURRENCY_DZD,
         status: row.status,
         earnedAt: earningListEarnedAt(row),

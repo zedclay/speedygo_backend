@@ -1,3 +1,5 @@
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
+
 export {
   CATALOG_DESCRIPTION_MAX_LENGTH,
   CATALOG_NAME_MAX_LENGTH,
@@ -137,7 +139,7 @@ export type ProductSummaryView = {
   categoryId: string;
   name: string;
   description: string | null;
-  priceMinor: number;
+  priceMinor: string;
   available: boolean;
   createdAt: string;
   updatedAt: string;
@@ -146,7 +148,7 @@ export type ProductSummaryView = {
 export type OptionView = {
   id: string;
   name: string;
-  additionalPriceMinor: number;
+  additionalPriceMinor: string;
   available: boolean;
   createdAt: string;
   updatedAt: string;
@@ -199,7 +201,7 @@ export function toProductSummaryView(row: ProductRecord): ProductSummaryView {
     categoryId: row.categoryId,
     name: row.name,
     description: row.description,
-    priceMinor: row.priceMinor,
+    priceMinor: moneyMinorToDecimalString(row.priceMinor),
     available: row.available,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
@@ -210,7 +212,7 @@ export function toOptionView(row: OptionRecord): OptionView {
   return {
     id: row.id,
     name: row.name,
-    additionalPriceMinor: row.additionalPriceMinor,
+    additionalPriceMinor: moneyMinorToDecimalString(row.additionalPriceMinor),
     available: row.available,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,

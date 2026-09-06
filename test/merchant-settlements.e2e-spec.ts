@@ -38,14 +38,14 @@ import {
 type TokenBody = { accessToken: string };
 type AuthMeBody = { account: { id: string; phone: string } };
 type PreviewBody = {
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
 };
 type AcceptedBody = {
   assignmentId: string;
   deliveryId: string;
-  driverRemunerationMinor: number;
+  driverRemunerationMinor: string;
 };
 
 const INSIDE: [number, number] = [36.75, 3.05];
@@ -699,12 +699,15 @@ describe('Merchant Settlements Foundation (e2e)', () => {
       .send({
         addressId: fixture.addressId,
         paymentMethod,
-        expectedMerchandiseSubtotalMinor: (preview.body as PreviewBody)
-          .merchandiseSubtotalMinor,
-        expectedDeliveryFeeMinor: (preview.body as PreviewBody)
-          .deliveryFeeMinor,
-        expectedCustomerTotalMinor: (preview.body as PreviewBody)
-          .customerTotalMinor,
+        expectedMerchandiseSubtotalMinor: Number(
+          (preview.body as PreviewBody).merchandiseSubtotalMinor,
+        ),
+        expectedDeliveryFeeMinor: Number(
+          (preview.body as PreviewBody).deliveryFeeMinor,
+        ),
+        expectedCustomerTotalMinor: Number(
+          (preview.body as PreviewBody).customerTotalMinor,
+        ),
       });
     expect(created.status).toBe(201);
     const orderId = (created.body as { id: string }).id;
@@ -861,7 +864,7 @@ describe('Merchant Settlements Foundation (e2e)', () => {
       });
       expect(finalized.status).toBe('FINALIZED');
       expect(finalized.paidAt).toBeNull();
-      expect(finalized.netPayableMinor).toBe(merchantNet);
+      expect(finalized.netPayableMinor).toBe(BigInt(merchantNet));
 
       const lines = await prisma
         .getDb()
@@ -909,7 +912,7 @@ describe('Merchant Settlements Foundation (e2e)', () => {
         settlementId: draft.id,
         adminId: fixture.adminId,
       });
-      expect(finalized.netPayableMinor).toBe(merchantNet);
+      expect(finalized.netPayableMinor).toBe(BigInt(merchantNet));
 
       const collectionAfter = await prisma
         .getDb()
@@ -966,14 +969,14 @@ describe('Merchant Settlements Foundation (e2e)', () => {
         merchantLiabilityMinor: 2500,
         adminId: fixture.adminId,
       });
-      expect(adj?.adjustmentMinor).toBe(-2500);
+      expect(adj?.adjustmentMinor).toBe(-2500n);
 
       const finalized = await settlements.finalize({
         settlementId: draft.id,
         adminId: fixture.adminId,
       });
-      expect(finalized.netPayableMinor).toBe(merchantNet - 2500);
-      expect(finalized.refundAdjustmentsMinor).toBe(-2500);
+      expect(finalized.netPayableMinor).toBe(BigInt(merchantNet - 2500));
+      expect(finalized.refundAdjustmentsMinor).toBe(-2500n);
 
       const refundAfter = await prisma
         .getDb()
@@ -1017,7 +1020,7 @@ describe('Merchant Settlements Foundation (e2e)', () => {
         settlementId: a.id,
         adminId: fixture.adminId,
       });
-      expect(finalizedA.netPayableMinor).toBe(merchantNet);
+      expect(finalizedA.netPayableMinor).toBe(BigInt(merchantNet));
 
       const created = await refunds.createRefund({
         orderId,
@@ -1046,7 +1049,7 @@ describe('Merchant Settlements Foundation (e2e)', () => {
         settlementId: b.id,
         adminId: fixture.adminId,
       });
-      expect(finalizedB.netPayableMinor).toBe(-1000);
+      expect(finalizedB.netPayableMinor).toBe(-1000n);
 
       const aAfter = await prisma
         .getDb()
@@ -1107,7 +1110,7 @@ describe('Merchant Settlements Foundation (e2e)', () => {
         settlementId: draft.id,
         adminId: fixture.adminId,
       });
-      expect(finalized.netPayableMinor).toBe(merchantNet - 1500);
+      expect(finalized.netPayableMinor).toBe(BigInt(merchantNet - 1500));
     } finally {
       if (fixture) await cleanupFixture(fixture);
     }

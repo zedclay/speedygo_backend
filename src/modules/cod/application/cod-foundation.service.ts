@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import { isPostgresUniqueViolation } from '../../../common/errors/postgres-unique';
 import { createUuidV7 } from '../../../common/utils/uuid-v7';
 import {
@@ -60,25 +61,32 @@ function newCodReference(prefix: string): string {
 export type CodCollectionView = {
   orderId: string;
   codCollectionId: string;
-  expectedAmountMinor: number;
-  collectedAmountMinor: number;
+  expectedAmountMinor: string;
+  collectedAmountMinor: string;
   codCollectionStatus: string;
   paymentStatus: string;
 };
 
 export type CodDriverSummaryView = {
-  outstandingCustodyMinor: number;
-  collectedAmountMinor: number;
-  confirmedAllocatedMinor: number;
+  outstandingCustodyMinor: string;
+  collectedAmountMinor: string;
+  confirmedAllocatedMinor: string;
   openDeclaredCount: number;
 };
 
 export type CodRemittanceView = {
   remittanceId: string;
   reference: string;
-  submittedAmountMinor: number;
-  confirmedAmountMinor: number;
+  submittedAmountMinor: string;
+  confirmedAmountMinor: string;
   status: string;
+};
+
+type CodDriverCustodyInternal = {
+  outstandingCustodyMinor: number;
+  collectedAmountMinor: number;
+  confirmedAllocatedMinor: number;
+  openDeclaredCount: number;
 };
 
 @Injectable()
@@ -251,8 +259,8 @@ export class CodFoundationService {
     return {
       orderId: order.id,
       codCollectionId,
-      expectedAmountMinor: paymentAmountMinor,
-      collectedAmountMinor,
+      expectedAmountMinor: moneyMinorToDecimalString(paymentAmountMinor),
+      collectedAmountMinor: moneyMinorToDecimalString(collectedAmountMinor),
       codCollectionStatus: COD_COLLECTION_STATUS_COLLECTED,
       paymentStatus: PAYMENT_STATUS_SUCCEEDED,
     };
@@ -316,8 +324,8 @@ export class CodFoundationService {
     return {
       orderId: input.existing.orderId,
       codCollectionId: input.existing.id,
-      expectedAmountMinor: expected,
-      collectedAmountMinor: collected,
+      expectedAmountMinor: moneyMinorToDecimalString(expected),
+      collectedAmountMinor: moneyMinorToDecimalString(collected),
       codCollectionStatus: COD_COLLECTION_STATUS_COLLECTED,
       paymentStatus: PAYMENT_STATUS_SUCCEEDED,
     };
@@ -328,7 +336,9 @@ export class CodFoundationService {
     if (!profile) {
       throw driverCodProfileNotFound();
     }
-    return this.computeOutstandingCustody(profile.id);
+    return this.toDriverSummaryView(
+      await this.computeOutstandingCustody(profile.id),
+    );
   }
 
   async submitCodRemittance(
@@ -383,8 +393,8 @@ export class CodFoundationService {
       return {
         remittanceId,
         reference,
-        submittedAmountMinor,
-        confirmedAmountMinor: 0,
+        submittedAmountMinor: moneyMinorToDecimalString(submittedAmountMinor),
+        confirmedAmountMinor: moneyMinorToDecimalString(0),
         status: COD_REMITTANCE_STATUS_DECLARED,
       };
     });
@@ -552,8 +562,8 @@ export class CodFoundationService {
     return {
       remittanceId: locked.id,
       reference: locked.reference,
-      submittedAmountMinor: submitted,
-      confirmedAmountMinor,
+      submittedAmountMinor: moneyMinorToDecimalString(submitted),
+      confirmedAmountMinor: moneyMinorToDecimalString(confirmedAmountMinor),
       status: COD_REMITTANCE_STATUS_CONFIRMED,
     };
   }
@@ -561,7 +571,7 @@ export class CodFoundationService {
   private async computeOutstandingCustody(
     driverId: string,
     client?: OrmClient,
-  ): Promise<CodDriverSummaryView> {
+  ): Promise<CodDriverCustodyInternal> {
     const db = client ?? { orm: this.prisma.getDb().orm };
     const collections = await orm(db)
       .CodCollection.where({
@@ -626,5 +636,22 @@ export class CodFoundationService {
       }
     }
     return map;
+  }
+
+  private toDriverSummaryView(
+    custody: CodDriverCustodyInternal,
+  ): CodDriverSummaryView {
+    return {
+      outstandingCustodyMinor: moneyMinorToDecimalString(
+        custody.outstandingCustodyMinor,
+      ),
+      collectedAmountMinor: moneyMinorToDecimalString(
+        custody.collectedAmountMinor,
+      ),
+      confirmedAllocatedMinor: moneyMinorToDecimalString(
+        custody.confirmedAllocatedMinor,
+      ),
+      openDeclaredCount: custody.openDeclaredCount,
+    };
   }
 }

@@ -50,7 +50,10 @@ export function pgNumeric<P extends number, S extends number>(
   return value.toFixed(scale) as PgNumeric<P, S>;
 }
 
-export function pgBigInt(value: number): bigint {
+export function pgBigInt(value: number | bigint | string): bigint {
+  if (typeof value === 'bigint') {
+    return value;
+  }
   return BigInt(value);
 }
 

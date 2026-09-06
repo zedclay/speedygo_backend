@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import { customerProfileNotFound } from '../../customers/domain/customer.errors';
 import {
   refundAdminRequired,
@@ -407,10 +408,16 @@ export class RefundService {
     const rows = await this.refunds.listByOrderId(orderId);
     return {
       orderId,
-      originalPaidMinor: capacity.originalPaidMinor,
-      reservedRefundMinor: capacity.reservedRefundMinor,
-      successfulRefundMinor: capacity.successfulRefundMinor,
-      remainingRefundableMinor: capacity.remainingRefundableMinor,
+      originalPaidMinor: moneyMinorToDecimalString(capacity.originalPaidMinor),
+      reservedRefundMinor: moneyMinorToDecimalString(
+        capacity.reservedRefundMinor,
+      ),
+      successfulRefundMinor: moneyMinorToDecimalString(
+        capacity.successfulRefundMinor,
+      ),
+      remainingRefundableMinor: moneyMinorToDecimalString(
+        capacity.remainingRefundableMinor,
+      ),
       currency: capacity.currency,
       refunds: rows.map(toCustomerView),
     };
@@ -496,7 +503,7 @@ export class RefundService {
 function toCustomerView(row: RefundRecord): CustomerRefundView {
   return {
     refundId: row.id,
-    amountMinor: row.amountMinor,
+    amountMinor: moneyMinorToDecimalString(row.amountMinor),
     currency: REFUND_CURRENCY_DZD,
     status: row.status,
     method: row.refundMethod,

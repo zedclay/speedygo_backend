@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN } from '../../../../../common/money/money-minor';
 
 export class DeliveryEventResponseDto {
   @ApiProperty()
@@ -115,10 +116,13 @@ export class CustomerDeliveryResponseDto {
 
   @ApiPropertyOptional({
     nullable: true,
+    type: String,
     description:
       'Customer Delivery Fee from the immutable OrderFinancialSnapshot. Not Merchant revenue.',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '500',
   })
-  deliveryFeeMinor!: number | null;
+  deliveryFeeMinor!: string | null;
 
   @ApiProperty({ type: [DeliveryEventResponseDto] })
   events!: DeliveryEventResponseDto[];

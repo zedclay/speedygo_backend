@@ -1,4 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
+import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import { CartService } from '../../cart/application/cart.service';
 import { customerProfileNotFound } from '../../customers/domain/customer.errors';
 import { hasValidCoordinates } from '../../customers/domain/customer.types';
@@ -116,7 +118,7 @@ export class CheckoutService {
     );
     const rule = requireSinglePricingRule(applicable);
     const deliveryFeeMinor = rule.customerDeliveryFeeMinor;
-    const merchandiseSubtotalMinor = cart.cartSubtotalMinor;
+    const merchandiseSubtotalMinor = parseMinorUnits(cart.cartSubtotalMinor);
     const warnings: CheckoutWarningCode[] = [];
     if (
       cart.items.some(
@@ -143,6 +145,12 @@ export class CheckoutService {
       });
     }
 
+    const customerTotal = customerTotalMinor(
+      merchandiseSubtotalMinor,
+      deliveryFeeMinor,
+      discountMinor,
+    );
+
     return {
       checkoutReady: true,
       warnings,
@@ -151,7 +159,9 @@ export class CheckoutService {
         branchId: cart.branchId,
         merchantId: cart.merchantId,
         itemCount: cart.itemCount,
-        merchandiseSubtotalMinor,
+        merchandiseSubtotalMinor: moneyMinorToDecimalString(
+          merchandiseSubtotalMinor,
+        ),
         items: cart.items,
       },
       address: {
@@ -171,15 +181,13 @@ export class CheckoutService {
         timeBand: rule.timeBand,
         timezone: CHECKOUT_PRICING_TIMEZONE,
       },
-      merchandiseSubtotalMinor,
-      deliveryFeeMinor,
-      discountMinor,
-      promoCode,
-      customerTotalMinor: customerTotalMinor(
+      merchandiseSubtotalMinor: moneyMinorToDecimalString(
         merchandiseSubtotalMinor,
-        deliveryFeeMinor,
-        discountMinor,
       ),
+      deliveryFeeMinor: moneyMinorToDecimalString(deliveryFeeMinor),
+      discountMinor: moneyMinorToDecimalString(discountMinor),
+      promoCode,
+      customerTotalMinor: moneyMinorToDecimalString(customerTotal),
     };
   }
 }
