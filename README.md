@@ -33,8 +33,8 @@ pnpm start:dev
 | --- | --- |
 | API | 3000 |
 | OpenAPI UI | 3000 `/docs` |
-| PostgreSQL | 5432 |
-| Redis | 6379 |
+| PostgreSQL | 5433 (host) → 5432 (container); override with `SPEEDYGO_POSTGRES_HOST_PORT` |
+| Redis | 6381 (host) → 6379 (container); override with `SPEEDYGO_REDIS_HOST_PORT` |
 | MinIO API | 9000 |
 | MinIO console | 9001 |
 
@@ -44,7 +44,7 @@ Auth architecture: [AUTHENTICATION.md](../../docs/architecture/AUTHENTICATION.md
 
 Local OTP: set `OTP_TRANSPORT=console` (development only). Production refuses that transport.
 
-E2E auth tests use isolated `speedygo_test` and Redis DB 15. They never write to `speedygo_dev`. Apply the existing migration history to `speedygo_test` once (`prisma db migrate --db .../speedygo_test`). Jest is launched with `--experimental-vm-modules` because Prisma 8 runtime packages are ESM.
+E2E uses isolated `speedygo_test` on SpeedyGo Postgres host port **5433**, and SpeedyGo Redis on host port **6381**, database **15** (`redis://127.0.0.1:6381/15`). E2E does not inherit shared `DATABASE_URL` on port 5432 or `REDIS_URL` on port 6379, and refuses unsafe targets. They never write to `speedygo_dev`. Apply the existing migration history to `speedygo_test` once (`prisma db migrate --db .../speedygo_test`). Jest is launched with `--experimental-vm-modules` because Prisma 8 runtime packages are ESM.
 
 ## Prisma
 

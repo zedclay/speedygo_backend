@@ -2,8 +2,8 @@
 # Application process runs on the host (`pnpm start:dev`).
 #
 # Ports:
-#   PostgreSQL  5432
-#   Redis       6379
+#   PostgreSQL  5433 (host) → 5432 (container) — avoids collision with Homebrew/other Postgres on 5432
+#   Redis       6381 (host) → 6379 (container) — avoids collision with other local Redis on 6379
 #   MinIO API   9000
 #   MinIO UI    9001
 #
@@ -23,7 +23,9 @@ services:
     container_name: speedygo-postgres
     restart: unless-stopped
     ports:
-      - '5432:5432'
+      # Host 5433 keeps SpeedyGo isolated from Homebrew/other Postgres on 5432.
+      # Inside the Compose network the service remains postgres:5432.
+      - '${SPEEDYGO_POSTGRES_HOST_PORT:-5433}:5432'
     environment:
       POSTGRES_USER: speedygo
       POSTGRES_PASSWORD: speedygo
@@ -41,7 +43,9 @@ services:
     container_name: speedygo-redis
     restart: unless-stopped
     ports:
-      - '6379:6379'
+      # Host 6381 keeps SpeedyGo isolated from other projects that bind 6379.
+      # Inside the Compose network the service remains redis:6379.
+      - '${SPEEDYGO_REDIS_HOST_PORT:-6381}:6379'
     command: ['redis-server', '--appendonly', 'yes']
     volumes:
       - speedygo_redis_data:/data

@@ -35,7 +35,7 @@ pnpm prisma:migrate
 pnpm prisma:verify
 ```
 
-`DATABASE_URL` must be the local Compose database (`localhost:5432/speedygo_dev`). Do not migrate a remote database from this foundation.
+`DATABASE_URL` must be the local Compose database (`localhost:5433/speedygo_dev` on the host; `postgres:5432` inside Compose). Do not migrate a remote database from this foundation. E2E uses `127.0.0.1:5433/speedygo_test` only.
 
 ## Rules baked into the contract
 

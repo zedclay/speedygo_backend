@@ -1,4 +1,14 @@
 import { execSync } from 'node:child_process';
+import {
+  assertSafeE2eDatabaseUrl,
+  redactDatabaseUrl,
+  resolveE2eDatabaseUrl,
+} from '../src/config/e2e-database-safety';
+import {
+  assertSafeE2eRedisUrl,
+  redactRedisUrl,
+  resolveE2eRedisUrl,
+} from '../src/config/e2e-redis-safety';
 
 process.env.NODE_ENV = 'test';
 process.env.OTP_TRANSPORT = 'test';
@@ -10,11 +20,20 @@ process.env.OTP_HMAC_SECRET =
   process.env.OTP_HMAC_SECRET && process.env.OTP_HMAC_SECRET.length >= 32
     ? process.env.OTP_HMAC_SECRET
     : 'test-otp-hmac-secret-at-least-32-ch';
-process.env.DATABASE_URL =
-  process.env.TEST_DATABASE_URL ??
-  'postgresql://speedygo:speedygo@localhost:5432/speedygo_test?schema=public';
-process.env.REDIS_URL =
-  process.env.TEST_REDIS_URL ?? 'redis://localhost:6379/15';
+
+// Dedicated SpeedyGo E2E Postgres (Compose host port 5433, speedygo_test). Fail closed —
+// never inherit DATABASE_URL / TEST_DATABASE_URL on :5432 (Homebrew) or speedygo_dev.
+const e2eDatabaseUrl = resolveE2eDatabaseUrl(process.env);
+process.env.DATABASE_URL = e2eDatabaseUrl;
+assertSafeE2eDatabaseUrl(e2eDatabaseUrl);
+void redactDatabaseUrl(e2eDatabaseUrl);
+
+// Dedicated SpeedyGo E2E Redis (Compose host port 6381, DB15). Fail closed —
+// never inherit shared REDIS_URL / TEST_REDIS_URL on :6379.
+const e2eRedisUrl = resolveE2eRedisUrl(process.env);
+process.env.REDIS_URL = e2eRedisUrl;
+const e2eRedis = assertSafeE2eRedisUrl(e2eRedisUrl);
+
 process.env.AUTH_REDIS_PREFIX = 'auth:test:';
 process.env.MATCHING_REDIS_PREFIX = 'matching:test:';
 process.env.MATCHING_BULL_PREFIX = 'bull:matching:test';
@@ -48,11 +67,13 @@ process.env.PAYMENT_TEST_WEBHOOK_SECRET =
     ? process.env.PAYMENT_TEST_WEBHOOK_SECRET
     : 'test-payment-webhook-secret';
 
-// Deterministic e2e isolation: Redis DB15 is the frozen test Redis database.
-// Flush once per Jest process so leftover auth/matching/tracking keys cannot
-// poison later files in a full suite run.
+// Deterministic e2e isolation: flush SpeedyGo E2E Redis DB15 only (never :6379).
 try {
-  execSync('redis-cli -n 15 FLUSHDB', { stdio: 'ignore' });
+  execSync(
+    `redis-cli -h ${e2eRedis.hostname === 'localhost' ? '127.0.0.1' : e2eRedis.hostname} -p ${e2eRedis.port} -n ${e2eRedis.db} FLUSHDB`,
+    { stdio: 'ignore' },
+  );
 } catch {
   // Redis may be unavailable in unit-only environments; e2e fails clearly later.
+  void redactRedisUrl(e2eRedisUrl);
 }

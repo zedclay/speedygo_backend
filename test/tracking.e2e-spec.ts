@@ -20,7 +20,10 @@ import {
   pgTimestamptz,
   pgVarchar,
 } from '../src/infrastructure/database/pg-values';
-import { attachRedisIoAdapter } from '../src/infrastructure/realtime/redis-io.adapter';
+import {
+  attachRedisIoAdapter,
+  RedisIoAdapter,
+} from '../src/infrastructure/realtime/redis-io.adapter';
 import { OTP_SENDER } from '../src/modules/auth/domain/ports/otp-sender.port';
 import { TestOtpSender } from '../src/modules/auth/infrastructure/otp/test-otp.sender';
 import { DriverReviewService } from '../src/modules/drivers/application/driver-review.service';
@@ -64,6 +67,7 @@ const COVERING_RING: Array<[number, number]> = [
 describe('Realtime tracking (e2e)', () => {
   jest.setTimeout(120_000);
   let app: INestApplication<App>;
+  let redisIoAdapter: RedisIoAdapter;
   let sender: TestOtpSender;
   let prisma: PrismaService;
   let redis: RedisService;
@@ -79,7 +83,9 @@ describe('Realtime tracking (e2e)', () => {
     }).compile();
     app = moduleRef.createNestApplication();
     configureApp(app);
-    attachRedisIoAdapter(app);
+    // Adapter must be attached before init/listen so the Socket.IO server
+    // is created with the Redis adapter (not the default in-memory one).
+    redisIoAdapter = attachRedisIoAdapter(app);
     await app.listen(0);
     baseUrl = await app.getUrl();
     sender = app.get(OTP_SENDER);
@@ -91,12 +97,13 @@ describe('Realtime tracking (e2e)', () => {
     locations = app.get(DRIVER_LOCATION_STORE);
     queue = app.get<Queue>(getQueueToken(MATCHING_QUEUE_NAME));
     await queue.obliterate({ force: true });
+    // Never delete live Socket.IO adapter keys (socket.io:tracking:test*) —
+    // that desynchronizes the Redis adapter and breaks subscribe join/ack.
     for (const pattern of [
       'auth:test:*',
       'matching:test:*',
       'bull:matching:test*',
       'tracking:test:*',
-      'socket.io:tracking:test*',
     ]) {
       const leftover = await redis.getClient().keys(pattern);
       if (leftover.length > 0) {
@@ -106,13 +113,46 @@ describe('Realtime tracking (e2e)', () => {
   });
 
   afterAll(async () => {
-    await queue.obliterate({ force: true });
-    await Promise.race([
-      app.get(MatchingProcessor).worker.close(),
-      new Promise((resolve) => setTimeout(resolve, 3000)),
-    ]);
-    await app.close();
-  });
+    const settle = async (work: () => Promise<unknown>, ms: number) => {
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        await Promise.race([
+          work().finally(() => {
+            if (timer) {
+              clearTimeout(timer);
+            }
+          }),
+          new Promise<void>((resolve) => {
+            timer = setTimeout(resolve, ms);
+          }),
+        ]);
+      } catch {
+        if (timer) {
+          clearTimeout(timer);
+        }
+      }
+    };
+    await settle(async () => {
+      if (app) {
+        await app.get(MatchingProcessor).worker.close();
+      }
+    }, 5_000);
+    await settle(async () => {
+      if (queue) {
+        await queue.obliterate({ force: true });
+      }
+    }, 5_000);
+    await settle(async () => {
+      if (app) {
+        await app.close();
+      }
+    }, 10_000);
+    await settle(async () => {
+      if (redisIoAdapter) {
+        await redisIoAdapter.close();
+      }
+    }, 5_000);
+  }, 30_000);
 
   async function authenticate(phone: string): Promise<string> {
     const server = app.getHttpServer();
@@ -205,9 +245,16 @@ describe('Realtime tracking (e2e)', () => {
     socket: Socket,
     event: string,
     payload?: unknown,
+    timeoutMs = 8_000,
   ): Promise<T> {
-    return new Promise((resolve) => {
-      socket.emit(event, payload ?? {}, (ack: T) => resolve(ack));
+    return new Promise((resolve, reject) => {
+      const timer = setTimeout(() => {
+        reject(new Error(`ack timeout for ${event}`));
+      }, timeoutMs);
+      socket.emit(event, payload ?? {}, (ack: T) => {
+        clearTimeout(timer);
+        resolve(ack);
+      });
     });
   }
 
@@ -1156,7 +1203,7 @@ describe('Realtime tracking (e2e)', () => {
         'matching:test:*',
         'bull:matching:test*',
         'tracking:test:*',
-        'socket.io:tracking:test*',
+        // Never delete live Socket.IO adapter keys while the Redis adapter is up.
       ]) {
         const leftover = await redis.getClient().keys(pattern);
         if (leftover.length > 0) {
