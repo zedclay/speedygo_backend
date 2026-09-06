@@ -45,6 +45,28 @@ export const REFUND_METHODS = [
 
 export type RefundMethod = (typeof REFUND_METHODS)[number];
 
+export const REFUND_REQUEST_ORIGIN_ADMIN = 'ADMIN';
+export const REFUND_REQUEST_ORIGIN_CUSTOMER_CANCELLATION =
+  'CUSTOMER_CANCELLATION';
+export const REFUND_REQUEST_ORIGIN_MERCHANT_REJECTION = 'MERCHANT_REJECTION';
+export const REFUND_REQUEST_ORIGIN_LATE_PAYMENT_SUCCESS =
+  'LATE_PAYMENT_SUCCESS';
+
+export const REFUND_REQUEST_ORIGINS = [
+  REFUND_REQUEST_ORIGIN_ADMIN,
+  REFUND_REQUEST_ORIGIN_CUSTOMER_CANCELLATION,
+  REFUND_REQUEST_ORIGIN_MERCHANT_REJECTION,
+  REFUND_REQUEST_ORIGIN_LATE_PAYMENT_SUCCESS,
+] as const;
+
+export type RefundRequestOrigin = (typeof REFUND_REQUEST_ORIGINS)[number];
+
+export const PAID_TERMINAL_REFUND_ORIGINS: readonly RefundRequestOrigin[] = [
+  REFUND_REQUEST_ORIGIN_CUSTOMER_CANCELLATION,
+  REFUND_REQUEST_ORIGIN_MERCHANT_REJECTION,
+  REFUND_REQUEST_ORIGIN_LATE_PAYMENT_SUCCESS,
+];
+
 export const REFUND_CURRENCY_DZD = 'DZD';
 
 export const REFUND_EXECUTOR = Symbol('REFUND_EXECUTOR');
@@ -58,7 +80,9 @@ export type RefundRecord = {
   status: RefundStatus;
   reason: string;
   internalNote: string | null;
-  requestedByAdminId: string;
+  requestOrigin: RefundRequestOrigin;
+  requestedByAdminId: string | null;
+  paidTerminalIntentKey: string | null;
   requestedAt: string;
   completedAt: string | null;
   createdAt: string;

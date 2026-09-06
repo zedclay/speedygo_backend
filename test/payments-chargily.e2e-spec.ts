@@ -223,6 +223,15 @@ describe('Payments Chargily Pay V2 adapter (e2e)', () => {
       .orm.public.Order.where({ customerId })
       .all();
     for (const order of orders) {
+      for (const refund of await prisma
+        .getDb()
+        .orm.public.Refund.where({ orderId: order.id })
+        .all()) {
+        await prisma
+          .getDb()
+          .orm.public.Refund.where({ id: refund.id })
+          .delete();
+      }
       const payments = await prisma
         .getDb()
         .orm.public.Payment.where({ orderId: order.id })

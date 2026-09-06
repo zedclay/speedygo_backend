@@ -150,6 +150,15 @@ describe('Merchant order workflow (e2e)', () => {
       .orm.public.Order.where({ customerId })
       .all();
     for (const order of orders) {
+      for (const refund of await prisma
+        .getDb()
+        .orm.public.Refund.where({ orderId: order.id })
+        .all()) {
+        await prisma
+          .getDb()
+          .orm.public.Refund.where({ id: refund.id })
+          .delete();
+      }
       const delivery = await prisma
         .getDb()
         .orm.public.Delivery.where({ orderId: order.id })
@@ -836,27 +845,26 @@ describe('Merchant order workflow (e2e)', () => {
       const paidReject = await request(server)
         .post(`/api/v1/merchant/${merchantId}/orders/${paidRejectId}/reject`)
         .set('Authorization', `Bearer ${tokenOwner}`)
-        .send({ reason: 'Cannot cancel paid intent' });
-      expect(paidReject.status).toBe(409);
-      expect((paidReject.body as ErrorBody).error.code).toBe(
-        'MERCHANT_ORDER_REJECTION_REQUIRES_CANCELLATION_FLOW',
-      );
+        .send({ reason: 'Cannot fulfill paid order' });
+      expect(paidReject.status).toBe(200);
+      expect((paidReject.body as MerchantOrderDetail).status).toBe('CANCELLED');
       const paidOrder = await prisma
         .getDb()
         .orm.public.Order.where({ id: paidRejectId })
         .first();
-      expect(paidOrder?.status).toBe('CREATED');
+      expect(paidOrder?.status).toBe('CANCELLED');
       const paidPayment = await prisma
         .getDb()
         .orm.public.Payment.where({ orderId: paidRejectId })
         .first();
       expect(paidPayment?.status).toBe('SUCCEEDED');
-      expect(
-        await prisma
-          .getDb()
-          .orm.public.OrderCancellation.where({ orderId: paidRejectId })
-          .first(),
-      ).toBeNull();
+      const paidRefunds = await prisma
+        .getDb()
+        .orm.public.Refund.where({ orderId: paidRejectId })
+        .all();
+      expect(paidRefunds).toHaveLength(1);
+      expect(paidRefunds[0].status).toBe('REQUESTED');
+      expect(paidRefunds[0].completedAt).toBeNull();
 
       const rejectOrderId = await createFollowOnOrder('COD');
       const rejectPaymentBefore = await prisma

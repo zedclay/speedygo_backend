@@ -26,6 +26,13 @@ export const ORDER_ERROR_CODES = {
   MERCHANT_ORDER_PAYMENT_NOT_READY: 'MERCHANT_ORDER_PAYMENT_NOT_READY',
   MERCHANT_ORDER_REJECTION_REQUIRES_CANCELLATION_FLOW:
     'MERCHANT_ORDER_REJECTION_REQUIRES_CANCELLATION_FLOW',
+  ORDER_CANCELLATION_NOT_ALLOWED: 'ORDER_CANCELLATION_NOT_ALLOWED',
+  ORDER_CANCELLATION_REASON_INVALID: 'ORDER_CANCELLATION_REASON_INVALID',
+  ORDER_CANCELLATION_FULFILLMENT_ACTIVE:
+    'ORDER_CANCELLATION_FULFILLMENT_ACTIVE',
+  ORDER_CANCELLATION_COD_COLLECTED: 'ORDER_CANCELLATION_COD_COLLECTED',
+  ORDER_CANCELLATION_REFUND_REQUIRED: 'ORDER_CANCELLATION_REFUND_REQUIRED',
+  ORDER_CANCELLATION_CONFLICT: 'ORDER_CANCELLATION_CONFLICT',
 } as const;
 
 export type OrderErrorCode =
@@ -245,6 +252,64 @@ export function merchantOrderRejectionRequiresCancellationFlow(): OrderError {
   return new OrderError(
     ORDER_ERROR_CODES.MERCHANT_ORDER_REJECTION_REQUIRES_CANCELLATION_FLOW,
     'Payment is no longer pending; use a future Cancellation and Refund workflow',
+    409,
+  );
+}
+
+export function orderCancellationNotAllowed(
+  message = 'Customer cancellation is not allowed for this Order',
+): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.ORDER_CANCELLATION_NOT_ALLOWED,
+    message,
+    409,
+  );
+}
+
+export function orderCancellationReasonInvalid(
+  message = 'Cancellation reason is invalid',
+): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.ORDER_CANCELLATION_REASON_INVALID,
+    message,
+    400,
+  );
+}
+
+export function orderCancellationFulfillmentActive(
+  message = 'Order has active Delivery or fulfillment work and cannot be cancelled by the Customer',
+): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.ORDER_CANCELLATION_FULFILLMENT_ACTIVE,
+    message,
+    409,
+  );
+}
+
+export function orderCancellationCodCollected(): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.ORDER_CANCELLATION_COD_COLLECTED,
+    'Order already has authoritative COD collection and cannot use early Customer cancellation',
+    409,
+  );
+}
+
+export function orderCancellationRefundRequired(
+  message = 'Paid Order cancellation requires a durable Refund intent',
+): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.ORDER_CANCELLATION_REFUND_REQUIRED,
+    message,
+    409,
+  );
+}
+
+export function orderCancellationConflict(
+  message = 'Order cancellation conflicted with a concurrent state change',
+): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.ORDER_CANCELLATION_CONFLICT,
+    message,
     409,
   );
 }

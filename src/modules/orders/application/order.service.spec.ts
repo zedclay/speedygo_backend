@@ -273,6 +273,16 @@ describe('OrderService.createOrder', () => {
       } as never,
       {
         notifyMerchantOrderCreated: jest.fn().mockResolvedValue(undefined),
+        notifyOrderCancelled: jest.fn().mockResolvedValue(undefined),
+      } as never,
+      {
+        ensureRefundIntentInTx: jest.fn(),
+        toPublicRefundFields: jest.fn().mockReturnValue({
+          refundRequired: false,
+          refundId: null,
+          refundStatus: null,
+          refundAmountMinor: null,
+        }),
       } as never,
       {
         now: () => instant,
@@ -744,6 +754,16 @@ describe('OrderService reads', () => {
       } as never,
       {
         notifyMerchantOrderCreated: jest.fn().mockResolvedValue(undefined),
+        notifyOrderCancelled: jest.fn().mockResolvedValue(undefined),
+      } as never,
+      {
+        ensureRefundIntentInTx: jest.fn(),
+        toPublicRefundFields: jest.fn().mockReturnValue({
+          refundRequired: false,
+          refundId: null,
+          refundStatus: null,
+          refundAmountMinor: null,
+        }),
       } as never,
       {
         now: () => new Date(),

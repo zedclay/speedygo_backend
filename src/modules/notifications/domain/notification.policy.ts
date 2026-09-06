@@ -180,6 +180,25 @@ export function copyOrderRejected(publicReference: string): {
   };
 }
 
+export function copyOrderCancelled(
+  publicReference: string,
+  refundRequired: boolean,
+): {
+  title: string;
+  body: string;
+} {
+  if (refundRequired) {
+    return {
+      title: 'Order cancelled',
+      body: `Your order ${publicReference} was cancelled. A refund has been requested and is processing — this does not mean money has been returned yet.`,
+    };
+  }
+  return {
+    title: 'Order cancelled',
+    body: `Your order ${publicReference} was cancelled. No refund is required.`,
+  };
+}
+
 export function copyOrderReady(publicReference: string): {
   title: string;
   body: string;

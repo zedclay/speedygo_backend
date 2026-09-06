@@ -39,6 +39,7 @@ import {
   PAYMENT_STATUS_PENDING,
   uniqueSortedIds,
 } from '../domain/order.policy';
+import { ORDER_STATUS_EVENT_CUSTOMER_CANCELLED } from '../domain/customer-order-cancellation.policy';
 import type {
   MerchantOrderDetailView,
   MerchantOrderListQuery,
@@ -633,7 +634,67 @@ export class OrderRepository {
     reason: string,
     expectedUpdatedAt: string,
     client: OrmClient,
-  ): Promise<'APPLIED' | 'NOT_APPLIED' | 'PAYMENT_NOT_PENDING'> {
+  ): Promise<'APPLIED' | 'NOT_APPLIED'> {
+    const now = pgNow();
+    await orm(client)
+      .Order.where({
+        id: orderId,
+        status: ORDER_STATUS_CREATED,
+        fulfillmentStatus: ORDER_FULFILLMENT_PENDING_ACCEPTANCE,
+        updatedAt: pgTimestamptz(expectedUpdatedAt),
+      })
+      .update({
+        status: ORDER_STATUS_CANCELLED,
+        updatedAt: now,
+      });
+    const row = await orm(client).Order.where({ id: orderId }).first();
+    if (
+      !row ||
+      row.status !== ORDER_STATUS_CANCELLED ||
+      row.fulfillmentStatus !== ORDER_FULFILLMENT_PENDING_ACCEPTANCE
+    ) {
+      return 'NOT_APPLIED';
+    }
+    await orm(client).OrderCancellation.create({
+      id: createUuidV7(),
+      orderId,
+      reason: pgVarchar<255>(reason),
+      internalNote: null,
+      cancelledByAccountId: actorAccountId,
+      cancelledAt: now,
+    });
+    // Cancel only unpaid PENDING electronic/COD intent. SUCCEEDED and
+    // PROCESSING stay so late verified success remains financial truth.
+    await orm(client)
+      .Payment.where({
+        orderId,
+        status: PAYMENT_STATUS_PENDING,
+      })
+      .update({
+        status: PAYMENT_STATUS_CANCELLED,
+        updatedAt: now,
+      });
+    await this.insertMerchantEvent(
+      {
+        orderId,
+        actorAccountId,
+        eventType: ORDER_STATUS_EVENT_MERCHANT_REJECTED,
+        fromStatus: ORDER_STATUS_CREATED,
+        toStatus: ORDER_STATUS_CANCELLED,
+      },
+      client,
+      now,
+    );
+    return 'APPLIED';
+  }
+
+  async applyCustomerCancel(
+    orderId: string,
+    actorAccountId: string,
+    reason: string,
+    expectedUpdatedAt: string,
+    client: OrmClient,
+  ): Promise<'APPLIED' | 'NOT_APPLIED'> {
     const now = pgNow();
     await orm(client)
       .Order.where({
@@ -671,22 +732,63 @@ export class OrderRepository {
         status: PAYMENT_STATUS_CANCELLED,
         updatedAt: now,
       });
-    const payment = await orm(client).Payment.where({ orderId }).first();
-    if (!payment || payment.status !== PAYMENT_STATUS_CANCELLED) {
-      return 'PAYMENT_NOT_PENDING';
-    }
-    await this.insertMerchantEvent(
-      {
-        orderId,
-        actorAccountId,
-        eventType: ORDER_STATUS_EVENT_MERCHANT_REJECTED,
-        fromStatus: ORDER_STATUS_CREATED,
-        toStatus: ORDER_STATUS_CANCELLED,
-      },
-      client,
-      now,
-    );
+    await orm(client).OrderStatusEvent.create({
+      id: createUuidV7(),
+      orderId,
+      eventType: pgVarchar<64>(ORDER_STATUS_EVENT_CUSTOMER_CANCELLED),
+      actorType: pgVarchar<32>(ORDER_STATUS_EVENT_ACTOR_CUSTOMER),
+      actorId: actorAccountId,
+      fromStatus: pgVarchar<32>(ORDER_STATUS_CREATED),
+      toStatus: pgVarchar<32>(ORDER_STATUS_CANCELLED),
+      occurredAt: now,
+      metadataJson: null,
+    });
     return 'APPLIED';
+  }
+
+  async findOrderCancellation(
+    orderId: string,
+    client?: OrmClient,
+  ): Promise<{
+    reason: string;
+    cancelledAt: string;
+    cancelledByAccountId: string | null;
+  } | null> {
+    const row = await orm(client ?? this.db())
+      .OrderCancellation.where({ orderId })
+      .first();
+    if (!row) {
+      return null;
+    }
+    return {
+      reason: row.reason,
+      cancelledAt: row.cancelledAt,
+      cancelledByAccountId: row.cancelledByAccountId,
+    };
+  }
+
+  /**
+   * Fail-closed blockers for early Customer cancellation.
+   * Matching offers are Delivery SEARCHING_DRIVER / assignment-backed; any
+   * non-terminal Delivery or CodCollection blocks self-cancel.
+   */
+  async findCustomerCancellationBlocker(
+    orderId: string,
+    client: OrmClient,
+  ): Promise<'DELIVERY' | 'COD' | null> {
+    const delivery = await orm(client).Delivery.where({ orderId }).first();
+    if (
+      delivery &&
+      delivery.status !== 'CANCELLED' &&
+      delivery.status !== 'FAILED'
+    ) {
+      return 'DELIVERY';
+    }
+    const cod = await orm(client).CodCollection.where({ orderId }).first();
+    if (cod) {
+      return 'COD';
+    }
+    return null;
   }
 
   private async insertMerchantEvent(

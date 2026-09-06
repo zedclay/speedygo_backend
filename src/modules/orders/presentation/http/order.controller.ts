@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
@@ -21,6 +22,10 @@ import { CUSTOMER_ERROR_CODES } from '../../../customers/domain/customer.errors'
 import { PROMOTION_ERROR_CODES } from '../../../promotions/domain/promotion.errors';
 import { OrderService } from '../../application/order.service';
 import { ORDER_ERROR_CODES } from '../../domain/order.errors';
+import {
+  CancelOrderDto,
+  CustomerOrderCancellationResponseDto,
+} from './dto/cancel-order.dto';
 import {
   OrderDetailResponseDto,
   OrderListResponseDto,
@@ -111,6 +116,47 @@ export class OrderController {
       limit: query.limit,
       offset: query.offset,
     });
+  }
+
+  @Post(':orderId/cancel')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Cancel an owned Order awaiting Merchant acceptance',
+    description: [
+      'Customer self-cancellation is allowed only while Order.status=CREATED and fulfillmentStatus=PENDING_ACCEPTANCE.',
+      'Denied after Merchant acceptance, active Delivery, COD collection, or other fulfillment work.',
+      'Ownership from JWT CustomerProfile only — customerId/accountId/payment/refund fields in the body are rejected as authority.',
+      'Unpaid and COD early cancel: no Refund. Successfully paid electronic: atomic Order CANCELLED + durable Refund intent (REQUESTED).',
+      'refundRequired/refundStatus describe Refund workflow intent — not completed Customer money return.',
+      'Repeated cancel by the same owner is idempotent and reuses the same terminal cancellation and Refund intent.',
+      'Pending electronic Payment left open may still succeed later; late verified success creates/reuses exactly one Refund intent.',
+    ].join(' '),
+  })
+  @ApiOkResponse({ type: CustomerOrderCancellationResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: ORDER_ERROR_CODES.ORDER_CANCELLATION_REASON_INVALID,
+  })
+  @ApiResponse({
+    status: 404,
+    description: `${CUSTOMER_ERROR_CODES.CUSTOMER_PROFILE_NOT_FOUND} or ${ORDER_ERROR_CODES.ORDER_NOT_FOUND}`,
+  })
+  @ApiResponse({
+    status: 409,
+    description: [
+      ORDER_ERROR_CODES.ORDER_CANCELLATION_NOT_ALLOWED,
+      ORDER_ERROR_CODES.ORDER_CANCELLATION_FULFILLMENT_ACTIVE,
+      ORDER_ERROR_CODES.ORDER_CANCELLATION_COD_COLLECTED,
+      ORDER_ERROR_CODES.ORDER_CANCELLATION_REFUND_REQUIRED,
+      ORDER_ERROR_CODES.ORDER_CANCELLATION_CONFLICT,
+    ].join(' or '),
+  })
+  cancel(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Body() body: CancelOrderDto,
+  ) {
+    return this.orders.cancelOrder(principal.accountId, orderId, body.reason);
   }
 
   @Get(':orderId')

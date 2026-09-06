@@ -5,10 +5,15 @@ import { createUuidV7 } from '../../../common/utils/uuid-v7';
 import { isPostgresUniqueViolation } from '../../../common/errors/postgres-unique';
 import { customerProfileNotFound } from '../../customers/domain/customer.errors';
 import {
+  ORDER_STATUS_CANCELLED,
+  ORDER_STATUS_FAILED,
   PAYMENT_STATUS_FAILED,
   PAYMENT_STATUS_PENDING,
   PAYMENT_STATUS_PROCESSING,
 } from '../../orders/domain/order.policy';
+import { PAID_TERMINAL_REASON_LATE_SUCCESS } from '../../orders/domain/customer-order-cancellation.policy';
+import { PaidTerminalRefundService } from '../../refunds/application/paid-terminal-refund.service';
+import { REFUND_REQUEST_ORIGIN_LATE_PAYMENT_SUCCESS } from '../../refunds/domain/refund.types';
 import {
   PaymentError,
   paymentAlreadySucceeded,
@@ -77,6 +82,7 @@ export class PaymentService {
     private readonly config: ConfigService,
     private readonly ledger: FinancialLedgerService,
     private readonly notifications: NotificationService,
+    private readonly paidTerminalRefunds: PaidTerminalRefundService,
   ) {}
 
   async getCustomerPayment(
@@ -448,9 +454,28 @@ export class PaymentService {
         },
         tx,
       );
+      await this.ensureLateSuccessRefundIntent(locked.orderId, tx);
     });
     await this.notifications.notifyPaymentSucceeded({
       paymentId: payment.id,
+    });
+  }
+
+  private async ensureLateSuccessRefundIntent(
+    orderId: string,
+    tx: import('../infrastructure/payment.repository').OrmClient,
+  ): Promise<void> {
+    const orderStatus = await this.payments.findOrderStatus(orderId, tx);
+    if (
+      orderStatus !== ORDER_STATUS_CANCELLED &&
+      orderStatus !== ORDER_STATUS_FAILED
+    ) {
+      return;
+    }
+    await this.paidTerminalRefunds.ensureRefundIntentInTx(tx, {
+      orderId,
+      origin: REFUND_REQUEST_ORIGIN_LATE_PAYMENT_SUCCESS,
+      reason: PAID_TERMINAL_REASON_LATE_SUCCESS,
     });
   }
 
@@ -528,6 +553,7 @@ export class PaymentService {
             },
             tx,
           );
+          await this.ensureLateSuccessRefundIntent(payment.orderId, tx);
         } else if (isPaymentExecutionTerminal(payment.status)) {
           recordedStatus = PAYMENT_TX_IGNORED;
         } else if (event.status === 'CANCELLED') {

@@ -475,6 +475,27 @@
               }
             ]
           },
+          "RefundRequestOrigin": {
+            "codecId": "pg/text@1",
+            "members": [
+              {
+                "name": "ADMIN",
+                "value": "ADMIN"
+              },
+              {
+                "name": "CUSTOMER_CANCELLATION",
+                "value": "CUSTOMER_CANCELLATION"
+              },
+              {
+                "name": "MERCHANT_REJECTION",
+                "value": "MERCHANT_REJECTION"
+              },
+              {
+                "name": "LATE_PAYMENT_SUCCESS",
+                "value": "LATE_PAYMENT_SUCCESS"
+              }
+            ]
+          },
           "RefundStatus": {
             "codecId": "pg/text@1",
             "members": [
@@ -7370,6 +7391,16 @@
                   "kind": "scalar"
                 }
               },
+              "paidTerminalIntentKey": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 128
+                  }
+                }
+              },
               "paymentTransactionId": {
                 "nullable": true,
                 "type": {
@@ -7400,6 +7431,19 @@
                   "plane": "domain"
                 }
               },
+              "requestOrigin": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                },
+                "valueSet": {
+                  "entityKind": "enum",
+                  "entityName": "RefundRequestOrigin",
+                  "namespaceId": "public",
+                  "plane": "domain"
+                }
+              },
               "requestedAt": {
                 "nullable": false,
                 "type": {
@@ -7411,7 +7455,7 @@
                 }
               },
               "requestedByAdminId": {
-                "nullable": false,
+                "nullable": true,
                 "type": {
                   "codecId": "pg/uuid@1",
                   "kind": "scalar"
@@ -7498,6 +7542,9 @@
                 "orderId": {
                   "column": "order_id"
                 },
+                "paidTerminalIntentKey": {
+                  "column": "paid_terminal_intent_key"
+                },
                 "paymentTransactionId": {
                   "column": "payment_transaction_id"
                 },
@@ -7506,6 +7553,9 @@
                 },
                 "refundMethod": {
                   "column": "refund_method"
+                },
+                "requestOrigin": {
+                  "column": "request_origin"
                 },
                 "requestedAt": {
                   "column": "requested_at"
@@ -14908,9 +14958,19 @@
                   "prefix": "refunds_amount_positive"
                 },
                 {
+                  "expression": "(request_origin = 'ADMIN' AND requested_by_admin_id IS NOT NULL AND paid_terminal_intent_key IS NULL) OR (request_origin IN ('CUSTOMER_CANCELLATION', 'MERCHANT_REJECTION', 'LATE_PAYMENT_SUCCESS') AND requested_by_admin_id IS NULL AND paid_terminal_intent_key IS NOT NULL)",
+                  "name": "refunds_origin_actor_intent_ck_67637088",
+                  "prefix": "refunds_origin_actor_intent_ck"
+                },
+                {
                   "expression": "\"refund_method\" IN ('ORIGINAL_PAYMENT', 'MANUAL_COD', 'MANUAL_OTHER')",
                   "name": "refunds_refund_method_check_4492fbdf",
                   "prefix": "refunds_refund_method_check"
+                },
+                {
+                  "expression": "\"request_origin\" IN ('ADMIN', 'CUSTOMER_CANCELLATION', 'MERCHANT_REJECTION', 'LATE_PAYMENT_SUCCESS')",
+                  "name": "refunds_request_origin_check_85f8868a",
+                  "prefix": "refunds_request_origin_check"
                 },
                 {
                   "expression": "\"status\" IN ('REQUESTED', 'UNDER_REVIEW', 'APPROVED', 'PROCESSING', 'REFUNDED', 'REJECTED', 'FAILED')",
@@ -14959,6 +15019,14 @@
                   "nativeType": "uuid",
                   "nullable": false
                 },
+                "paid_terminal_intent_key": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 128
+                  }
+                },
                 "payment_transaction_id": {
                   "codecId": "pg/uuid@1",
                   "nativeType": "uuid",
@@ -14983,6 +15051,21 @@
                     "plane": "storage"
                   }
                 },
+                "request_origin": {
+                  "codecId": "pg/text@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": "ADMIN"
+                  },
+                  "nativeType": "text",
+                  "nullable": false,
+                  "valueSet": {
+                    "entityKind": "valueSet",
+                    "entityName": "RefundRequestOrigin",
+                    "namespaceId": "public",
+                    "plane": "storage"
+                  }
+                },
                 "requested_at": {
                   "codecId": "pg/timestamptz-string@1",
                   "nativeType": "timestamptz",
@@ -14994,7 +15077,7 @@
                 "requested_by_admin_id": {
                   "codecId": "pg/uuid@1",
                   "nativeType": "uuid",
-                  "nullable": false
+                  "nullable": true
                 },
                 "status": {
                   "codecId": "pg/text@1",
@@ -15101,7 +15184,13 @@
                   "id"
                 ]
               },
-              "uniques": []
+              "uniques": [
+                {
+                  "columns": [
+                    "paid_terminal_intent_key"
+                  ]
+                }
+              ]
             },
             "role_permissions": {
               "columns": {
@@ -16016,6 +16105,15 @@
                 "MANUAL_OTHER"
               ]
             },
+            "RefundRequestOrigin": {
+              "kind": "valueSet",
+              "values": [
+                "ADMIN",
+                "CUSTOMER_CANCELLATION",
+                "MERCHANT_REJECTION",
+                "LATE_PAYMENT_SUCCESS"
+              ]
+            },
             "RefundStatus": {
               "kind": "valueSet",
               "values": [
@@ -16051,7 +16149,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "a80f90422dc1c9d388e0945102991a6126096c823f2c19d4912d7a5b26fe954a"
+    "storageHash": "814b83f78028a55cb5444bb79fa2f11b6a556d1b20c87e259f2ea3d2774f7ca1"
   },
   "capabilities": {
     "postgres": {

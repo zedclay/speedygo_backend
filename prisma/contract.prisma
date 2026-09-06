@@ -89,6 +89,14 @@ enum RefundMethod {
   MANUAL_OTHER     = "MANUAL_OTHER"
 }
 
+enum RefundRequestOrigin {
+  @@type("pg/text@1")
+  ADMIN                   = "ADMIN"
+  CUSTOMER_CANCELLATION   = "CUSTOMER_CANCELLATION"
+  MERCHANT_REJECTION      = "MERCHANT_REJECTION"
+  LATE_PAYMENT_SUCCESS    = "LATE_PAYMENT_SUCCESS"
+}
+
 enum CommissionScope {
   @@type("pg/text@1")
   GLOBAL_DEFAULT    = "GLOBAL_DEFAULT"
@@ -941,18 +949,24 @@ model Refund {
   status                RefundStatus
   reason                VarChar(255)
   internalNote          String?               @map("internal_note")
-  requestedByAdminId    Uuid                  @map("requested_by_admin_id")
+  requestOrigin         RefundRequestOrigin   @default(ADMIN) @map("request_origin")
+  requestedByAdminId    Uuid?                 @map("requested_by_admin_id")
+  paidTerminalIntentKey VarChar(128)?         @unique @map("paid_terminal_intent_key")
   requestedAt           TimestamptzString(6)  @map("requested_at")
   completedAt           TimestamptzString(6)? @map("completed_at")
   createdAt             TimestamptzString(6)  @default(now()) @map("created_at")
 
   order               Order               @relation(fields: [orderId], references: [id], onDelete: Restrict)
   paymentTransaction  PaymentTransaction? @relation(fields: [paymentTransactionId], references: [id], onDelete: Restrict)
-  requestedByAdmin    AdminProfile        @relation(fields: [requestedByAdminId], references: [id], onDelete: Restrict)
+  requestedByAdmin    AdminProfile?       @relation(fields: [requestedByAdminId], references: [id], onDelete: Restrict)
 
   @@index([orderId], name: "refunds_order")
   @@index([status, requestedAt], name: "refunds_status_requested")
   @@check(expression: "amount_minor > 0", name: "refunds_amount_positive")
+  @@check(
+    expression: "(request_origin = 'ADMIN' AND requested_by_admin_id IS NOT NULL AND paid_terminal_intent_key IS NULL) OR (request_origin IN ('CUSTOMER_CANCELLATION', 'MERCHANT_REJECTION', 'LATE_PAYMENT_SUCCESS') AND requested_by_admin_id IS NULL AND paid_terminal_intent_key IS NOT NULL)",
+    name: "refunds_origin_actor_intent_ck"
+  )
   @@map("refunds")
 }
 
