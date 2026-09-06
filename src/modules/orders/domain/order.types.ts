@@ -74,7 +74,7 @@ export type OrderListQuery = {
 
 export type OrderItemOptionView = {
   optionNameSnapshot: string;
-  additionalPriceMinor: number;
+  additionalPriceMinor: string;
 };
 
 export type OrderItemView = {
@@ -82,8 +82,8 @@ export type OrderItemView = {
   productId: string | null;
   productNameSnapshot: string;
   quantity: number;
-  unitPriceMinor: number;
-  lineTotalMinor: number;
+  unitPriceMinor: string;
+  lineTotalMinor: string;
   options: OrderItemOptionView[];
 };
 
@@ -96,9 +96,9 @@ export type OrderAddressSnapshotView = {
 
 export type OrderCustomerFinancialView = {
   currency: string;
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
 };
 
 export type OrderSummaryView = {
@@ -134,12 +134,12 @@ export type MerchantOrderListQuery = {
 
 export type MerchantOrderFinancialView = {
   currency: string;
-  grossMerchandiseSubtotalMinor: number;
-  merchantDiscountMinor: number;
+  grossMerchandiseSubtotalMinor: string;
+  merchantDiscountMinor: string;
   merchantCommissionRateBps: number;
-  merchantCommissionAmountMinor: number;
-  merchantNetAmountMinor: number;
-  deliveryFeeMinor: number;
+  merchantCommissionAmountMinor: string;
+  merchantNetAmountMinor: string;
+  deliveryFeeMinor: string;
 };
 
 export type MerchantOrderPaymentView = {

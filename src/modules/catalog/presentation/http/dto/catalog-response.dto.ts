@@ -1,4 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN } from '../../../../../common/money/money-minor';
 
 export class CatalogStatsDto {
   @ApiProperty()
@@ -73,10 +74,12 @@ export class CatalogProductSummaryResponseDto {
   description!: string | null;
 
   @ApiProperty({
-    description:
-      'Integer minor units. JSON number within a safe integer range.',
+    type: String,
+    description: 'DZD integer minor units as exact decimal string',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1500',
   })
-  priceMinor!: number;
+  priceMinor!: string;
 
   @ApiProperty({
     description:
@@ -99,9 +102,12 @@ export class CatalogOptionResponseDto {
   name!: string;
 
   @ApiProperty({
-    description: 'Integer minor units added to the product list price.',
+    type: String,
+    description: 'DZD integer minor units as exact decimal string',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1500',
   })
-  additionalPriceMinor!: number;
+  additionalPriceMinor!: string;
 
   @ApiProperty({
     description:

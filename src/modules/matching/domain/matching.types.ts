@@ -50,7 +50,7 @@ export type AssignmentOfferView = {
   status: string;
   offeredAt: string;
   expiresAt: string;
-  driverRemunerationMinor: number;
+  driverRemunerationMinor: string;
   pickup: {
     name: string;
   };
@@ -64,7 +64,7 @@ export type AcceptedAssignmentView = {
   orderPublicReference: string;
   status: string;
   acceptedAt: string | null;
-  driverRemunerationMinor: number;
+  driverRemunerationMinor: string;
   pickup: {
     name: string;
     addressText: string;

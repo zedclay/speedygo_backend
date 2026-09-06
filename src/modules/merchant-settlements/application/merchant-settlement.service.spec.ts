@@ -171,8 +171,8 @@ describe('MerchantSettlementService', () => {
       expect.objectContaining({
         type: SETTLEMENT_LINE_TYPE_SALE,
         orderId: ORDER,
-        merchantNetMinor: 9300,
-        adjustmentMinor: 0,
+        merchantNetMinor: 9300n,
+        adjustmentMinor: 0n,
       }),
       tx,
     );
@@ -201,17 +201,17 @@ describe('MerchantSettlementService', () => {
     settlements.listLines.mockResolvedValue([
       {
         type: SETTLEMENT_LINE_TYPE_SALE,
-        grossMerchandiseMinor: 10000,
-        commissionMinor: 700,
-        merchantNetMinor: 9300,
-        adjustmentMinor: 0,
+        grossMerchandiseMinor: 10000n,
+        commissionMinor: 700n,
+        merchantNetMinor: 9300n,
+        adjustmentMinor: 0n,
       },
       {
         type: SETTLEMENT_LINE_TYPE_REFUND_ADJUSTMENT,
-        grossMerchandiseMinor: 0,
-        commissionMinor: 0,
-        merchantNetMinor: 0,
-        adjustmentMinor: -2500,
+        grossMerchandiseMinor: 0n,
+        commissionMinor: 0n,
+        merchantNetMinor: 0n,
+        adjustmentMinor: -2500n,
       },
     ]);
     const line = await service.attachRefundAdjustment({
@@ -220,11 +220,11 @@ describe('MerchantSettlementService', () => {
       merchantLiabilityMinor: 2500,
       adminId: ADMIN,
     });
-    expect(line?.adjustmentMinor).toBe(-2500);
+    expect(line?.adjustmentMinor).toBe(-2500n);
     expect(settlements.createLine).toHaveBeenCalledWith(
       expect.objectContaining({
         type: SETTLEMENT_LINE_TYPE_REFUND_ADJUSTMENT,
-        adjustmentMinor: -2500,
+        adjustmentMinor: -2500n,
         reference: REFUND,
       }),
       tx,
@@ -280,24 +280,24 @@ describe('MerchantSettlementService', () => {
     settlements.listLines.mockResolvedValue([
       {
         type: SETTLEMENT_LINE_TYPE_SALE,
-        grossMerchandiseMinor: 10000,
-        commissionMinor: 700,
-        merchantNetMinor: 8000,
-        adjustmentMinor: 0,
+        grossMerchandiseMinor: 10000n,
+        commissionMinor: 700n,
+        merchantNetMinor: 8000n,
+        adjustmentMinor: 0n,
       },
       {
         type: SETTLEMENT_LINE_TYPE_SALE,
-        grossMerchandiseMinor: 6000,
-        commissionMinor: 420,
-        merchantNetMinor: 5000,
-        adjustmentMinor: 0,
+        grossMerchandiseMinor: 6000n,
+        commissionMinor: 420n,
+        merchantNetMinor: 5000n,
+        adjustmentMinor: 0n,
       },
       {
         type: SETTLEMENT_LINE_TYPE_REFUND_ADJUSTMENT,
-        grossMerchandiseMinor: 0,
-        commissionMinor: 0,
-        merchantNetMinor: 0,
-        adjustmentMinor: -2000,
+        grossMerchandiseMinor: 0n,
+        commissionMinor: 0n,
+        merchantNetMinor: 0n,
+        adjustmentMinor: -2000n,
       },
     ]);
     const finalized = await service.finalize({
@@ -306,11 +306,67 @@ describe('MerchantSettlementService', () => {
     });
     expect(settlements.finalize).toHaveBeenCalledWith(
       SETTLEMENT,
-      expect.objectContaining({ netPayableMinor: 11000 }),
+      expect.objectContaining({ netPayableMinor: 11000n }),
       tx,
     );
     expect(finalized.status).toBe(SETTLEMENT_STATUS_FINALIZED);
     expect(finalized.paidAt).toBeNull();
+  });
+
+  it('returns merchant settlement views with money as decimal strings', async () => {
+    settlements.listByMerchant.mockResolvedValue([
+      {
+        id: SETTLEMENT,
+        merchantId: MERCHANT,
+        periodStart: '2026-02-01T00:00:00.000Z',
+        periodEnd: '2026-03-01T00:00:00.000Z',
+        grossSalesMinor: 10000,
+        commissionMinor: 700,
+        refundAdjustmentsMinor: -2000,
+        manualAdjustmentsMinor: 0,
+        netPayableMinor: 7300,
+        status: SETTLEMENT_STATUS_FINALIZED,
+        paidAt: null,
+        createdAt: '2026-02-01T00:00:00.000Z',
+      },
+    ]);
+    settlements.findById.mockResolvedValue({
+      id: SETTLEMENT,
+      merchantId: MERCHANT,
+      periodStart: '2026-02-01T00:00:00.000Z',
+      periodEnd: '2026-03-01T00:00:00.000Z',
+      grossSalesMinor: 10000,
+      commissionMinor: 700,
+      refundAdjustmentsMinor: -2000,
+      manualAdjustmentsMinor: 0,
+      netPayableMinor: 7300,
+      status: SETTLEMENT_STATUS_FINALIZED,
+      paidAt: null,
+      createdAt: '2026-02-01T00:00:00.000Z',
+    });
+    settlements.listLines.mockResolvedValue([
+      {
+        id: 'line-1',
+        settlementId: SETTLEMENT,
+        orderId: ORDER,
+        type: SETTLEMENT_LINE_TYPE_SALE,
+        grossMerchandiseMinor: 10000,
+        commissionMinor: 700,
+        merchantNetMinor: 9300,
+        adjustmentMinor: 0,
+        reference: null,
+        createdAt: '2026-02-10T12:00:00.000Z',
+      },
+    ]);
+    const listed = await service.listMerchantSettlements('account', MERCHANT);
+    expect(listed[0].grossSalesMinor).toBe('10000');
+    expect(listed[0].netPayableMinor).toBe('7300');
+    const detail = await service.getMerchantSettlement(
+      'account',
+      MERCHANT,
+      SETTLEMENT,
+    );
+    expect(detail.lines[0].merchantNetMinor).toBe('9300');
   });
 
   it('idempotent finalize when already FINALIZED', async () => {

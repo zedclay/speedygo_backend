@@ -6,6 +6,7 @@ import {
   ApiProperty,
   ApiTags,
 } from '@nestjs/swagger';
+import { MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN } from '../../../../common/money/money-minor';
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, Max, Min } from 'class-validator';
 import type { AuthenticatedPrincipal } from '../../../auth/domain/auth.types';
@@ -17,14 +18,21 @@ import {
 } from '../../domain/driver-remuneration.types';
 
 export class DriverEarningSummaryResponseDto {
-  @ApiProperty()
-  totalEarnedMinor!: number;
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '300',
+  })
+  totalEarnedMinor!: string;
 
   @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '300',
     description:
       'Sum of EARNED (unpaid) net amounts. Not a withdrawable wallet balance.',
   })
-  unpaidEarnedMinor!: number;
+  unpaidEarnedMinor!: string;
 
   @ApiProperty()
   earningCount!: number;
@@ -43,8 +51,13 @@ export class DriverEarningItemResponseDto {
   @ApiProperty()
   orderId!: string;
 
-  @ApiProperty({ description: 'netEarningMinor' })
-  amountMinor!: number;
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    description: 'netEarningMinor',
+    example: '300',
+  })
+  amountMinor!: string;
 
   @ApiProperty({ example: 'DZD' })
   currency!: string;

@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { parseMoneyMinorDecimalString } from '../../../common/money/money-minor';
 import { createUuidV7 } from '../../../common/utils/uuid-v7';
 import {
   PrismaService,
@@ -10,7 +11,6 @@ import {
   pgTimestamptz,
   pgVarchar,
 } from '../../../infrastructure/database/pg-values';
-import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import { merchantSettlementFinancialStateInvalid } from '../domain/merchant-settlement.errors';
 import {
   MERCHANT_SETTLEMENT_LOCK_CLASS_ID,
@@ -87,11 +87,19 @@ function toSettlement(row: {
     merchantId: row.merchantId,
     periodStart: row.periodStart,
     periodEnd: row.periodEnd,
-    grossSalesMinor: parseMinorUnits(row.grossSalesMinor),
-    commissionMinor: parseMinorUnits(row.commissionMinor),
-    refundAdjustmentsMinor: Number(row.refundAdjustmentsMinor),
-    manualAdjustmentsMinor: Number(row.manualAdjustmentsMinor),
-    netPayableMinor: Number(row.netPayableMinor),
+    grossSalesMinor: parseMoneyMinorDecimalString(row.grossSalesMinor),
+    commissionMinor: parseMoneyMinorDecimalString(row.commissionMinor),
+    refundAdjustmentsMinor: parseMoneyMinorDecimalString(
+      row.refundAdjustmentsMinor,
+      { allowNegative: true },
+    ),
+    manualAdjustmentsMinor: parseMoneyMinorDecimalString(
+      row.manualAdjustmentsMinor,
+      { allowNegative: true },
+    ),
+    netPayableMinor: parseMoneyMinorDecimalString(row.netPayableMinor, {
+      allowNegative: true,
+    }),
     status: row.status,
     paidAt: row.paidAt,
     createdAt: row.createdAt,
@@ -123,10 +131,14 @@ function toLine(row: {
     settlementId: row.settlementId,
     orderId: row.orderId,
     type: row.type,
-    grossMerchandiseMinor: parseMinorUnits(row.grossMerchandiseMinor),
-    commissionMinor: parseMinorUnits(row.commissionMinor),
-    merchantNetMinor: Number(row.merchantNetMinor),
-    adjustmentMinor: Number(row.adjustmentMinor),
+    grossMerchandiseMinor: parseMoneyMinorDecimalString(
+      row.grossMerchandiseMinor,
+    ),
+    commissionMinor: parseMoneyMinorDecimalString(row.commissionMinor),
+    merchantNetMinor: parseMoneyMinorDecimalString(row.merchantNetMinor),
+    adjustmentMinor: parseMoneyMinorDecimalString(row.adjustmentMinor, {
+      allowNegative: true,
+    }),
     reference: row.reference,
     createdAt: row.createdAt,
   };
@@ -345,10 +357,10 @@ export class MerchantSettlementRepository {
       settlementId: string;
       orderId: string | null;
       type: SettlementLineTypeV1;
-      grossMerchandiseMinor: number;
-      commissionMinor: number;
-      merchantNetMinor: number;
-      adjustmentMinor: number;
+      grossMerchandiseMinor: number | bigint;
+      commissionMinor: number | bigint;
+      merchantNetMinor: number | bigint;
+      adjustmentMinor: number | bigint;
       reference: string | null;
     },
     client: OrmClient,
@@ -385,9 +397,9 @@ export class MerchantSettlementRepository {
     Array<{
       orderId: string;
       completedAt: string;
-      grossMerchandiseSubtotalMinor: number;
-      merchantCommissionAmountMinor: number;
-      merchantNetAmountMinor: number;
+      grossMerchandiseSubtotalMinor: bigint;
+      merchantCommissionAmountMinor: bigint;
+      merchantNetAmountMinor: bigint;
       paymentStatus: string;
       orderStatus: string;
     }>
@@ -455,13 +467,15 @@ export class MerchantSettlementRepository {
       completedAt: String(row.completed_at),
       orderStatus: String(row.order_status),
       paymentStatus: String(row.payment_status),
-      grossMerchandiseSubtotalMinor: Number(
+      grossMerchandiseSubtotalMinor: parseMoneyMinorDecimalString(
         row.gross_merchandise_subtotal_minor,
       ),
-      merchantCommissionAmountMinor: Number(
+      merchantCommissionAmountMinor: parseMoneyMinorDecimalString(
         row.merchant_commission_amount_minor,
       ),
-      merchantNetAmountMinor: Number(row.merchant_net_amount_minor),
+      merchantNetAmountMinor: parseMoneyMinorDecimalString(
+        row.merchant_net_amount_minor,
+      ),
     }));
   }
 
@@ -474,9 +488,9 @@ export class MerchantSettlementRepository {
     orderStatus: string;
     completedAt: string | null;
     paymentStatus: string;
-    grossMerchandiseSubtotalMinor: number;
-    merchantCommissionAmountMinor: number;
-    merchantNetAmountMinor: number;
+    grossMerchandiseSubtotalMinor: bigint;
+    merchantCommissionAmountMinor: bigint;
+    merchantNetAmountMinor: bigint;
   } | null> {
     const db = client ?? this.db();
     const order = await orm(db).Order.where({ id: orderId }).first();
@@ -502,13 +516,15 @@ export class MerchantSettlementRepository {
       orderStatus: order.status,
       completedAt: order.completedAt,
       paymentStatus: payment.status,
-      grossMerchandiseSubtotalMinor: parseMinorUnits(
+      grossMerchandiseSubtotalMinor: parseMoneyMinorDecimalString(
         snapshot.grossMerchandiseSubtotalMinor,
       ),
-      merchantCommissionAmountMinor: parseMinorUnits(
+      merchantCommissionAmountMinor: parseMoneyMinorDecimalString(
         snapshot.merchantCommissionAmountMinor,
       ),
-      merchantNetAmountMinor: parseMinorUnits(snapshot.merchantNetAmountMinor),
+      merchantNetAmountMinor: parseMoneyMinorDecimalString(
+        snapshot.merchantNetAmountMinor,
+      ),
     };
   }
 
@@ -519,7 +535,7 @@ export class MerchantSettlementRepository {
     refundId: string;
     orderId: string;
     status: string;
-    amountMinor: number;
+    amountMinor: bigint;
     completedAt: string | null;
     merchantId: string;
   } | null> {
@@ -536,7 +552,7 @@ export class MerchantSettlementRepository {
       refundId: refund.id,
       orderId: refund.orderId,
       status: refund.status,
-      amountMinor: parseMinorUnits(refund.amountMinor),
+      amountMinor: parseMoneyMinorDecimalString(refund.amountMinor),
       completedAt: refund.completedAt,
       merchantId: orderCtx.merchantId,
     };

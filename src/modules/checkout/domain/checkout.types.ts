@@ -45,7 +45,7 @@ export type CheckoutPreviewView = {
     branchId: string;
     merchantId: string;
     itemCount: number;
-    merchandiseSubtotalMinor: number;
+    merchandiseSubtotalMinor: string;
     items: CartView['items'];
   };
   address: {
@@ -65,9 +65,9 @@ export type CheckoutPreviewView = {
     timeBand: CheckoutTimeBand;
     timezone: string;
   };
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  discountMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  discountMinor: string;
   promoCode: string | null;
-  customerTotalMinor: number;
+  customerTotalMinor: string;
 };

@@ -82,10 +82,10 @@ describe('merchant-settlement.policy', () => {
           merchantNetAmountMinor: 9300,
         }),
       ).toEqual({
-        grossMerchandiseMinor: 10000,
-        commissionMinor: 700,
-        merchantNetMinor: 9300,
-        adjustmentMinor: 0,
+        grossMerchandiseMinor: 10000n,
+        commissionMinor: 700n,
+        merchantNetMinor: 9300n,
+        adjustmentMinor: 0n,
       });
       try {
         buildSaleLineAmounts({
@@ -108,7 +108,7 @@ describe('merchant-settlement.policy', () => {
           merchantCommissionAmountMinor: 0,
           merchantNetAmountMinor: 0,
         }).merchantNetMinor,
-      ).toBe(0);
+      ).toBe(0n);
     });
   });
 
@@ -135,8 +135,8 @@ describe('merchant-settlement.policy', () => {
     });
 
     it('bounds merchantLiabilityMinor to [0, refund]', () => {
-      expect(requireMerchantLiabilityMinor(2500, 4000)).toBe(2500);
-      expect(requireMerchantLiabilityMinor(0, 4000)).toBe(0);
+      expect(requireMerchantLiabilityMinor(2500, 4000)).toBe(2500n);
+      expect(requireMerchantLiabilityMinor(0, 4000)).toBe(0n);
       try {
         requireMerchantLiabilityMinor(-1, 4000);
         fail('expected throw');
@@ -157,10 +157,10 @@ describe('merchant-settlement.policy', () => {
 
     it('uses negative signed adjustmentMinor', () => {
       expect(buildRefundAdjustmentAmounts(2000)).toEqual({
-        grossMerchandiseMinor: 0,
-        commissionMinor: 0,
-        merchantNetMinor: 0,
-        adjustmentMinor: -2000,
+        grossMerchandiseMinor: 0n,
+        commissionMinor: 0n,
+        merchantNetMinor: 0n,
+        adjustmentMinor: -2000n,
       });
     });
   });
@@ -170,51 +170,51 @@ describe('merchant-settlement.policy', () => {
       const totals = deriveSettlementTotals([
         {
           type: SETTLEMENT_LINE_TYPE_SALE,
-          grossMerchandiseMinor: 10000,
-          commissionMinor: 700,
-          merchantNetMinor: 8000,
-          adjustmentMinor: 0,
+          grossMerchandiseMinor: 10000n,
+          commissionMinor: 700n,
+          merchantNetMinor: 8000n,
+          adjustmentMinor: 0n,
         },
         {
           type: SETTLEMENT_LINE_TYPE_SALE,
-          grossMerchandiseMinor: 6000,
-          commissionMinor: 420,
-          merchantNetMinor: 5000,
-          adjustmentMinor: 0,
+          grossMerchandiseMinor: 6000n,
+          commissionMinor: 420n,
+          merchantNetMinor: 5000n,
+          adjustmentMinor: 0n,
         },
         {
           type: SETTLEMENT_LINE_TYPE_REFUND_ADJUSTMENT,
-          grossMerchandiseMinor: 0,
-          commissionMinor: 0,
-          merchantNetMinor: 0,
-          adjustmentMinor: -2000,
+          grossMerchandiseMinor: 0n,
+          commissionMinor: 0n,
+          merchantNetMinor: 0n,
+          adjustmentMinor: -2000n,
         },
       ]);
-      expect(totals.grossSalesMinor).toBe(16000);
-      expect(totals.commissionMinor).toBe(1120);
-      expect(totals.refundAdjustmentsMinor).toBe(-2000);
-      expect(totals.manualAdjustmentsMinor).toBe(0);
-      expect(totals.netPayableMinor).toBe(11000);
+      expect(totals.grossSalesMinor).toBe(16000n);
+      expect(totals.commissionMinor).toBe(1120n);
+      expect(totals.refundAdjustmentsMinor).toBe(-2000n);
+      expect(totals.manualAdjustmentsMinor).toBe(0n);
+      expect(totals.netPayableMinor).toBe(11000n);
     });
 
     it('allows negative net payable', () => {
       const totals = deriveSettlementTotals([
         {
           type: SETTLEMENT_LINE_TYPE_SALE,
-          grossMerchandiseMinor: 5000,
-          commissionMinor: 0,
-          merchantNetMinor: 5000,
-          adjustmentMinor: 0,
+          grossMerchandiseMinor: 5000n,
+          commissionMinor: 0n,
+          merchantNetMinor: 5000n,
+          adjustmentMinor: 0n,
         },
         {
           type: SETTLEMENT_LINE_TYPE_REFUND_ADJUSTMENT,
-          grossMerchandiseMinor: 0,
-          commissionMinor: 0,
-          merchantNetMinor: 0,
-          adjustmentMinor: -7000,
+          grossMerchandiseMinor: 0n,
+          commissionMinor: 0n,
+          merchantNetMinor: 0n,
+          adjustmentMinor: -7000n,
         },
       ]);
-      expect(totals.netPayableMinor).toBe(-2000);
+      expect(totals.netPayableMinor).toBe(-2000n);
     });
   });
 });

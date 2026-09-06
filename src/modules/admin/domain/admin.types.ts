@@ -63,7 +63,7 @@ export type AdminPaymentListItem = {
   orderId: string;
   method: string;
   status: string;
-  amountMinor: number;
+  amountMinor: string;
   currency: string;
   createdAt: string;
   updatedAt: string;
@@ -74,7 +74,7 @@ export type AdminRefundListItem = {
   orderId: string;
   paymentTransactionId: string | null;
   refundMethod: string;
-  amountMinor: number;
+  amountMinor: string;
   status: string;
   reason: string;
   internalNote: string | null;
@@ -90,11 +90,11 @@ export type AdminSettlementListItem = {
   periodStart: string;
   periodEnd: string;
   status: string;
-  grossSalesMinor: number;
-  commissionMinor: number;
-  refundAdjustmentsMinor: number;
-  manualAdjustmentsMinor: number;
-  netPayableMinor: number;
+  grossSalesMinor: string;
+  commissionMinor: string;
+  refundAdjustmentsMinor: string;
+  manualAdjustmentsMinor: string;
+  netPayableMinor: string;
   paidAt: string | null;
   createdAt: string;
 };
@@ -103,7 +103,8 @@ export type AdminPromotionListItem = {
   id: string;
   code: string;
   type: string;
-  value: number;
+  /** Rate BPS for percentage promos; fixed discount minor (string) for FIXED_MINOR types. */
+  value: number | string;
   startsAt: string;
   endsAt: string;
   active: boolean;
@@ -114,8 +115,8 @@ export type AdminPromotionListItem = {
 export type AdminCodRemittanceListItem = {
   id: string;
   driverId: string;
-  submittedAmountMinor: number;
-  confirmedAmountMinor: number;
+  submittedAmountMinor: string;
+  confirmedAmountMinor: string;
   status: string;
   reference: string;
   submittedAt: string;

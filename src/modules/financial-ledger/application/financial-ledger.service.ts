@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import {
   buildLedgerReference,
   codCollectionPosting,
@@ -52,7 +53,7 @@ export class FinancialLedgerService {
       driverId: string | null;
       type: string;
       direction: 'DEBIT' | 'CREDIT';
-      amountMinor: number;
+      amountMinor: number | bigint;
       currency: string;
       reference: string;
     },
@@ -91,7 +92,7 @@ export class FinancialLedgerService {
     input: {
       paymentId: string;
       orderId: string;
-      amountMinor: number;
+      amountMinor: number | bigint;
       currency: string;
     },
     client?: OrmClient,
@@ -117,7 +118,7 @@ export class FinancialLedgerService {
       collectionId: string;
       orderId: string;
       driverId: string;
-      amountMinor: number;
+      amountMinor: number | bigint;
     },
     client?: OrmClient,
   ): Promise<FinancialLedgerEntryRecord> {
@@ -143,7 +144,7 @@ export class FinancialLedgerService {
     input: {
       remittanceId: string;
       driverId: string;
-      confirmedAmountMinor: number;
+      confirmedAmountMinor: number | bigint;
     },
     client?: OrmClient,
   ): Promise<FinancialLedgerEntryRecord> {
@@ -170,7 +171,7 @@ export class FinancialLedgerService {
       earningId: string;
       orderId: string;
       driverId: string;
-      netEarningMinor: number;
+      netEarningMinor: number | bigint;
     },
     client?: OrmClient,
   ): Promise<FinancialLedgerEntryRecord> {
@@ -199,7 +200,7 @@ export class FinancialLedgerService {
     input: {
       settlementId: string;
       merchantId: string;
-      netPayableMinor: number;
+      netPayableMinor: number | bigint;
     },
     client?: OrmClient,
   ): Promise<FinancialLedgerEntryRecord> {
@@ -225,7 +226,7 @@ export class FinancialLedgerService {
     input: {
       refundId: string;
       orderId: string;
-      amountMinor: number;
+      amountMinor: number | bigint;
     },
     client?: OrmClient,
   ): Promise<FinancialLedgerEntryRecord> {
@@ -275,9 +276,11 @@ export class FinancialLedgerService {
     return {
       merchantId,
       currency: LEDGER_CURRENCY_DZD,
-      creditMinor,
-      debitMinor,
-      netPayableMinor: deriveMerchantNetPayable(creditMinor, debitMinor),
+      creditMinor: moneyMinorToDecimalString(creditMinor),
+      debitMinor: moneyMinorToDecimalString(debitMinor),
+      netPayableMinor: moneyMinorToDecimalString(
+        deriveMerchantNetPayable(creditMinor, debitMinor),
+      ),
     };
   }
 
@@ -308,8 +311,12 @@ export class FinancialLedgerService {
     return {
       driverId,
       currency: LEDGER_CURRENCY_DZD,
-      driverPayableMinor: deriveDriverPayable(payableCredit, payableDebit),
-      codCustodyMinor: deriveCodCustody(custodyDebit, custodyCredit),
+      driverPayableMinor: moneyMinorToDecimalString(
+        deriveDriverPayable(payableCredit, payableDebit),
+      ),
+      codCustodyMinor: moneyMinorToDecimalString(
+        deriveCodCustody(custodyDebit, custodyCredit),
+      ),
     };
   }
 

@@ -62,16 +62,16 @@ export type CartItemView = {
   productId: string;
   productName: string;
   quantity: number;
-  baseUnitPriceMinor: number;
-  optionUnitAdditionalMinor: number;
-  unitPriceMinor: number;
-  lineSubtotalMinor: number;
-  storedUnitPriceMinor: number;
+  baseUnitPriceMinor: string;
+  optionUnitAdditionalMinor: string;
+  unitPriceMinor: string;
+  lineSubtotalMinor: string;
+  storedUnitPriceMinor: string;
   itemAvailable: boolean;
   selectedOptions: Array<{
     optionId: string;
     name: string | null;
-    additionalPriceMinor: number;
+    additionalPriceMinor: string;
     available: boolean;
   }>;
   warnings: CartWarningCode[];
@@ -83,7 +83,7 @@ export type CartView = {
   branchId: string;
   merchantId: string;
   itemCount: number;
-  cartSubtotalMinor: number;
+  cartSubtotalMinor: string;
   cartReady: boolean;
   warnings: CartWarningCode[];
   items: CartItemView[];

@@ -1,3 +1,5 @@
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
+
 export const REPORTS_MAX_WINDOW_MS = 93 * 24 * 60 * 60 * 1000; // 93 days UTC
 export const REPORTS_LIST_DEFAULT_LIMIT = 50;
 export const REPORTS_LIST_MAX_LIMIT = 100;
@@ -67,10 +69,7 @@ export function normalizeReportListQuery(query: {
 export function moneyMinorToString(
   value: bigint | number | string | null | undefined,
 ): string {
-  if (value === null || value === undefined) {
-    return '0';
-  }
-  return String(value);
+  return moneyMinorToDecimalString(value);
 }
 
 /**

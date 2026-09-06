@@ -1,11 +1,16 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN } from '../../../../../common/money/money-minor';
 
 export class CustomerRefundItemDto {
   @ApiProperty()
   refundId!: string;
 
-  @ApiProperty({ example: 2000 })
-  amountMinor!: number;
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '2000',
+  })
+  amountMinor!: string;
 
   @ApiProperty({ example: 'DZD' })
   currency!: string;
@@ -42,17 +47,33 @@ export class CustomerOrderRefundsResponseDto {
   @ApiProperty()
   orderId!: string;
 
-  @ApiProperty({ example: 10000 })
-  originalPaidMinor!: number;
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '10000',
+  })
+  originalPaidMinor!: string;
 
-  @ApiProperty({ example: 5000 })
-  reservedRefundMinor!: number;
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '5000',
+  })
+  reservedRefundMinor!: string;
 
-  @ApiProperty({ example: 5000 })
-  successfulRefundMinor!: number;
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '5000',
+  })
+  successfulRefundMinor!: string;
 
-  @ApiProperty({ example: 5000 })
-  remainingRefundableMinor!: number;
+  @ApiProperty({
+    type: String,
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '5000',
+  })
+  remainingRefundableMinor!: string;
 
   @ApiProperty({ example: 'DZD' })
   currency!: string;

@@ -23,9 +23,9 @@ import { MerchantCommissionService } from '../src/modules/merchant-commissions/a
 type TokenBody = { accessToken: string };
 type ErrorBody = { error: { code: string } };
 type PreviewBody = {
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
 };
 type AuthMeBody = { account: { id: string; phone: string } };
 type MembershipBody = { merchantId: string };
@@ -37,17 +37,17 @@ type OrderDetailBody = {
   id: string;
   paymentMethod: string;
   financial: {
-    merchandiseSubtotalMinor: number;
-    deliveryFeeMinor: number;
-    customerTotalMinor: number;
+    merchandiseSubtotalMinor: string;
+    deliveryFeeMinor: string;
+    customerTotalMinor: string;
   };
 };
 type MerchantOrderBody = {
   financial: {
     merchantCommissionRateBps: number;
-    merchantCommissionAmountMinor: number;
-    merchantNetAmountMinor: number;
-    deliveryFeeMinor: number;
+    merchantCommissionAmountMinor: string;
+    merchantNetAmountMinor: string;
+    deliveryFeeMinor: string;
   };
 };
 
@@ -509,12 +509,15 @@ describe('Merchant Commission Foundation (e2e)', () => {
           .send({
             addressId,
             paymentMethod,
-            expectedMerchandiseSubtotalMinor: (preview.body as PreviewBody)
-              .merchandiseSubtotalMinor,
-            expectedDeliveryFeeMinor: (preview.body as PreviewBody)
-              .deliveryFeeMinor,
-            expectedCustomerTotalMinor: (preview.body as PreviewBody)
-              .customerTotalMinor,
+            expectedMerchandiseSubtotalMinor: Number(
+              (preview.body as PreviewBody).merchandiseSubtotalMinor,
+            ),
+            expectedDeliveryFeeMinor: Number(
+              (preview.body as PreviewBody).deliveryFeeMinor,
+            ),
+            expectedCustomerTotalMinor: Number(
+              (preview.body as PreviewBody).customerTotalMinor,
+            ),
           });
         expect(created.status).toBe(201);
         const body = created.body as OrderDetailBody;
@@ -555,7 +558,7 @@ describe('Merchant Commission Foundation (e2e)', () => {
       const merchantFinancial = (merchantRead.body as MerchantOrderBody)
         .financial;
       expect(merchantFinancial.merchantCommissionRateBps).toBe(700);
-      expect(merchantFinancial.merchantCommissionAmountMinor).toBe(84);
+      expect(merchantFinancial.merchantCommissionAmountMinor).toBe('84');
       expect(merchantFinancial).not.toHaveProperty('driverRemunerationMinor');
 
       const live = await request(server)
@@ -661,13 +664,15 @@ describe('Merchant Commission Foundation (e2e)', () => {
         .send({
           addressId,
           paymentMethod: 'COD',
-          expectedMerchandiseSubtotalMinor: (
-            previewAmbiguous.body as PreviewBody
-          ).merchandiseSubtotalMinor,
-          expectedDeliveryFeeMinor: (previewAmbiguous.body as PreviewBody)
-            .deliveryFeeMinor,
-          expectedCustomerTotalMinor: (previewAmbiguous.body as PreviewBody)
-            .customerTotalMinor,
+          expectedMerchandiseSubtotalMinor: Number(
+            (previewAmbiguous.body as PreviewBody).merchandiseSubtotalMinor,
+          ),
+          expectedDeliveryFeeMinor: Number(
+            (previewAmbiguous.body as PreviewBody).deliveryFeeMinor,
+          ),
+          expectedCustomerTotalMinor: Number(
+            (previewAmbiguous.body as PreviewBody).customerTotalMinor,
+          ),
         });
       expect(ambiguousOrder.status).toBe(409);
       expect((ambiguousOrder.body as ErrorBody).error.code).toBe(
@@ -826,12 +831,15 @@ describe('Merchant Commission Foundation (e2e)', () => {
         .send({
           addressId: (home.body as AddressBody).id,
           paymentMethod: 'COD',
-          expectedMerchandiseSubtotalMinor: (preview.body as PreviewBody)
-            .merchandiseSubtotalMinor,
-          expectedDeliveryFeeMinor: (preview.body as PreviewBody)
-            .deliveryFeeMinor,
-          expectedCustomerTotalMinor: (preview.body as PreviewBody)
-            .customerTotalMinor,
+          expectedMerchandiseSubtotalMinor: Number(
+            (preview.body as PreviewBody).merchandiseSubtotalMinor,
+          ),
+          expectedDeliveryFeeMinor: Number(
+            (preview.body as PreviewBody).deliveryFeeMinor,
+          ),
+          expectedCustomerTotalMinor: Number(
+            (preview.body as PreviewBody).customerTotalMinor,
+          ),
         });
       expect(created.status).toBe(409);
       expect((created.body as ErrorBody).error.code).toBe(

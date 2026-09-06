@@ -140,11 +140,11 @@ describe('CheckoutService.preview', () => {
     const preview = await service.preview(ACCOUNT, { addressId: ADDRESS_A });
     expect(preview.checkoutReady).toBe(true);
     expect(preview.warnings).toEqual([]);
-    expect(preview.merchandiseSubtotalMinor).toBe(1200);
-    expect(preview.deliveryFeeMinor).toBe(500);
-    expect(preview.discountMinor).toBe(0);
+    expect(preview.merchandiseSubtotalMinor).toBe('1200');
+    expect(preview.deliveryFeeMinor).toBe('500');
+    expect(preview.discountMinor).toBe('0');
     expect(preview.promoCode).toBeNull();
-    expect(preview.customerTotalMinor).toBe(1700);
+    expect(preview.customerTotalMinor).toBe('1700');
     expect(preview.pricing.timezone).toBe('Africa/Algiers');
     expect(preview.pricing.ruleId).toBe('rule-1');
     expect(repo.findOwnedAddress).toHaveBeenCalledWith('cust-1', ADDRESS_A);
@@ -166,8 +166,8 @@ describe('CheckoutService.preview', () => {
     const preview = await service.preview(ACCOUNT, { addressId: ADDRESS_A });
     expect(preview.checkoutReady).toBe(true);
     expect(preview.warnings).toEqual(['PRICE_CHANGED']);
-    expect(preview.merchandiseSubtotalMinor).toBe(1500);
-    expect(preview.customerTotalMinor).toBe(2000);
+    expect(preview.merchandiseSubtotalMinor).toBe('1500');
+    expect(preview.customerTotalMinor).toBe('2000');
   });
 
   it('allows a zero-priced Product', async () => {
@@ -186,7 +186,7 @@ describe('CheckoutService.preview', () => {
       }),
     );
     const preview = await service.preview(ACCOUNT, { addressId: ADDRESS_A });
-    expect(preview.customerTotalMinor).toBe(500);
+    expect(preview.customerTotalMinor).toBe('500');
   });
 
   it('rejects missing CustomerProfile', async () => {
@@ -343,8 +343,8 @@ describe('CheckoutService.preview', () => {
     ]);
     const preview = await service.preview(ACCOUNT, { addressId: ADDRESS_A });
     expect(preview.checkoutReady).toBe(true);
-    expect(preview.deliveryFeeMinor).toBe(500);
-    expect(preview.customerTotalMinor).toBe(1700);
+    expect(preview.deliveryFeeMinor).toBe('500');
+    expect(preview.customerTotalMinor).toBe('1700');
   });
 
   it('fails closed on a malformed one-sided time window', async () => {
@@ -360,13 +360,13 @@ describe('CheckoutService.preview', () => {
 
   it('recalculates a live Delivery Fee on each Preview without a session', async () => {
     const first = await service.preview(ACCOUNT, { addressId: ADDRESS_A });
-    expect(first.deliveryFeeMinor).toBe(500);
+    expect(first.deliveryFeeMinor).toBe('500');
     repo.listActivePricingRules.mockResolvedValue([
       pricingRule({ customerDeliveryFeeMinor: 900 }),
     ]);
     const second = await service.preview(ACCOUNT, { addressId: ADDRESS_A });
-    expect(second.deliveryFeeMinor).toBe(900);
-    expect(second.customerTotalMinor).toBe(2100);
+    expect(second.deliveryFeeMinor).toBe('900');
+    expect(second.customerTotalMinor).toBe('2100');
     expect(second.checkoutReady).toBe(true);
   });
 

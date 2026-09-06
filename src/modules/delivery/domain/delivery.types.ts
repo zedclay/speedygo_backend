@@ -37,7 +37,7 @@ export type DeliveryDetailView = {
   updatedAt: string;
   pickup: DeliveryPickupView;
   dropoff: DeliveryDropoffView;
-  deliveryFeeMinor: number | null;
+  deliveryFeeMinor: string | null;
   events: DeliveryEventView[];
 };
 

@@ -33,15 +33,15 @@ type AddressBody = { id: string };
 type CartBody = {
   id: string;
   cartReady: boolean;
-  cartSubtotalMinor: number;
-  items: Array<{ id: string; unitPriceMinor: number }>;
+  cartSubtotalMinor: string;
+  items: Array<{ id: string; unitPriceMinor: string }>;
 };
 type PreviewBody = {
   checkoutReady: true;
   warnings: string[];
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
   deliveryZone: { id: string; name: string };
   pricing: { ruleId: string; timeBand: string; timezone: string };
 };
@@ -431,7 +431,7 @@ describe('Checkout foundation (e2e)', () => {
         .send({ productId, quantity: 1, optionIds: [largeId] });
       expect(added.status).toBe(200);
       expect((added.body as CartBody).cartReady).toBe(true);
-      expect((added.body as CartBody).cartSubtotalMinor).toBe(1200);
+      expect((added.body as CartBody).cartSubtotalMinor).toBe('1200');
 
       const now = pgNow();
       const zoneId = createUuidV7();
@@ -474,9 +474,9 @@ describe('Checkout foundation (e2e)', () => {
       const ready = preview.body as PreviewBody;
       expect(ready.checkoutReady).toBe(true);
       expect(ready.warnings).toEqual([]);
-      expect(ready.merchandiseSubtotalMinor).toBe(1200);
-      expect(ready.deliveryFeeMinor).toBe(500);
-      expect(ready.customerTotalMinor).toBe(1700);
+      expect(ready.merchandiseSubtotalMinor).toBe('1200');
+      expect(ready.deliveryFeeMinor).toBe('500');
+      expect(ready.customerTotalMinor).toBe('1700');
       expect(ready.deliveryZone.id).toBe(zoneId);
       expect(ready.pricing.ruleId).toBe(ruleId);
       expect(ready.pricing.timezone).toBe('Africa/Algiers');
@@ -493,8 +493,8 @@ describe('Checkout foundation (e2e)', () => {
         .set('Authorization', `Bearer ${tokenA}`)
         .send({ addressId: homeId });
       expect(liveFee.status).toBe(200);
-      expect((liveFee.body as PreviewBody).deliveryFeeMinor).toBe(800);
-      expect((liveFee.body as PreviewBody).customerTotalMinor).toBe(2000);
+      expect((liveFee.body as PreviewBody).deliveryFeeMinor).toBe('800');
+      expect((liveFee.body as PreviewBody).customerTotalMinor).toBe('2000');
 
       await prisma
         .getDb()
@@ -510,7 +510,7 @@ describe('Checkout foundation (e2e)', () => {
         .set('Authorization', `Bearer ${tokenA}`)
         .send({ addressId: homeId });
       expect(windowed.status).toBe(200);
-      expect((windowed.body as PreviewBody).deliveryFeeMinor).toBe(500);
+      expect((windowed.body as PreviewBody).deliveryFeeMinor).toBe('500');
 
       const malformed = createUuidV7();
       await prisma.getDb().orm.public.DeliveryPricingRule.create({
@@ -555,9 +555,9 @@ describe('Checkout foundation (e2e)', () => {
       const changedBody = changed.body as PreviewBody;
       expect(changedBody.checkoutReady).toBe(true);
       expect(changedBody.warnings).toEqual(['PRICE_CHANGED']);
-      expect(changedBody.merchandiseSubtotalMinor).toBe(1500);
-      expect(changedBody.deliveryFeeMinor).toBe(500);
-      expect(changedBody.customerTotalMinor).toBe(2000);
+      expect(changedBody.merchandiseSubtotalMinor).toBe('1500');
+      expect(changedBody.deliveryFeeMinor).toBe('500');
+      expect(changedBody.customerTotalMinor).toBe('2000');
 
       const stolen = await request(server)
         .post('/api/v1/customer/checkout/preview')

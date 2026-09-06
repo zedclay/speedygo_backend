@@ -1,10 +1,13 @@
 import { Injectable } from '@nestjs/common';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import {
   PrismaService,
   type SpeedyGoDb,
 } from '../../../infrastructure/database/database.module';
 import { pgVarchar } from '../../../infrastructure/database/pg-values';
 import { isVerificationReady } from '../../merchants/domain/merchant.policy';
+import { parsePromotionType } from '../../promotions/domain/promotion.policy';
+import { PROMOTION_KIND_FIXED_MINOR } from '../../promotions/domain/promotion.types';
 import { adminNotFound } from '../domain/admin.errors';
 import { normalizeListQuery } from '../domain/admin.policy';
 import type {
@@ -37,6 +40,17 @@ function pageResult<T>(
     limit: query.limit,
     offset: query.offset,
   };
+}
+
+function adminPromotionListValue(
+  type: string,
+  value: unknown,
+): number | string {
+  const parsed = parsePromotionType(type);
+  if (parsed.kind === PROMOTION_KIND_FIXED_MINOR) {
+    return moneyMinorToDecimalString(value as bigint | number | string);
+  }
+  return Number(value);
 }
 
 @Injectable()
@@ -378,7 +392,7 @@ export class AdminQueryRepository {
         orderId: row.orderId,
         method: row.method,
         status: row.status,
-        amountMinor: Number(row.amountMinor),
+        amountMinor: moneyMinorToDecimalString(row.amountMinor),
         currency: row.currency,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
@@ -398,7 +412,7 @@ export class AdminQueryRepository {
       orderId: row.orderId,
       method: row.method,
       status: row.status,
-      amountMinor: Number(row.amountMinor),
+      amountMinor: moneyMinorToDecimalString(row.amountMinor),
       currency: row.currency,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
@@ -434,7 +448,7 @@ export class AdminQueryRepository {
         orderId: row.orderId,
         paymentTransactionId: row.paymentTransactionId,
         refundMethod: row.refundMethod,
-        amountMinor: Number(row.amountMinor),
+        amountMinor: moneyMinorToDecimalString(row.amountMinor),
         status: row.status,
         reason: row.reason,
         internalNote: row.internalNote,
@@ -458,7 +472,7 @@ export class AdminQueryRepository {
       orderId: row.orderId,
       paymentTransactionId: row.paymentTransactionId,
       refundMethod: row.refundMethod,
-      amountMinor: Number(row.amountMinor),
+      amountMinor: moneyMinorToDecimalString(row.amountMinor),
       status: row.status,
       reason: row.reason,
       internalNote: row.internalNote,
@@ -499,11 +513,15 @@ export class AdminQueryRepository {
         periodStart: row.periodStart,
         periodEnd: row.periodEnd,
         status: row.status,
-        grossSalesMinor: Number(row.grossSalesMinor),
-        commissionMinor: Number(row.commissionMinor),
-        refundAdjustmentsMinor: Number(row.refundAdjustmentsMinor),
-        manualAdjustmentsMinor: Number(row.manualAdjustmentsMinor),
-        netPayableMinor: Number(row.netPayableMinor),
+        grossSalesMinor: moneyMinorToDecimalString(row.grossSalesMinor),
+        commissionMinor: moneyMinorToDecimalString(row.commissionMinor),
+        refundAdjustmentsMinor: moneyMinorToDecimalString(
+          row.refundAdjustmentsMinor,
+        ),
+        manualAdjustmentsMinor: moneyMinorToDecimalString(
+          row.manualAdjustmentsMinor,
+        ),
+        netPayableMinor: moneyMinorToDecimalString(row.netPayableMinor),
         paidAt: row.paidAt,
         createdAt: row.createdAt,
       })),
@@ -523,11 +541,15 @@ export class AdminQueryRepository {
       periodStart: row.periodStart,
       periodEnd: row.periodEnd,
       status: row.status,
-      grossSalesMinor: Number(row.grossSalesMinor),
-      commissionMinor: Number(row.commissionMinor),
-      refundAdjustmentsMinor: Number(row.refundAdjustmentsMinor),
-      manualAdjustmentsMinor: Number(row.manualAdjustmentsMinor),
-      netPayableMinor: Number(row.netPayableMinor),
+      grossSalesMinor: moneyMinorToDecimalString(row.grossSalesMinor),
+      commissionMinor: moneyMinorToDecimalString(row.commissionMinor),
+      refundAdjustmentsMinor: moneyMinorToDecimalString(
+        row.refundAdjustmentsMinor,
+      ),
+      manualAdjustmentsMinor: moneyMinorToDecimalString(
+        row.manualAdjustmentsMinor,
+      ),
+      netPayableMinor: moneyMinorToDecimalString(row.netPayableMinor),
       paidAt: row.paidAt,
       createdAt: row.createdAt,
     };
@@ -554,7 +576,7 @@ export class AdminQueryRepository {
         id: row.id,
         code: row.code,
         type: row.type,
-        value: row.value,
+        value: adminPromotionListValue(row.type, row.value),
         startsAt: row.startsAt,
         endsAt: row.endsAt,
         active: row.active,
@@ -575,7 +597,7 @@ export class AdminQueryRepository {
       id: row.id,
       code: row.code,
       type: row.type,
-      value: row.value,
+      value: adminPromotionListValue(row.type, row.value),
       startsAt: row.startsAt,
       endsAt: row.endsAt,
       active: row.active,
@@ -611,8 +633,12 @@ export class AdminQueryRepository {
       rows.map((row) => ({
         id: row.id,
         driverId: row.driverId,
-        submittedAmountMinor: Number(row.submittedAmountMinor),
-        confirmedAmountMinor: Number(row.confirmedAmountMinor),
+        submittedAmountMinor: moneyMinorToDecimalString(
+          row.submittedAmountMinor,
+        ),
+        confirmedAmountMinor: moneyMinorToDecimalString(
+          row.confirmedAmountMinor,
+        ),
         status: row.status,
         reference: row.reference,
         submittedAt: row.submittedAt,
@@ -632,8 +658,8 @@ export class AdminQueryRepository {
     return {
       id: row.id,
       driverId: row.driverId,
-      submittedAmountMinor: Number(row.submittedAmountMinor),
-      confirmedAmountMinor: Number(row.confirmedAmountMinor),
+      submittedAmountMinor: moneyMinorToDecimalString(row.submittedAmountMinor),
+      confirmedAmountMinor: moneyMinorToDecimalString(row.confirmedAmountMinor),
       status: row.status,
       reference: row.reference,
       submittedAt: row.submittedAt,

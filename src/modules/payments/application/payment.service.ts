@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import { createUuidV7 } from '../../../common/utils/uuid-v7';
 import { isPostgresUniqueViolation } from '../../../common/errors/postgres-unique';
 import { customerProfileNotFound } from '../../customers/domain/customer.errors';
@@ -593,7 +594,7 @@ export class PaymentService {
       paymentId: payment.id,
       method: payment.method,
       status: payment.status,
-      amountMinor: payment.amountMinor,
+      amountMinor: moneyMinorToDecimalString(payment.amountMinor),
       currency: payment.currency,
       provider: payment.method === 'ELECTRONIC' ? provider : null,
       createdAt: payment.createdAt,

@@ -203,14 +203,14 @@ describe('DriverRemunerationService', () => {
 
   it('returns self summary and list without foreign access', async () => {
     const summary = await service.getSummary(ACCOUNT);
-    expect(summary.totalEarnedMinor).toBe(300);
-    expect(summary.unpaidEarnedMinor).toBe(300);
+    expect(summary.totalEarnedMinor).toBe('300');
+    expect(summary.unpaidEarnedMinor).toBe('300');
     expect(summary.currency).toBe('DZD');
     const listed = await service.listEarnings(ACCOUNT, {
       limit: 10,
       offset: 0,
     });
-    expect(listed.items[0].amountMinor).toBe(300);
+    expect(listed.items[0].amountMinor).toBe('300');
     expect(listed.items[0].orderId).toBe(ORDER_ID);
     drivers.findProfileByAccountId.mockResolvedValue(null);
     await expect(service.getSummary(ACCOUNT)).rejects.toMatchObject({

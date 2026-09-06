@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { parseMoneyMinorDecimalString } from '../../../common/money/money-minor';
 import { createUuidV7 } from '../../../common/utils/uuid-v7';
 import {
   PrismaService,
@@ -94,7 +95,7 @@ function toRedemption(row: {
     promotionId: row.promotionId,
     customerId: row.customerId,
     orderId: row.orderId,
-    discountAmountMinor: Number(row.discountAmountMinor),
+    discountAmountMinor: parseMoneyMinorDecimalString(row.discountAmountMinor),
     fundedBy: row.fundedBy as PromotionFundingV1,
     redeemedAt: row.redeemedAt,
   };
@@ -221,7 +222,7 @@ export class PromotionRepository {
       promotionId: string;
       customerId: string;
       orderId: string;
-      discountAmountMinor: number;
+      discountAmountMinor: number | bigint;
       fundedBy: PromotionFundingV1;
       redeemedAt: Date;
     },

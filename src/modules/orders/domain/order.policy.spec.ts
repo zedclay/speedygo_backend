@@ -510,9 +510,9 @@ describe('Order policy', () => {
       expect((error as { details: unknown }).details).toEqual({
         changes: ['MERCHANDISE', 'DELIVERY_FEE', 'CUSTOMER_TOTAL'],
         current: {
-          merchandiseSubtotalMinor: 1500,
-          deliveryFeeMinor: 800,
-          customerTotalMinor: 2300,
+          merchandiseSubtotalMinor: '1500',
+          deliveryFeeMinor: '800',
+          customerTotalMinor: '2300',
         },
       });
     }

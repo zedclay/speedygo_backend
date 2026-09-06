@@ -2,6 +2,7 @@ import { MERCHANT_ERROR_CODES } from '../../merchants/domain/merchant.errors';
 import { MERCHANT_CAPABILITIES } from '../../merchants/domain/merchant.policy';
 import { MerchantOrderService } from './merchant-order.service';
 import { ORDER_ERROR_CODES } from '../domain/order.errors';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import type { MerchantOrderDetailView } from '../domain/order.types';
 
 const ACCOUNT = '11111111-1111-7111-8111-111111111111';
@@ -30,12 +31,12 @@ function detail(
     payment: { method: 'COD', status: 'PENDING' },
     financial: {
       currency: 'DZD',
-      grossMerchandiseSubtotalMinor: 1200,
-      merchantDiscountMinor: 0,
+      grossMerchandiseSubtotalMinor: moneyMinorToDecimalString(1200),
+      merchantDiscountMinor: moneyMinorToDecimalString(0),
       merchantCommissionRateBps: 700,
-      merchantCommissionAmountMinor: 84,
-      merchantNetAmountMinor: 1116,
-      deliveryFeeMinor: 500,
+      merchantCommissionAmountMinor: moneyMinorToDecimalString(84),
+      merchantNetAmountMinor: moneyMinorToDecimalString(1116),
+      deliveryFeeMinor: moneyMinorToDecimalString(500),
     },
     items: [
       {
@@ -43,9 +44,14 @@ function detail(
         productId: 'product-1',
         productNameSnapshot: 'Coffee',
         quantity: 1,
-        unitPriceMinor: 1200,
-        lineTotalMinor: 1200,
-        options: [{ optionNameSnapshot: 'Large', additionalPriceMinor: 200 }],
+        unitPriceMinor: moneyMinorToDecimalString(1200),
+        lineTotalMinor: moneyMinorToDecimalString(1200),
+        options: [
+          {
+            optionNameSnapshot: 'Large',
+            additionalPriceMinor: moneyMinorToDecimalString(200),
+          },
+        ],
       },
     ],
     deliveryAddress: {
@@ -217,7 +223,7 @@ describe('MerchantOrderService', () => {
   it('lists Orders for an authorized membership without mutating', async () => {
     const listed = await service.listOrders(ACCOUNT, MERCHANT, { limit: 10 });
     expect(listed.total).toBe(1);
-    expect(listed.items[0].financial.merchantNetAmountMinor).toBe(1116);
+    expect(listed.items[0].financial.merchantNetAmountMinor).toBe('1116');
     expect(listed.items[0].financial).not.toHaveProperty(
       'driverRemunerationMinor',
     );

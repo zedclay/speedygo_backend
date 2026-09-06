@@ -15,9 +15,9 @@ export type ErrorEnvelope = {
     message: string;
     changes?: string[];
     current?: {
-      merchandiseSubtotalMinor: number;
-      deliveryFeeMinor: number;
-      customerTotalMinor: number;
+      merchandiseSubtotalMinor: string;
+      deliveryFeeMinor: string;
+      customerTotalMinor: string;
     };
   };
 };
@@ -40,9 +40,9 @@ export class AuthExceptionFilter implements ExceptionFilter {
             ? {
                 changes: details.changes as string[],
                 current: details.current as {
-                  merchandiseSubtotalMinor: number;
-                  deliveryFeeMinor: number;
-                  customerTotalMinor: number;
+                  merchandiseSubtotalMinor: string;
+                  deliveryFeeMinor: string;
+                  customerTotalMinor: string;
                 },
               }
             : {}),

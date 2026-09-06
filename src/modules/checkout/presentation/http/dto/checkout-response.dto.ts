@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN } from '../../../../../common/money/money-minor';
 import { CartItemResponseDto } from '../../../../cart/presentation/http/dto/cart-response.dto';
 
 export class CheckoutCartSummaryDto {
@@ -15,9 +16,12 @@ export class CheckoutCartSummaryDto {
   itemCount!: number;
 
   @ApiProperty({
+    type: String,
     description: 'Live merchandise subtotal in integer minor units.',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1200',
   })
-  merchandiseSubtotalMinor!: number;
+  merchandiseSubtotalMinor!: string;
 
   @ApiProperty({ type: [CartItemResponseDto] })
   items!: CartItemResponseDto[];
@@ -97,23 +101,32 @@ export class CheckoutPreviewResponseDto {
   pricing!: CheckoutPricingSummaryDto;
 
   @ApiProperty({
+    type: String,
     description:
       'Live merchandise subtotal (gross) in integer minor units. Not reduced by promotions.',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1200',
   })
-  merchandiseSubtotalMinor!: number;
+  merchandiseSubtotalMinor!: string;
 
   @ApiProperty({
+    type: String,
     description:
       'customerDeliveryFeeMinor from the uniquely resolved DeliveryPricingRule. Integer minor units. Flat fee; not distance-based. Merchandise promotions do not alter delivery fee.',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '500',
   })
-  deliveryFeeMinor!: number;
+  deliveryFeeMinor!: string;
 
   @ApiPropertyOptional({
+    type: String,
     description:
       'Customer-facing promotion discount in integer minor units when a valid promoCode was supplied. Omitted when no promotion applies.',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '100',
     nullable: true,
   })
-  discountMinor?: number | null;
+  discountMinor?: string | null;
 
   @ApiPropertyOptional({
     description:
@@ -123,8 +136,11 @@ export class CheckoutPreviewResponseDto {
   promoCode?: string | null;
 
   @ApiProperty({
+    type: String,
     description:
       'merchandiseSubtotalMinor − discountMinor + deliveryFeeMinor. No taxes or tips. discountMinor is 0 when no promotion applies.',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1700',
   })
-  customerTotalMinor!: number;
+  customerTotalMinor!: string;
 }

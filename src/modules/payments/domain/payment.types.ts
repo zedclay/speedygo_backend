@@ -25,7 +25,7 @@ export type CustomerPaymentView = {
   paymentId: string;
   method: string;
   status: string;
-  amountMinor: number;
+  amountMinor: string;
   currency: string;
   provider: string | null;
   createdAt: string;

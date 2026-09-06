@@ -69,7 +69,7 @@ export type PromotionRedemptionRecord = {
   promotionId: string;
   customerId: string;
   orderId: string;
-  discountAmountMinor: number;
+  discountAmountMinor: bigint;
   fundedBy: PromotionFundingV1;
   redeemedAt: string;
 };

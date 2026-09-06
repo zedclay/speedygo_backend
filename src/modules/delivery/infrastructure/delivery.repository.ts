@@ -9,6 +9,7 @@ import {
   pgVarchar,
   type PgTimestamptz,
 } from '../../../infrastructure/database/pg-values';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import {
   ORDER_FULFILLMENT_READY,
@@ -418,7 +419,7 @@ export class DeliveryRepository {
         instructions: address.instructions,
       },
       deliveryFeeMinor: financial
-        ? parseMinorUnits(financial.customerDeliveryFeeMinor)
+        ? moneyMinorToDecimalString(financial.customerDeliveryFeeMinor)
         : null,
       events: events.map((event) => ({
         type: event.type,

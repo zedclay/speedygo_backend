@@ -543,7 +543,7 @@ describe('Catalog foundation services', () => {
       branch.id,
       { categoryId: category.id, name: 'Coffee', priceMinor: 0 },
     );
-    expect(product.priceMinor).toBe(0);
+    expect(product.priceMinor).toBe('0');
     expect(product.available).toBe(true);
     const boot = await service.bootstrap(ACCOUNT_A, merchant.id, branch.id);
     expect(boot.stats.categoryCount).toBe(1);
@@ -703,7 +703,7 @@ describe('Catalog foundation services', () => {
       group.id,
       { name: 'Large', additionalPriceMinor: 0 },
     );
-    expect(option.additionalPriceMinor).toBe(0);
+    expect(option.additionalPriceMinor).toBe('0');
     await expect(
       service.createOptionGroup(ACCOUNT_A, merchant.id, product.id, {
         name: 'Addons',

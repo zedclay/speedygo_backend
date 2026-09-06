@@ -206,7 +206,7 @@ describe('PaymentService', () => {
   it('reads an owned Customer Payment without internal financial fields', async () => {
     const view = await service.getCustomerPayment(ACCOUNT, ORDER_ID);
     expect(view.paymentId).toBe(PAYMENT_ID);
-    expect(view.amountMinor).toBe(1700);
+    expect(view.amountMinor).toBe('1700');
     expect(view).not.toHaveProperty('merchantCommissionAmountMinor');
     expect(view).not.toHaveProperty('driverRemunerationMinor');
     expect(view).not.toHaveProperty('checkoutUrl');

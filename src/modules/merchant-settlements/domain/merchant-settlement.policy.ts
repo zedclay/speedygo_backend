@@ -96,51 +96,52 @@ export function isRefundEligibleForAdjustment(input: {
  */
 export function requireMerchantLiabilityMinor(
   merchantLiabilityMinor: number,
-  refundAmountMinor: number,
-): number {
+  refundAmountMinor: number | bigint,
+): bigint {
+  const refund = BigInt(refundAmountMinor);
   if (
     !Number.isInteger(merchantLiabilityMinor) ||
     merchantLiabilityMinor < 0 ||
-    !Number.isInteger(refundAmountMinor) ||
-    refundAmountMinor <= 0
+    refund <= 0n
   ) {
     throw merchantSettlementLiabilityInvalid();
   }
-  if (merchantLiabilityMinor > refundAmountMinor) {
+  const liability = BigInt(merchantLiabilityMinor);
+  if (liability > refund) {
     throw merchantSettlementLiabilityInvalid(
       'Merchant liability cannot exceed Refund.amountMinor',
     );
   }
-  return merchantLiabilityMinor;
+  return liability;
 }
 
 export function buildSaleLineAmounts(snapshot: {
-  grossMerchandiseSubtotalMinor: number;
-  merchantCommissionAmountMinor: number;
-  merchantNetAmountMinor: number;
+  grossMerchandiseSubtotalMinor: number | bigint;
+  merchantCommissionAmountMinor: number | bigint;
+  merchantNetAmountMinor: number | bigint;
 }): {
-  grossMerchandiseMinor: number;
-  commissionMinor: number;
-  merchantNetMinor: number;
-  adjustmentMinor: number;
+  grossMerchandiseMinor: bigint;
+  commissionMinor: bigint;
+  merchantNetMinor: bigint;
+  adjustmentMinor: bigint;
 } {
+  const grossMerchandiseMinor = BigInt(snapshot.grossMerchandiseSubtotalMinor);
+  const commissionMinor = BigInt(snapshot.merchantCommissionAmountMinor);
+  const merchantNetMinor = BigInt(snapshot.merchantNetAmountMinor);
   if (
-    !Number.isInteger(snapshot.grossMerchandiseSubtotalMinor) ||
-    snapshot.grossMerchandiseSubtotalMinor < 0 ||
-    !Number.isInteger(snapshot.merchantCommissionAmountMinor) ||
-    snapshot.merchantCommissionAmountMinor < 0 ||
-    !Number.isInteger(snapshot.merchantNetAmountMinor) ||
-    snapshot.merchantNetAmountMinor < 0
+    grossMerchandiseMinor < 0n ||
+    commissionMinor < 0n ||
+    merchantNetMinor < 0n
   ) {
     throw merchantSettlementLiabilityInvalid(
       'OrderFinancialSnapshot Merchant sale amounts are invalid',
     );
   }
   return {
-    grossMerchandiseMinor: snapshot.grossMerchandiseSubtotalMinor,
-    commissionMinor: snapshot.merchantCommissionAmountMinor,
-    merchantNetMinor: snapshot.merchantNetAmountMinor,
-    adjustmentMinor: 0,
+    grossMerchandiseMinor,
+    commissionMinor,
+    merchantNetMinor,
+    adjustmentMinor: 0n,
   };
 }
 
@@ -149,17 +150,20 @@ export function buildSaleLineAmounts(snapshot: {
  * adjustmentMinor = -merchantLiabilityMinor (debit against Merchant payable)
  * merchantNetMinor = 0
  */
-export function buildRefundAdjustmentAmounts(merchantLiabilityMinor: number): {
-  grossMerchandiseMinor: number;
-  commissionMinor: number;
-  merchantNetMinor: number;
-  adjustmentMinor: number;
+export function buildRefundAdjustmentAmounts(
+  merchantLiabilityMinor: number | bigint,
+): {
+  grossMerchandiseMinor: bigint;
+  commissionMinor: bigint;
+  merchantNetMinor: bigint;
+  adjustmentMinor: bigint;
 } {
+  const liability = BigInt(merchantLiabilityMinor);
   return {
-    grossMerchandiseMinor: 0,
-    commissionMinor: 0,
-    merchantNetMinor: 0,
-    adjustmentMinor: -merchantLiabilityMinor,
+    grossMerchandiseMinor: 0n,
+    commissionMinor: 0n,
+    merchantNetMinor: 0n,
+    adjustmentMinor: -liability,
   };
 }
 
@@ -175,11 +179,11 @@ export function deriveSettlementTotals(
     >
   >,
 ): SettlementTotals {
-  let grossSalesMinor = 0;
-  let commissionMinor = 0;
-  let refundAdjustmentsMinor = 0;
-  let saleNets = 0;
-  let adjustments = 0;
+  let grossSalesMinor = 0n;
+  let commissionMinor = 0n;
+  let refundAdjustmentsMinor = 0n;
+  let saleNets = 0n;
+  let adjustments = 0n;
 
   for (const line of lines) {
     if (line.type === SETTLEMENT_LINE_TYPE_SALE) {
@@ -198,7 +202,7 @@ export function deriveSettlementTotals(
     grossSalesMinor,
     commissionMinor,
     refundAdjustmentsMinor,
-    manualAdjustmentsMinor: 0,
+    manualAdjustmentsMinor: 0n,
     netPayableMinor: saleNets + adjustments,
   };
 }

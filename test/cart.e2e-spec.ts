@@ -19,28 +19,28 @@ type AuthMeBody = { account: { id: string; phone: string } };
 type MembershipBody = { merchantId: string };
 type BranchBody = { id: string };
 type CategoryBody = { id: string };
-type ProductBody = { id: string; priceMinor: number };
+type ProductBody = { id: string; priceMinor: string };
 type OptionGroupBody = { id: string };
 type OptionBody = { id: string };
 type CartBody = {
   id: string;
   branchId: string;
   cartReady: boolean;
-  cartSubtotalMinor: number;
+  cartSubtotalMinor: string;
   items: Array<{
     id: string;
     productId: string;
     quantity: number;
-    baseUnitPriceMinor: number;
-    optionUnitAdditionalMinor: number;
-    unitPriceMinor: number;
-    lineSubtotalMinor: number;
-    storedUnitPriceMinor: number;
+    baseUnitPriceMinor: string;
+    optionUnitAdditionalMinor: string;
+    unitPriceMinor: string;
+    lineSubtotalMinor: string;
+    storedUnitPriceMinor: string;
     itemAvailable: boolean;
     selectedOptions: Array<{
       optionId: string;
       name: string | null;
-      additionalPriceMinor: number;
+      additionalPriceMinor: string;
       available: boolean;
     }>;
   }>;
@@ -439,10 +439,10 @@ describe('Cart foundation (e2e)', () => {
       expect(added.status).toBe(200);
       const addedBody = added.body as CartBody;
       expect(addedBody.cartReady).toBe(true);
-      expect(addedBody.cartSubtotalMinor).toBe(1200);
-      expect(addedBody.items[0]?.optionUnitAdditionalMinor).toBe(200);
-      expect(addedBody.items[0]?.unitPriceMinor).toBe(1200);
-      expect(addedBody.items[0]?.storedUnitPriceMinor).toBe(1200);
+      expect(addedBody.cartSubtotalMinor).toBe('1200');
+      expect(addedBody.items[0]?.optionUnitAdditionalMinor).toBe('200');
+      expect(addedBody.items[0]?.unitPriceMinor).toBe('1200');
+      expect(addedBody.items[0]?.storedUnitPriceMinor).toBe('1200');
       expect(
         addedBody.items[0]?.selectedOptions.map((row) => row.optionId),
       ).toEqual([largeId]);
@@ -533,8 +533,8 @@ describe('Cart foundation (e2e)', () => {
         (item) => item.selectedOptions.length === 2,
       );
       expect(milkLine?.quantity).toBe(2);
-      expect(milkLine?.optionUnitAdditionalMinor).toBe(250);
-      expect(milkLine?.lineSubtotalMinor).toBe(2500);
+      expect(milkLine?.optionUnitAdditionalMinor).toBe('250');
+      expect(milkLine?.lineSubtotalMinor).toBe('2500');
 
       const split = await request(server)
         .post('/api/v1/customer/cart/items')

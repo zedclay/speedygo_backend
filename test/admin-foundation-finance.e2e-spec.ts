@@ -40,14 +40,14 @@ type TokenBody = { accessToken: string };
 type AuthMeBody = { account: { id: string; phone: string } };
 type ErrorBody = { error: { code: string; message: string } };
 type PreviewBody = {
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
 };
 type AcceptedBody = {
   assignmentId: string;
   deliveryId: string;
-  driverRemunerationMinor: number;
+  driverRemunerationMinor: string;
 };
 
 const INSIDE: [number, number] = [36.75, 3.05];
@@ -758,12 +758,15 @@ describe('Admin Foundation Finance (e2e)', () => {
       .send({
         addressId: fixture.addressId,
         paymentMethod: 'ELECTRONIC',
-        expectedMerchandiseSubtotalMinor: (preview.body as PreviewBody)
-          .merchandiseSubtotalMinor,
-        expectedDeliveryFeeMinor: (preview.body as PreviewBody)
-          .deliveryFeeMinor,
-        expectedCustomerTotalMinor: (preview.body as PreviewBody)
-          .customerTotalMinor,
+        expectedMerchandiseSubtotalMinor: Number(
+          (preview.body as PreviewBody).merchandiseSubtotalMinor,
+        ),
+        expectedDeliveryFeeMinor: Number(
+          (preview.body as PreviewBody).deliveryFeeMinor,
+        ),
+        expectedCustomerTotalMinor: Number(
+          (preview.body as PreviewBody).customerTotalMinor,
+        ),
       });
     expect(created.status).toBe(201);
     const orderId = (created.body as { id: string }).id;
@@ -864,12 +867,15 @@ describe('Admin Foundation Finance (e2e)', () => {
       .send({
         addressId: fixture.addressId,
         paymentMethod: 'COD',
-        expectedMerchandiseSubtotalMinor: (preview.body as PreviewBody)
-          .merchandiseSubtotalMinor,
-        expectedDeliveryFeeMinor: (preview.body as PreviewBody)
-          .deliveryFeeMinor,
-        expectedCustomerTotalMinor: (preview.body as PreviewBody)
-          .customerTotalMinor,
+        expectedMerchandiseSubtotalMinor: Number(
+          (preview.body as PreviewBody).merchandiseSubtotalMinor,
+        ),
+        expectedDeliveryFeeMinor: Number(
+          (preview.body as PreviewBody).deliveryFeeMinor,
+        ),
+        expectedCustomerTotalMinor: Number(
+          (preview.body as PreviewBody).customerTotalMinor,
+        ),
       });
     expect(created.status).toBe(201);
     const orderId = (created.body as { id: string }).id;

@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN } from '../../../../../common/money/money-minor';
 
 export class CartItemSelectedOptionDto {
   @ApiProperty()
@@ -8,10 +9,12 @@ export class CartItemSelectedOptionDto {
   name!: string | null;
 
   @ApiProperty({
-    description:
-      'Live ProductOption.additionalPriceMinor in integer minor units.',
+    type: String,
+    description: 'DZD integer minor units as exact decimal string',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1500',
   })
-  additionalPriceMinor!: number;
+  additionalPriceMinor!: string;
 
   @ApiProperty()
   available!: boolean;
@@ -31,33 +34,44 @@ export class CartItemResponseDto {
   quantity!: number;
 
   @ApiProperty({
-    description:
-      'Live Product.priceMinor in integer minor units. Not a checkout snapshot.',
+    type: String,
+    description: 'DZD integer minor units as exact decimal string',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1500',
   })
-  baseUnitPriceMinor!: number;
+  baseUnitPriceMinor!: string;
 
   @ApiProperty({
-    description:
-      'Sum of live selected ProductOption.additionalPriceMinor. Integer minor units.',
+    type: String,
+    description: 'DZD integer minor units as exact decimal string',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1500',
   })
-  optionUnitAdditionalMinor!: number;
+  optionUnitAdditionalMinor!: string;
 
   @ApiProperty({
-    description:
-      'baseUnitPriceMinor + optionUnitAdditionalMinor. Live Catalog, not checkout-authoritative.',
+    type: String,
+    description: 'DZD integer minor units as exact decimal string',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1500',
   })
-  unitPriceMinor!: number;
+  unitPriceMinor!: string;
 
   @ApiProperty({
-    description: 'unitPriceMinor * quantity. Integer minor units.',
+    type: String,
+    description: 'DZD integer minor units as exact decimal string',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1500',
   })
-  lineSubtotalMinor!: number;
+  lineSubtotalMinor!: string;
 
   @ApiProperty({
-    description:
-      'Last validated unit merchandise price written on CartItem (Product.priceMinor + selected option additionalPriceMinor at write time). Not checkout-authoritative.',
+    type: String,
+    description: 'DZD integer minor units as exact decimal string',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1500',
   })
-  storedUnitPriceMinor!: number;
+  storedUnitPriceMinor!: string;
 
   @ApiProperty({
     description:
@@ -91,10 +105,12 @@ export class CartResponseDto {
   itemCount!: number;
 
   @ApiProperty({
-    description:
-      'Sum of line subtotals in integer minor units. No delivery fee, discount, commission, or payment.',
+    type: String,
+    description: 'DZD integer minor units as exact decimal string',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '1500',
   })
-  cartSubtotalMinor!: number;
+  cartSubtotalMinor!: string;
 
   @ApiProperty({
     description:

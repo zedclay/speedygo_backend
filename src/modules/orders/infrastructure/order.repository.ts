@@ -12,6 +12,7 @@ import {
   pgTimestamptz,
   pgVarchar,
 } from '../../../infrastructure/database/pg-values';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import { CART_STATUS_CONVERTED } from '../../cart/domain/cart.policy';
 import type { CheckoutPricingRuleRecord } from '../../checkout/domain/checkout.types';
@@ -326,7 +327,9 @@ export class OrderRepository {
       const list = optionsByItem.get(option.orderItemId) ?? [];
       list.push({
         optionNameSnapshot: option.optionNameSnapshot,
-        additionalPriceMinor: parseMinorUnits(option.additionalPriceMinor),
+        additionalPriceMinor: moneyMinorToDecimalString(
+          option.additionalPriceMinor,
+        ),
       });
       optionsByItem.set(option.orderItemId, list);
     }
@@ -335,8 +338,8 @@ export class OrderRepository {
       productId: row.productId,
       productNameSnapshot: row.productNameSnapshot,
       quantity: row.quantity,
-      unitPriceMinor: parseMinorUnits(row.unitPriceMinor),
-      lineTotalMinor: parseMinorUnits(row.lineTotalMinor),
+      unitPriceMinor: moneyMinorToDecimalString(row.unitPriceMinor),
+      lineTotalMinor: moneyMinorToDecimalString(row.lineTotalMinor),
       options: optionsByItem.get(row.id) ?? [],
     }));
     return {
@@ -394,11 +397,15 @@ export class OrderRepository {
         createdAt: order.createdAt,
         financial: {
           currency: financial.currency,
-          merchandiseSubtotalMinor: parseMinorUnits(
+          merchandiseSubtotalMinor: moneyMinorToDecimalString(
             financial.grossMerchandiseSubtotalMinor,
           ),
-          deliveryFeeMinor: parseMinorUnits(financial.customerDeliveryFeeMinor),
-          customerTotalMinor: parseMinorUnits(financial.customerPayableMinor),
+          deliveryFeeMinor: moneyMinorToDecimalString(
+            financial.customerDeliveryFeeMinor,
+          ),
+          customerTotalMinor: moneyMinorToDecimalString(
+            financial.customerPayableMinor,
+          ),
         },
       });
     }
@@ -801,7 +808,9 @@ export class OrderRepository {
       const list = optionsByItem.get(option.orderItemId) ?? [];
       list.push({
         optionNameSnapshot: option.optionNameSnapshot,
-        additionalPriceMinor: parseMinorUnits(option.additionalPriceMinor),
+        additionalPriceMinor: moneyMinorToDecimalString(
+          option.additionalPriceMinor,
+        ),
       });
       optionsByItem.set(option.orderItemId, list);
     }
@@ -810,8 +819,8 @@ export class OrderRepository {
       productId: row.productId,
       productNameSnapshot: row.productNameSnapshot,
       quantity: row.quantity,
-      unitPriceMinor: parseMinorUnits(row.unitPriceMinor),
-      lineTotalMinor: parseMinorUnits(row.lineTotalMinor),
+      unitPriceMinor: moneyMinorToDecimalString(row.unitPriceMinor),
+      lineTotalMinor: moneyMinorToDecimalString(row.lineTotalMinor),
       options: optionsByItem.get(row.id) ?? [],
     }));
     const statusHistory: MerchantOrderStatusEventView[] = eventRows.map(
@@ -904,20 +913,22 @@ export class OrderRepository {
         },
         financial: {
           currency: financial.currency,
-          grossMerchandiseSubtotalMinor: parseMinorUnits(
+          grossMerchandiseSubtotalMinor: moneyMinorToDecimalString(
             financial.grossMerchandiseSubtotalMinor,
           ),
-          merchantDiscountMinor: parseMinorUnits(
+          merchantDiscountMinor: moneyMinorToDecimalString(
             financial.merchantDiscountMinor,
           ),
           merchantCommissionRateBps: financial.merchantCommissionRateBps,
-          merchantCommissionAmountMinor: parseMinorUnits(
+          merchantCommissionAmountMinor: moneyMinorToDecimalString(
             financial.merchantCommissionAmountMinor,
           ),
-          merchantNetAmountMinor: parseMinorUnits(
+          merchantNetAmountMinor: moneyMinorToDecimalString(
             financial.merchantNetAmountMinor,
           ),
-          deliveryFeeMinor: parseMinorUnits(financial.customerDeliveryFeeMinor),
+          deliveryFeeMinor: moneyMinorToDecimalString(
+            financial.customerDeliveryFeeMinor,
+          ),
         },
       });
     }

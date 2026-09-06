@@ -26,16 +26,16 @@ type ErrorBody = {
     message: string;
     changes?: string[];
     current?: {
-      merchandiseSubtotalMinor: number;
-      deliveryFeeMinor: number;
-      customerTotalMinor: number;
+      merchandiseSubtotalMinor: string;
+      deliveryFeeMinor: string;
+      customerTotalMinor: string;
     };
   };
 };
 type PreviewBody = {
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
 };
 type AuthMeBody = { account: { id: string; phone: string } };
 type MembershipBody = { merchantId: string };
@@ -53,17 +53,17 @@ type OrderDetailBody = {
   paymentMethod: string;
   financial: {
     currency: string;
-    merchandiseSubtotalMinor: number;
-    deliveryFeeMinor: number;
-    customerTotalMinor: number;
+    merchandiseSubtotalMinor: string;
+    deliveryFeeMinor: string;
+    customerTotalMinor: string;
   };
   items: Array<{
     productNameSnapshot: string;
-    unitPriceMinor: number;
-    lineTotalMinor: number;
+    unitPriceMinor: string;
+    lineTotalMinor: string;
     options: Array<{
       optionNameSnapshot: string;
-      additionalPriceMinor: number;
+      additionalPriceMinor: string;
     }>;
   }>;
   deliveryAddress: { addressText: string; instructions: string | null };
@@ -160,9 +160,11 @@ describe('Order foundation (e2e)', () => {
 
   function expectedFrom(preview: PreviewBody) {
     return {
-      expectedMerchandiseSubtotalMinor: preview.merchandiseSubtotalMinor,
-      expectedDeliveryFeeMinor: preview.deliveryFeeMinor,
-      expectedCustomerTotalMinor: preview.customerTotalMinor,
+      expectedMerchandiseSubtotalMinor: Number(
+        preview.merchandiseSubtotalMinor,
+      ),
+      expectedDeliveryFeeMinor: Number(preview.deliveryFeeMinor),
+      expectedCustomerTotalMinor: Number(preview.customerTotalMinor),
     };
   }
 
@@ -680,9 +682,9 @@ describe('Order foundation (e2e)', () => {
       );
 
       const preview = await previewCheckout(tokenA, homeId);
-      expect(preview.merchandiseSubtotalMinor).toBe(1200);
-      expect(preview.deliveryFeeMinor).toBe(500);
-      expect(preview.customerTotalMinor).toBe(1700);
+      expect(preview.merchandiseSubtotalMinor).toBe('1200');
+      expect(preview.deliveryFeeMinor).toBe('500');
+      expect(preview.customerTotalMinor).toBe('1700');
       const matching = expectedFrom(preview);
 
       const fakeLower = await request(server)
@@ -705,9 +707,9 @@ describe('Order foundation (e2e)', () => {
         'CUSTOMER_TOTAL',
       ]);
       expect((fakeLower.body as ErrorBody).error.current).toEqual({
-        merchandiseSubtotalMinor: 1200,
-        deliveryFeeMinor: 500,
-        customerTotalMinor: 1700,
+        merchandiseSubtotalMinor: '1200',
+        deliveryFeeMinor: '500',
+        customerTotalMinor: '1700',
       });
       expect((fakeLower.body as ErrorBody).error).not.toHaveProperty(
         'merchantCommissionAmountMinor',
@@ -747,16 +749,16 @@ describe('Order foundation (e2e)', () => {
       expect(body.paymentMethod).toBe('COD');
       expect(body.publicReference.startsWith('sgo_')).toBe(true);
       expect(body.financial.currency).toBe('DZD');
-      expect(body.financial.merchandiseSubtotalMinor).toBe(1200);
-      expect(body.financial.deliveryFeeMinor).toBe(500);
-      expect(body.financial.customerTotalMinor).toBe(1700);
+      expect(body.financial.merchandiseSubtotalMinor).toBe('1200');
+      expect(body.financial.deliveryFeeMinor).toBe('500');
+      expect(body.financial.customerTotalMinor).toBe('1700');
       expect(body.financial).not.toHaveProperty(
         'merchantCommissionAmountMinor',
       );
       expect(body.financial).not.toHaveProperty('driverRemunerationMinor');
       expect(body.items).toHaveLength(1);
       expect(body.items[0].productNameSnapshot).toBe('Coffee');
-      expect(body.items[0].unitPriceMinor).toBe(1200);
+      expect(body.items[0].unitPriceMinor).toBe('1200');
       expect(body.items[0].options[0].optionNameSnapshot).toBe('Large');
       expect(body.deliveryAddress.addressText).toBe('Inside zone');
       expect(body.deliveryAddress.instructions).toBeNull();
@@ -1029,9 +1031,9 @@ describe('Order foundation (e2e)', () => {
       expect(detail.status).toBe(200);
       const historical = detail.body as OrderDetailBody;
       expect(historical.items[0].productNameSnapshot).toBe('Coffee');
-      expect(historical.items[0].unitPriceMinor).toBe(1200);
+      expect(historical.items[0].unitPriceMinor).toBe('1200');
       expect(historical.items[0].options[0].optionNameSnapshot).toBe('Large');
-      expect(historical.items[0].options[0].additionalPriceMinor).toBe(200);
+      expect(historical.items[0].options[0].additionalPriceMinor).toBe('200');
       expect(historical.deliveryAddress.addressText).toBe('Inside zone');
 
       const listed = await request(server)

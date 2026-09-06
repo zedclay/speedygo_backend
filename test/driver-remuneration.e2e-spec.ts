@@ -33,14 +33,14 @@ import { MatchingProcessor } from '../src/modules/matching/infrastructure/matchi
 type TokenBody = { accessToken: string };
 type AuthMeBody = { account: { id: string; phone: string } };
 type PreviewBody = {
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  customerTotalMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  customerTotalMinor: string;
 };
 type AcceptedBody = {
   assignmentId: string;
   deliveryId: string;
-  driverRemunerationMinor: number;
+  driverRemunerationMinor: string;
 };
 type DeliveryBody = {
   deliveryStatus: string;
@@ -48,8 +48,8 @@ type DeliveryBody = {
   assignmentStatus: string;
 };
 type EarningSummaryBody = {
-  totalEarnedMinor: number;
-  unpaidEarnedMinor: number;
+  totalEarnedMinor: string;
+  unpaidEarnedMinor: string;
   earningCount: number;
   currency: string;
 };
@@ -58,7 +58,7 @@ type EarningListBody = {
     earningId: string;
     deliveryId: string;
     orderId: string;
-    amountMinor: number;
+    amountMinor: string;
     status: string;
   }>;
   total: number;
@@ -669,12 +669,15 @@ describe('Driver Remuneration Foundation (e2e)', () => {
       .send({
         addressId: fixture.addressId,
         paymentMethod,
-        expectedMerchandiseSubtotalMinor: (preview.body as PreviewBody)
-          .merchandiseSubtotalMinor,
-        expectedDeliveryFeeMinor: (preview.body as PreviewBody)
-          .deliveryFeeMinor,
-        expectedCustomerTotalMinor: (preview.body as PreviewBody)
-          .customerTotalMinor,
+        expectedMerchandiseSubtotalMinor: Number(
+          (preview.body as PreviewBody).merchandiseSubtotalMinor,
+        ),
+        expectedDeliveryFeeMinor: Number(
+          (preview.body as PreviewBody).deliveryFeeMinor,
+        ),
+        expectedCustomerTotalMinor: Number(
+          (preview.body as PreviewBody).customerTotalMinor,
+        ),
       });
     expect(created.status).toBe(201);
     const orderId = (created.body as { id: string }).id;
@@ -720,7 +723,7 @@ describe('Driver Remuneration Foundation (e2e)', () => {
       .send({});
     expect(accepted.status).toBe(200);
     const acceptedBody = accepted.body as AcceptedBody;
-    expect(acceptedBody.driverRemunerationMinor).toBe(300);
+    expect(acceptedBody.driverRemunerationMinor).toBe('300');
     for (const action of LOGISTICS_ACTIONS) {
       if (action === 'arrive-pickup' || action === 'arrive-customer') {
         await locations.upsert(
@@ -790,7 +793,7 @@ describe('Driver Remuneration Foundation (e2e)', () => {
         Number(snapshot?.driverRemunerationMinor),
       );
       expect(Number(earning.netEarningMinor)).toBe(
-        accepted.driverRemunerationMinor,
+        Number(accepted.driverRemunerationMinor),
       );
       expect(Number(earning.bonusMinor)).toBe(0);
       expect(Number(earning.adjustmentMinor)).toBe(0);
@@ -800,9 +803,9 @@ describe('Driver Remuneration Foundation (e2e)', () => {
         .set('Authorization', `Bearer ${fixture.driverToken}`);
       expect(codSummary.status).toBe(200);
       expect(
-        (codSummary.body as { outstandingCustodyMinor: number })
+        (codSummary.body as { outstandingCustodyMinor: string })
           .outstandingCustodyMinor,
-      ).toBe(collectedAmountMinor);
+      ).toBe(String(collectedAmountMinor));
       expect(
         await prisma
           .getDb()
@@ -854,8 +857,8 @@ describe('Driver Remuneration Foundation (e2e)', () => {
         .set('Authorization', `Bearer ${fixture.foreignToken!}`);
       expect(foreignSummary.status).toBe(200);
       expect(foreignSummary.body as EarningSummaryBody).toEqual({
-        totalEarnedMinor: 0,
-        unpaidEarnedMinor: 0,
+        totalEarnedMinor: '0',
+        unpaidEarnedMinor: '0',
         earningCount: 0,
         currency: 'DZD',
       });
@@ -879,7 +882,7 @@ describe('Driver Remuneration Foundation (e2e)', () => {
         .first();
       expect(afterDeclare?.id).toBe(earning.id);
       expect(Number(afterDeclare?.netEarningMinor)).toBe(
-        accepted.driverRemunerationMinor,
+        Number(accepted.driverRemunerationMinor),
       );
       expect(afterDeclare?.status).toBe('EARNED');
     } finally {
@@ -920,7 +923,7 @@ describe('Driver Remuneration Foundation (e2e)', () => {
       expect(earnings).toHaveLength(1);
       expect(earnings[0]?.status).toBe('EARNED');
       expect(Number(earnings[0]?.netEarningMinor)).toBe(
-        accepted.driverRemunerationMinor,
+        Number(accepted.driverRemunerationMinor),
       );
       expect(Number(earnings[0]?.bonusMinor)).toBe(0);
       expect(Number(earnings[0]?.adjustmentMinor)).toBe(0);

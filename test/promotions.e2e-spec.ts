@@ -26,11 +26,11 @@ import { deleteAccountNotificationArtifacts } from './helpers/delete-account-not
 type TokenBody = { accessToken: string };
 type AuthMeBody = { account: { id: string; phone: string } };
 type PreviewBody = {
-  merchandiseSubtotalMinor: number;
-  deliveryFeeMinor: number;
-  discountMinor: number;
+  merchandiseSubtotalMinor: string;
+  deliveryFeeMinor: string;
+  discountMinor: string;
   promoCode: string | null;
-  customerTotalMinor: number;
+  customerTotalMinor: string;
 };
 
 const INSIDE: [number, number] = [36.75, 3.05];
@@ -116,7 +116,7 @@ describe('Promotions Foundation (e2e)', () => {
     adminId: string;
     roleId: string;
     promoIds: string[];
-    deliveryFeeMinor: number;
+    deliveryFeeMinor: string;
   };
 
   async function cleanupByPhone(phoneE164: string): Promise<void> {
@@ -451,11 +451,11 @@ describe('Promotions Foundation (e2e)', () => {
         .send({ addressId: fixture.addressId, promoCode: code });
       expect(preview.status).toBe(200);
       const body = preview.body as PreviewBody;
-      expect(body.merchandiseSubtotalMinor).toBe(10000);
-      expect(body.discountMinor).toBe(1000);
+      expect(body.merchandiseSubtotalMinor).toBe('10000');
+      expect(body.discountMinor).toBe('1000');
       expect(body.promoCode).toBe(code.toUpperCase());
-      expect(body.deliveryFeeMinor).toBe(500);
-      expect(body.customerTotalMinor).toBe(9500);
+      expect(body.deliveryFeeMinor).toBe('500');
+      expect(body.customerTotalMinor).toBe('9500');
       const redemptionsBefore = await prisma
         .getDb()
         .orm.public.PromotionRedemption.where({ promotionId: promo.id })
@@ -531,7 +531,7 @@ describe('Promotions Foundation (e2e)', () => {
         .set('Authorization', `Bearer ${fixture.customerToken}`)
         .send({ addressId: fixture.addressId, promoCode: code });
       expect(preview.status).toBe(200);
-      expect((preview.body as PreviewBody).customerTotalMinor).toBe(8500);
+      expect((preview.body as PreviewBody).customerTotalMinor).toBe('8500');
 
       await promotions.setPromotionActive(promo.id, false);
 
@@ -699,7 +699,7 @@ describe('Promotions Foundation (e2e)', () => {
         .set('Authorization', `Bearer ${fixture.customerToken}`)
         .send({ addressId: fixture.addressId, promoCode: code });
       expect(preview.status).toBe(200);
-      expect((preview.body as PreviewBody).customerTotalMinor).toBe(500);
+      expect((preview.body as PreviewBody).customerTotalMinor).toBe('500');
 
       const created = await request(server)
         .post('/api/v1/customer/orders')
