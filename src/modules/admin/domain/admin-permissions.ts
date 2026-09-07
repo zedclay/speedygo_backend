@@ -33,6 +33,11 @@ export const ADMIN_PERMISSIONS = Object.freeze({
   SETTINGS_READ: 'settings.read',
   /** Allowlisted platform settings mutation — not implied by settings.read. */
   SETTINGS_MANAGE: 'settings.manage',
+  /** Admin Delivery Zones + Pricing APIs v1.0. */
+  DELIVERY_ZONES_READ: 'delivery.zones.read',
+  DELIVERY_ZONES_MANAGE: 'delivery.zones.manage',
+  DELIVERY_PRICING_READ: 'delivery.pricing.read',
+  DELIVERY_PRICING_MANAGE: 'delivery.pricing.manage',
 } as const);
 
 export type AdminPermissionCode =

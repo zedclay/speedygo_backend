@@ -3,68 +3,26 @@ import {
   checkoutPricingRuleNotFound,
 } from './checkout.errors';
 import type { CheckoutPricingRuleRecord } from './checkout.types';
+import {
+  CHECKOUT_PRICING_TIMEZONE,
+  DELIVERY_PRICING_TIMEZONE,
+  isRuleEffectiveAt,
+  isTimeInWindow,
+  localTimeOfDaySeconds,
+  parseLocalWindow,
+  parseTimeOfDaySeconds,
+  pricingRulesApplicabilityConflict,
+} from '../../delivery-pricing/domain/pricing-applicability.policy';
 
-/** Pricing local time is evaluated in Africa/Algiers unless a future PlatformSetting overrides it. */
-export const CHECKOUT_PRICING_TIMEZONE = 'Africa/Algiers';
-
-export function localTimeOfDaySeconds(
-  instant: Date,
-  timeZone: string = CHECKOUT_PRICING_TIMEZONE,
-): number {
-  const parts = new Intl.DateTimeFormat('en-GB', {
-    timeZone,
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hourCycle: 'h23',
-  }).formatToParts(instant);
-  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? '0');
-  const minute = Number(
-    parts.find((part) => part.type === 'minute')?.value ?? '0',
-  );
-  const second = Number(
-    parts.find((part) => part.type === 'second')?.value ?? '0',
-  );
-  return hour * 3600 + minute * 60 + second;
-}
-
-export function parseTimeOfDaySeconds(value: string): number | null {
-  const match = /^(\d{2}):(\d{2})(?::(\d{2}))?$/.exec(value.trim());
-  if (!match) {
-    return null;
-  }
-  const hour = Number(match[1]);
-  const minute = Number(match[2]);
-  const second = Number(match[3] ?? '0');
-  if (
-    hour > 23 ||
-    minute > 59 ||
-    second > 59 ||
-    !Number.isInteger(hour) ||
-    !Number.isInteger(minute) ||
-    !Number.isInteger(second)
-  ) {
-    return null;
-  }
-  return hour * 3600 + minute * 60 + second;
-}
-
-/**
- * Inclusive window. When start > end the window wraps midnight.
- */
-export function isTimeInWindow(
-  nowSeconds: number,
-  startSeconds: number,
-  endSeconds: number,
-): boolean {
-  if (startSeconds === endSeconds) {
-    return nowSeconds === startSeconds;
-  }
-  if (startSeconds < endSeconds) {
-    return nowSeconds >= startSeconds && nowSeconds <= endSeconds;
-  }
-  return nowSeconds >= startSeconds || nowSeconds <= endSeconds;
-}
+export {
+  CHECKOUT_PRICING_TIMEZONE,
+  DELIVERY_PRICING_TIMEZONE,
+  isRuleEffectiveAt,
+  isTimeInWindow,
+  localTimeOfDaySeconds,
+  parseTimeOfDaySeconds,
+  pricingRulesApplicabilityConflict,
+};
 
 /**
  * v1.0 window rules:
@@ -80,41 +38,19 @@ export function ruleAppliesAtLocalTime(input: {
   endLocalTime: string | null;
   nowSeconds: number;
 }): boolean {
-  const startRaw = input.startLocalTime;
-  const endRaw = input.endLocalTime;
-  if (startRaw === null && endRaw === null) {
+  void input.timeBand;
+  const parsed = parseLocalWindow(input.startLocalTime, input.endLocalTime);
+  if (parsed.kind === 'all_day') {
     return true;
   }
-  if (startRaw === null || endRaw === null) {
+  if (parsed.kind === 'invalid') {
     throw checkoutPricingConfigurationInvalid();
   }
-  const start = parseTimeOfDaySeconds(startRaw);
-  const end = parseTimeOfDaySeconds(endRaw);
-  if (start === null || end === null) {
-    throw checkoutPricingConfigurationInvalid();
-  }
-  return isTimeInWindow(input.nowSeconds, start, end);
-}
-
-export function isRuleEffectiveAt(
-  rule: Pick<
-    CheckoutPricingRuleRecord,
-    'active' | 'effectiveFrom' | 'effectiveTo'
-  >,
-  instant: Date,
-): boolean {
-  if (!rule.active) {
-    return false;
-  }
-  const from = Date.parse(rule.effectiveFrom);
-  if (!Number.isFinite(from) || from > instant.getTime()) {
-    return false;
-  }
-  if (!rule.effectiveTo) {
-    return true;
-  }
-  const to = Date.parse(rule.effectiveTo);
-  return Number.isFinite(to) && to > instant.getTime();
+  return isTimeInWindow(
+    input.nowSeconds,
+    parsed.startSeconds,
+    parsed.endSeconds,
+  );
 }
 
 export function selectApplicablePricingRules(
