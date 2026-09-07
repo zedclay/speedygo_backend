@@ -9,6 +9,7 @@ import { TestOtpSender } from '../src/modules/auth/infrastructure/otp/test-otp.s
 import { PrismaService } from '../src/infrastructure/database/database.module';
 import { RedisService } from '../src/infrastructure/cache/redis.service';
 import { pgNow, pgVarchar } from '../src/infrastructure/database/pg-values';
+import { clearFixtureOtpResendCooldown } from './helpers/clear-fixture-otp-cooldown';
 
 type TokenBody = {
   accessToken: string;
@@ -87,6 +88,10 @@ describe('Auth (e2e)', () => {
 
   it('otp verify, me, refresh rotation, logout', async () => {
     const server = app.getHttpServer();
+    const root = await request(server).get('/api/v1');
+    expect(root.status).toBe(200);
+    const health = await request(server).get('/health');
+    expect(health.status).toBe(200);
     const requestOtp = await request(server)
       .post('/api/v1/auth/otp/request')
       .send({
@@ -274,5 +279,155 @@ describe('Auth (e2e)', () => {
     expect(refresh.status).toBe(403);
 
     await cleanupAccount(meBody.account.phone as string);
+  });
+
+  it('lists owned sessions, revokes one device, and logout-all rejects other devices', async () => {
+    const server = app.getHttpServer();
+    const identifier = `0553${Date.now().toString().slice(-6)}`;
+    await request(server).post('/api/v1/auth/otp/request').send({
+      channel: 'PHONE',
+      identifier,
+      purpose: 'AUTHENTICATE',
+    });
+    const first = await request(server).post('/api/v1/auth/otp/verify').send({
+      channel: 'PHONE',
+      identifier,
+      purpose: 'AUTHENTICATE',
+      code: sender.lastCode,
+      platform: 'ios',
+      appVersion: '1.0.0',
+      deviceName: 'session-device-a',
+    });
+    expect(first.status).toBe(200);
+    const firstTokens = first.body as TokenBody;
+
+    await clearFixtureOtpResendCooldown(redis, {
+      identifier,
+      channel: 'PHONE',
+    });
+    await request(server).post('/api/v1/auth/otp/request').send({
+      channel: 'PHONE',
+      identifier,
+      purpose: 'AUTHENTICATE',
+    });
+    const second = await request(server).post('/api/v1/auth/otp/verify').send({
+      channel: 'PHONE',
+      identifier,
+      purpose: 'AUTHENTICATE',
+      code: sender.lastCode,
+      platform: 'android',
+      appVersion: '1.0.0',
+      deviceName: 'session-device-b',
+    });
+    expect(second.status).toBe(200);
+    const secondTokens = second.body as TokenBody;
+
+    const unauth = await request(server).get('/api/v1/auth/sessions');
+    expect(unauth.status).toBe(401);
+
+    const listed = await request(server)
+      .get('/api/v1/auth/sessions')
+      .set('Authorization', `Bearer ${firstTokens.accessToken}`);
+    expect(listed.status).toBe(200);
+    const sessions = listed.body as Array<{
+      id: string;
+      currentSession: boolean;
+      revoked: boolean;
+      deviceName: string | null;
+    }>;
+    expect(sessions.length).toBeGreaterThanOrEqual(2);
+    expect(sessions.every((row) => row.revoked === false)).toBe(true);
+    expect(JSON.stringify(listed.body)).not.toMatch(
+      /refreshToken|tokenHash|otp/i,
+    );
+    const other = sessions.find((row) => row.currentSession === false);
+    expect(other).toBeDefined();
+
+    const revoked = await request(server)
+      .delete(`/api/v1/auth/sessions/${other!.id}`)
+      .set('Authorization', `Bearer ${firstTokens.accessToken}`);
+    expect(revoked.status).toBe(200);
+    expect((revoked.body as { revoked: boolean }).revoked).toBe(true);
+
+    const otherMe = await request(server)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${secondTokens.accessToken}`);
+    expect(otherMe.status).toBe(401);
+    const otherRefresh = await request(server)
+      .post('/api/v1/auth/refresh')
+      .send({ refreshToken: secondTokens.refreshToken });
+    expect(otherRefresh.status).toBe(401);
+
+    const foreign = `0554${Date.now().toString().slice(-6)}`;
+    await request(server).post('/api/v1/auth/otp/request').send({
+      channel: 'PHONE',
+      identifier: foreign,
+      purpose: 'AUTHENTICATE',
+    });
+    const foreignVerified = await request(server)
+      .post('/api/v1/auth/otp/verify')
+      .send({
+        channel: 'PHONE',
+        identifier: foreign,
+        purpose: 'AUTHENTICATE',
+        code: sender.lastCode,
+        platform: 'web',
+        appVersion: '1.0.0',
+      });
+    const foreignTokens = foreignVerified.body as TokenBody;
+    const steal = await request(server)
+      .delete(`/api/v1/auth/sessions/${other!.id}`)
+      .set('Authorization', `Bearer ${foreignTokens.accessToken}`);
+    expect(steal.status).toBe(401);
+
+    const logoutAll = await request(server)
+      .post('/api/v1/auth/logout-all')
+      .set('Authorization', `Bearer ${firstTokens.accessToken}`);
+    expect(logoutAll.status).toBe(200);
+
+    const afterAll = await request(server)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${firstTokens.accessToken}`);
+    expect(afterAll.status).toBe(401);
+    const afterAllRefresh = await request(server)
+      .post('/api/v1/auth/refresh')
+      .send({ refreshToken: firstTokens.refreshToken });
+    expect(afterAllRefresh.status).toBe(401);
+
+    const me = await request(server)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${firstTokens.accessToken}`);
+    void me;
+    await clearFixtureOtpResendCooldown(redis, {
+      identifier,
+      channel: 'PHONE',
+    });
+    const firstMe = await request(server)
+      .post('/api/v1/auth/otp/request')
+      .send({
+        channel: 'PHONE',
+        identifier,
+        purpose: 'AUTHENTICATE',
+      });
+    expect(firstMe.status).toBe(200);
+    const relogin = await request(server).post('/api/v1/auth/otp/verify').send({
+      channel: 'PHONE',
+      identifier,
+      purpose: 'AUTHENTICATE',
+      code: sender.lastCode,
+      platform: 'ios',
+      appVersion: '1.0.0',
+    });
+    const reloginMe = await request(server)
+      .get('/api/v1/auth/me')
+      .set(
+        'Authorization',
+        `Bearer ${(relogin.body as TokenBody).accessToken}`,
+      );
+    await cleanupAccount((reloginMe.body as MeBody).account.phone as string);
+    const foreignMe = await request(server)
+      .get('/api/v1/auth/me')
+      .set('Authorization', `Bearer ${foreignTokens.accessToken}`);
+    await cleanupAccount((foreignMe.body as MeBody).account.phone as string);
   });
 });

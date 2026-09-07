@@ -502,6 +502,27 @@ describe('Support Foundation (e2e)', () => {
       .set('Authorization', `Bearer ${manageToken}`)
       .send({ assignedAdminId: manageAssignee.adminId });
     expect(assignTarget.status).toBe(201);
+
+    const priority = await request(server)
+      .post(`/api/v1/admin/support/${ticket.id}/priority`)
+      .set('Authorization', `Bearer ${manageToken}`)
+      .send({ priority: 'HIGH' });
+    expect(priority.status).toBe(201);
+    expect((priority.body as TicketBody).priority).toBe('HIGH');
+
+    const started = await request(server)
+      .post(`/api/v1/admin/support/${ticket.id}/start`)
+      .set('Authorization', `Bearer ${manageToken}`)
+      .send({});
+    expect(started.status).toBe(201);
+    expect((started.body as TicketBody).status).toBe('IN_PROGRESS');
+
+    const waiting = await request(server)
+      .post(`/api/v1/admin/support/${ticket.id}/wait-customer`)
+      .set('Authorization', `Bearer ${manageToken}`)
+      .send({});
+    expect(waiting.status).toBe(201);
+    expect((waiting.body as TicketBody).status).toBe('WAITING_CUSTOMER');
     expect(
       (assignTarget.body as TicketBody & { assignedAdminId: string })
         .assignedAdminId,
@@ -605,6 +626,27 @@ describe('Support Foundation (e2e)', () => {
       .set('Authorization', `Bearer ${ownerToken}`)
       .send({ body: 'Merchant needs ops help' });
     expect(merchantTicket.status).toBe(201);
+    const merchantTicketId = (merchantTicket.body as TicketBody).id;
+    const merchantList = await request(server)
+      .get(`/api/v1/merchant/${merchantId}/support`)
+      .set('Authorization', `Bearer ${ownerToken}`);
+    expect(merchantList.status).toBe(200);
+    const merchantGet = await request(server)
+      .get(`/api/v1/merchant/${merchantId}/support/${merchantTicketId}`)
+      .set('Authorization', `Bearer ${ownerToken}`);
+    expect(merchantGet.status).toBe(200);
+    expect((merchantGet.body as TicketBody).internalNotes).toBeUndefined();
+    const merchantReply = await request(server)
+      .post(
+        `/api/v1/merchant/${merchantId}/support/${merchantTicketId}/messages`,
+      )
+      .set('Authorization', `Bearer ${ownerToken}`)
+      .send({ body: 'Merchant follow-up' });
+    expect(merchantReply.status).toBe(201);
+    const staffGet = await request(server)
+      .get(`/api/v1/merchant/${merchantId}/support`)
+      .set('Authorization', `Bearer ${staffToken}`);
+    expect(staffGet.status).toBe(403);
 
     const staffBlocked = await request(server)
       .post(`/api/v1/merchant/${merchantId}/support`)
@@ -634,6 +676,10 @@ describe('Support Foundation (e2e)', () => {
       .set('Authorization', `Bearer ${driverToken}`)
       .send({ body: 'Delivery issue for driver' });
     expect(driverTicket.status).toBe(201);
+    const driverList = await request(server)
+      .get('/api/v1/driver/support')
+      .set('Authorization', `Bearer ${driverToken}`);
+    expect(driverList.status).toBe(200);
     expect((driverTicket.body as TicketBody).driverId).toBe(driverId);
 
     const driverReply = await request(server)

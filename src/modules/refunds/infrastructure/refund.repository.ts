@@ -11,6 +11,7 @@ import {
 } from '../../../infrastructure/database/pg-values';
 import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import { PAYMENT_TX_SUCCEEDED } from '../../payments/domain/payment.policy';
+import { parseRefundAmountMinor } from '../domain/refund.policy';
 import {
   REFUND_CURRENCY_DZD,
   REFUND_REQUEST_ORIGINS,
@@ -61,7 +62,7 @@ function toRefund(row: {
     orderId: row.orderId,
     paymentTransactionId: row.paymentTransactionId,
     refundMethod: row.refundMethod,
-    amountMinor: parseMinorUnits(row.amountMinor),
+    amountMinor: parseRefundAmountMinor(row.amountMinor),
     status: row.status,
     reason: row.reason,
     internalNote: row.internalNote,
@@ -123,9 +124,11 @@ export class RefundRepository {
       paymentId: payment.id,
       paymentMethod: payment.method,
       paymentStatus: payment.status,
-      paymentAmountMinor: parseMinorUnits(payment.amountMinor),
+      paymentAmountMinor: parseRefundAmountMinor(payment.amountMinor),
       paymentCurrency: payment.currency,
-      snapshotPayableMinor: parseMinorUnits(snapshot.customerPayableMinor),
+      snapshotPayableMinor: parseRefundAmountMinor(
+        snapshot.customerPayableMinor,
+      ),
       snapshotCurrency: snapshot.currency,
     };
   }
@@ -138,7 +141,7 @@ export class RefundRepository {
     orderId: string;
     method: string;
     status: string;
-    amountMinor: number;
+    amountMinor: bigint;
     currency: string;
   } | null> {
     await orm(client).Payment.where({ id: paymentId }).update({
@@ -153,7 +156,7 @@ export class RefundRepository {
       orderId: row.orderId,
       method: row.method,
       status: row.status,
-      amountMinor: parseMinorUnits(row.amountMinor),
+      amountMinor: parseRefundAmountMinor(row.amountMinor),
       currency: row.currency,
     };
   }
@@ -161,13 +164,13 @@ export class RefundRepository {
   async sumReservedAndSuccessful(
     orderId: string,
     client?: OrmClient,
-  ): Promise<{ reservedRefundMinor: number; successfulRefundMinor: number }> {
+  ): Promise<{ reservedRefundMinor: bigint; successfulRefundMinor: bigint }> {
     if (client) {
       const rows = await orm(client).Refund.where({ orderId }).all();
-      let reservedRefundMinor = 0;
-      let successfulRefundMinor = 0;
+      let reservedRefundMinor = 0n;
+      let successfulRefundMinor = 0n;
       for (const row of rows) {
-        const amount = parseMinorUnits(row.amountMinor);
+        const amount = parseRefundAmountMinor(row.amountMinor);
         if (
           row.status === 'REQUESTED' ||
           row.status === 'UNDER_REVIEW' ||
@@ -220,8 +223,12 @@ export class RefundRepository {
     }
     const row = rows[0];
     return {
-      reservedRefundMinor: Number(row?.reserved_refund_minor ?? 0),
-      successfulRefundMinor: Number(row?.successful_refund_minor ?? 0),
+      reservedRefundMinor: parseRefundAmountMinor(
+        row?.reserved_refund_minor ?? 0n,
+      ),
+      successfulRefundMinor: parseRefundAmountMinor(
+        row?.successful_refund_minor ?? 0n,
+      ),
     };
   }
 
@@ -281,7 +288,7 @@ export class RefundRepository {
       orderId: string;
       paymentTransactionId: string | null;
       refundMethod: RefundMethod;
-      amountMinor: number;
+      amountMinor: number | bigint;
       status: RefundStatus;
       reason: string;
       internalNote: string | null;

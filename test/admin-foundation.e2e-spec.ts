@@ -736,7 +736,11 @@ describe('Admin Foundation (e2e)', () => {
       const { adminId } = await seedAdminWithPermissions(
         adminAccount.id,
         `drv-${suffix}`,
-        [ADMIN_PERMISSIONS.DRIVERS_VERIFY, ADMIN_PERMISSIONS.AUDIT_READ],
+        [
+          ADMIN_PERMISSIONS.DRIVERS_VERIFY,
+          ADMIN_PERMISSIONS.DRIVERS_READ,
+          ADMIN_PERMISSIONS.AUDIT_READ,
+        ],
       );
 
       await request(server)
@@ -776,6 +780,20 @@ describe('Admin Foundation (e2e)', () => {
         (approved.body as { verificationStatus: string }).verificationStatus,
       ).toBe('APPROVED');
 
+      const driverList = await request(server)
+        .get('/api/v1/admin/drivers')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(driverList.status).toBe(200);
+      const driverDetail = await request(server)
+        .get(`/api/v1/admin/drivers/${driverId}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(driverDetail.status).toBe(200);
+      expect((driverDetail.body as { id: string }).id).toBe(driverId);
+      const driverQueue = await request(server)
+        .get('/api/v1/admin/drivers/verification/queue')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(driverQueue.status).toBe(200);
+
       const accountStill = await prisma
         .getDb()
         .orm.public.Account.where({ id: driverAccount.id })
@@ -787,6 +805,122 @@ describe('Admin Foundation (e2e)', () => {
         .query({
           adminId,
           action: ADMIN_AUDIT_ACTIONS.DRIVER_VERIFICATION_APPROVE,
+          targetId: driverId,
+        })
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(audits.status).toBe(200);
+      expect((audits.body as { total: number }).total).toBeGreaterThanOrEqual(
+        1,
+      );
+    } finally {
+      for (const phone of e164) {
+        await cleanupByPhone(phone);
+      }
+    }
+  });
+
+  it('B6b driver review HTTP reject + audit; Account retained; denial isolation', async () => {
+    const server = app.getHttpServer();
+    const suffix = `${Date.now().toString().slice(-5)}8`;
+    const phones = {
+      driver: `0571${suffix}`,
+      admin: `0572${suffix}`,
+      reader: `0573${suffix}`,
+    };
+    const e164: string[] = [];
+    try {
+      const driverToken = await authenticate(phones.driver);
+      const adminToken = await authenticate(phones.admin);
+      const readerToken = await authenticate(phones.reader);
+      const driverAccount = await authMe(driverToken);
+      e164.push(driverAccount.phone);
+      const adminAccount = await authMe(adminToken);
+      e164.push(adminAccount.phone);
+      const readerAccount = await authMe(readerToken);
+      e164.push(readerAccount.phone);
+      const { adminId } = await seedAdminWithPermissions(
+        adminAccount.id,
+        `drv-rej-${suffix}`,
+        [
+          ADMIN_PERMISSIONS.DRIVERS_VERIFY,
+          ADMIN_PERMISSIONS.DRIVERS_READ,
+          ADMIN_PERMISSIONS.AUDIT_READ,
+        ],
+      );
+      await seedAdminWithPermissions(readerAccount.id, `drv-read-${suffix}`, [
+        ADMIN_PERMISSIONS.DRIVERS_READ,
+      ]);
+
+      await request(server)
+        .post('/api/v1/driver/profile')
+        .set('Authorization', `Bearer ${driverToken}`)
+        .send({ fullName: `Driver Reject ${suffix}` });
+      await request(server)
+        .put('/api/v1/driver/documents/IDENTITY')
+        .set('Authorization', `Bearer ${driverToken}`)
+        .send({});
+      await request(server)
+        .put('/api/v1/driver/documents/DRIVING_LICENSE')
+        .set('Authorization', `Bearer ${driverToken}`)
+        .send({ expiryDate: '2099-12-31' });
+      await request(server)
+        .post('/api/v1/driver/vehicles')
+        .set('Authorization', `Bearer ${driverToken}`)
+        .send({
+          type: 'MOTORCYCLE',
+          plateNumber: `RJ${suffix}`,
+          model: 'NMAX',
+        });
+      const submitted = await request(server)
+        .post('/api/v1/driver/verification/submit')
+        .set('Authorization', `Bearer ${driverToken}`)
+        .send({});
+      expect(submitted.status).toBe(200);
+      const driverId = (submitted.body as { profile: { id: string } }).profile
+        .id;
+
+      const unauthenticated = await request(server).post(
+        `/api/v1/admin/drivers/${driverId}/verification/reject`,
+      );
+      expect(unauthenticated.status).toBe(401);
+
+      const denied = await request(server)
+        .post(`/api/v1/admin/drivers/${driverId}/verification/reject`)
+        .set('Authorization', `Bearer ${readerToken}`)
+        .send({});
+      expect(denied.status).toBe(403);
+
+      const rejected = await request(server)
+        .post(`/api/v1/admin/drivers/${driverId}/verification/reject`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({});
+      expect(rejected.status).toBe(201);
+      expect(
+        (rejected.body as { verificationStatus: string }).verificationStatus,
+      ).toBe('REJECTED');
+
+      const replay = await request(server)
+        .post(`/api/v1/admin/drivers/${driverId}/verification/reject`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({});
+      expect(replay.status).toBe(409);
+
+      const accountStill = await prisma
+        .getDb()
+        .orm.public.Account.where({ id: driverAccount.id })
+        .first();
+      expect(accountStill).toBeTruthy();
+      const earnings = await prisma
+        .getDb()
+        .orm.public.DriverEarning.where({ driverId })
+        .all();
+      expect(earnings).toHaveLength(0);
+
+      const audits = await request(server)
+        .get('/api/v1/admin/audit')
+        .query({
+          adminId,
+          action: ADMIN_AUDIT_ACTIONS.DRIVER_VERIFICATION_REJECT,
           targetId: driverId,
         })
         .set('Authorization', `Bearer ${adminToken}`);
@@ -867,6 +1001,16 @@ describe('Admin Foundation (e2e)', () => {
         .send({});
       expect(deactivated.status).toBe(201);
       expect((deactivated.body as { active: boolean }).active).toBe(false);
+
+      const promoList = await request(server)
+        .get('/api/v1/admin/promotions')
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(promoList.status).toBe(200);
+      const promoDetail = await request(server)
+        .get(`/api/v1/admin/promotions/${promo.id}`)
+        .set('Authorization', `Bearer ${adminToken}`);
+      expect(promoDetail.status).toBe(200);
+      expect((promoDetail.body as { id: string }).id).toBe(promo.id);
 
       const fixed = await request(server)
         .post('/api/v1/admin/promotions')
@@ -992,7 +1136,7 @@ describe('Admin Foundation (e2e)', () => {
     }
   });
 
-  it('B10 orders.read / payments.read GET ok; PATCH absent', async () => {
+  it('B10 orders.read / payments.read GET ok; PATCH unknown IDs 404 (no mutation handler)', async () => {
     const server = app.getHttpServer();
     const suffix = `${(Date.now() + 11).toString().slice(-5)}9`;
     const phone = `0575${suffix}`;
@@ -1021,12 +1165,20 @@ describe('Admin Foundation (e2e)', () => {
         .set('Authorization', `Bearer ${token}`)
         .send({ status: 'CANCELLED' });
       expect(patchOrder.status).toBe(404);
+      expect((patchOrder.body as ErrorBody).error.code).toBe('HTTP_ERROR');
+      expect((patchOrder.body as ErrorBody).error.message).toMatch(
+        /Cannot PATCH/i,
+      );
 
       const patchPayment = await request(server)
         .patch(`/api/v1/admin/payments/${createUuidV7()}`)
         .set('Authorization', `Bearer ${token}`)
         .send({ status: 'REFUNDED' });
       expect(patchPayment.status).toBe(404);
+      expect((patchPayment.body as ErrorBody).error.code).toBe('HTTP_ERROR');
+      expect((patchPayment.body as ErrorBody).error.message).toMatch(
+        /Cannot PATCH/i,
+      );
     } finally {
       if (e164) {
         await cleanupByPhone(e164);

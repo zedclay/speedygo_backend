@@ -180,6 +180,26 @@ describe('Notifications Foundation (e2e)', () => {
       'number',
     );
 
+    const readAll = await request(app.getHttpServer())
+      .post('/api/v1/notifications/read-all')
+      .set('Authorization', `Bearer ${tokenA}`);
+    expect(readAll.status).toBe(200);
+    expect((readAll.body as { marked: number }).marked).toBeGreaterThanOrEqual(
+      1,
+    );
+    const unreadAfterAll = await request(app.getHttpServer())
+      .get('/api/v1/notifications/unread-count')
+      .set('Authorization', `Bearer ${tokenA}`);
+    expect((unreadAfterAll.body as { unreadCount: number }).unreadCount).toBe(
+      0,
+    );
+    const foreignUnread = await request(app.getHttpServer())
+      .get('/api/v1/notifications/unread-count')
+      .set('Authorization', `Bearer ${tokenB}`);
+    expect(
+      (foreignUnread.body as { unreadCount: number }).unreadCount,
+    ).toBeGreaterThanOrEqual(0);
+
     const register = await request(app.getHttpServer())
       .put('/api/v1/notifications/device-tokens')
       .set('Authorization', `Bearer ${tokenA}`)

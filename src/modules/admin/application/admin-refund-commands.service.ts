@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import { PrismaService } from '../../../infrastructure/database/database.module';
 import { NotificationService } from '../../notifications/application/notification.service';
 import {
@@ -12,6 +13,17 @@ import {
 } from '../domain/admin-audit-actions';
 import type { CurrentAdminContext } from '../domain/admin.types';
 import { AdminAuditService } from './admin-audit.service';
+
+export type AdminRefundMutationView = Omit<RefundRecord, 'amountMinor'> & {
+  amountMinor: string;
+};
+
+function toRefundMutationView(row: RefundRecord): AdminRefundMutationView {
+  return {
+    ...row,
+    amountMinor: moneyMinorToDecimalString(row.amountMinor),
+  };
+}
 
 /**
  * requestedByAdminId / adminId ALWAYS come from CurrentAdmin — never from body.
@@ -33,21 +45,22 @@ export class AdminRefundCommandsService {
   async create(
     admin: CurrentAdminContext,
     input: Omit<CreateRefundCommand, 'requestedByAdminId'>,
-  ): Promise<RefundRecord> {
+  ): Promise<AdminRefundMutationView> {
     return this.prisma.getDb().transaction(async (tx) => {
       const result = await this.refunds.createRefundInTx(tx, {
         ...input,
         requestedByAdminId: admin.adminProfileId,
       });
+      const view = toRefundMutationView(result);
       await this.audit.recordInTx(tx, {
         adminId: admin.adminProfileId,
         action: ADMIN_AUDIT_ACTIONS.REFUND_CREATE,
         targetType: ADMIN_AUDIT_TARGET_TYPES.REFUND,
         targetId: result.id,
-        afterJson: result,
+        afterJson: view,
         sessionId: admin.sessionId,
       });
-      return result;
+      return view;
     });
   }
 
@@ -55,21 +68,22 @@ export class AdminRefundCommandsService {
     admin: CurrentAdminContext,
     refundId: string,
     internalNote?: string | null,
-  ): Promise<RefundRecord> {
+  ): Promise<AdminRefundMutationView> {
     return this.prisma.getDb().transaction(async (tx) => {
       const result = await this.refunds.authorizeRefundInTx(tx, refundId, {
         adminId: admin.adminProfileId,
         internalNote,
       });
+      const view = toRefundMutationView(result);
       await this.audit.recordInTx(tx, {
         adminId: admin.adminProfileId,
         action: ADMIN_AUDIT_ACTIONS.REFUND_APPROVE,
         targetType: ADMIN_AUDIT_TARGET_TYPES.REFUND,
         targetId: refundId,
-        afterJson: result,
+        afterJson: view,
         sessionId: admin.sessionId,
       });
-      return result;
+      return view;
     });
   }
 
@@ -77,21 +91,22 @@ export class AdminRefundCommandsService {
     admin: CurrentAdminContext,
     refundId: string,
     internalNote?: string | null,
-  ): Promise<RefundRecord> {
+  ): Promise<AdminRefundMutationView> {
     return this.prisma.getDb().transaction(async (tx) => {
       const result = await this.refunds.rejectRefundInTx(tx, refundId, {
         adminId: admin.adminProfileId,
         internalNote,
       });
+      const view = toRefundMutationView(result);
       await this.audit.recordInTx(tx, {
         adminId: admin.adminProfileId,
         action: ADMIN_AUDIT_ACTIONS.REFUND_REJECT,
         targetType: ADMIN_AUDIT_TARGET_TYPES.REFUND,
         targetId: refundId,
-        afterJson: result,
+        afterJson: view,
         sessionId: admin.sessionId,
       });
-      return result;
+      return view;
     });
   }
 
@@ -103,21 +118,22 @@ export class AdminRefundCommandsService {
     admin: CurrentAdminContext,
     refundId: string,
     internalNote?: string | null,
-  ): Promise<RefundRecord> {
+  ): Promise<AdminRefundMutationView> {
     const result = await this.prisma.getDb().transaction(async (tx) => {
       const refund = await this.refunds.confirmManualRefundInTx(tx, refundId, {
         adminId: admin.adminProfileId,
         internalNote,
       });
+      const view = toRefundMutationView(refund);
       await this.audit.recordInTx(tx, {
         adminId: admin.adminProfileId,
         action: ADMIN_AUDIT_ACTIONS.REFUND_CONFIRM_MANUAL,
         targetType: ADMIN_AUDIT_TARGET_TYPES.REFUND,
         targetId: refundId,
-        afterJson: refund,
+        afterJson: view,
         sessionId: admin.sessionId,
       });
-      return refund;
+      return view;
     });
     await this.notifications.notifyRefundRefunded({ refundId: result.id });
     return result;

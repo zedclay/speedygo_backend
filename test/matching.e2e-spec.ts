@@ -788,7 +788,20 @@ describe('Driver matching (e2e)', () => {
         .set('Authorization', `Bearer ${tokenA}`);
       expect(browse.status).toBe(404);
 
-      await matching.reject((await authMe(tokenA)).id, first.assignment!.id);
+      const unauthReject = await request(server)
+        .post(`/api/v1/driver/assignments/${first.assignment!.id}/reject`)
+        .send({});
+      expect(unauthReject.status).toBe(401);
+      const foreignReject = await request(server)
+        .post(`/api/v1/driver/assignments/${first.assignment!.id}/reject`)
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({});
+      expect(foreignReject.status).toBe(404);
+      const rejectHttp = await request(server)
+        .post(`/api/v1/driver/assignments/${first.assignment!.id}/reject`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({});
+      expect(rejectHttp.status).toBe(200);
       const afterReject = await prisma
         .getDb()
         .orm.public.Delivery.where({ orderId })

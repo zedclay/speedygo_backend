@@ -34,7 +34,7 @@ describe('PaidTerminalRefundService', () => {
         orderId: 'order-1',
         orderStatus: 'CANCELLED',
         paymentId,
-        snapshotPayableMinor: 1700,
+        snapshotPayableMinor: 1700n,
         snapshotCurrency: 'DZD',
       }),
       lockPayment: jest.fn().mockResolvedValue({
@@ -45,15 +45,15 @@ describe('PaidTerminalRefundService', () => {
         currency: 'DZD',
       }),
       sumReservedAndSuccessful: jest.fn().mockResolvedValue({
-        reservedRefundMinor: 0,
-        successfulRefundMinor: 0,
+        reservedRefundMinor: 0n,
+        successfulRefundMinor: 0n,
       }),
       listByOrderId: jest.fn().mockResolvedValue([]),
       findByPaidTerminalIntentKey: jest.fn().mockResolvedValue(null),
       createRefund: jest.fn().mockResolvedValue({
         id: 'refund-1',
         status: 'REQUESTED',
-        amountMinor: 1700,
+        amountMinor: 1700n,
         requestOrigin: REFUND_REQUEST_ORIGIN_CUSTOMER_CANCELLATION,
         requestedByAdminId: null,
         paidTerminalIntentKey: paidTerminalIntentKeyForPayment(paymentId),

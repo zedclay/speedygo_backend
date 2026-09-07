@@ -26,11 +26,13 @@ function refund(partial: Partial<RefundRecord> = {}): RefundRecord {
     orderId: ORDER_ID,
     paymentTransactionId: null,
     refundMethod: REFUND_METHOD_MANUAL_OTHER,
-    amountMinor: 3_000,
+    amountMinor: 3_000n,
     status: REFUND_STATUS_REQUESTED,
     reason: 'goodwill',
     internalNote: null,
+    requestOrigin: 'ADMIN',
     requestedByAdminId: ADMIN_ID,
+    paidTerminalIntentKey: null,
     requestedAt: '2026-01-01T00:00:00.000Z',
     completedAt: null,
     createdAt: '2026-01-01T00:00:00.000Z',
@@ -52,18 +54,18 @@ describe('RefundService (FINAL)', () => {
     findCustomerIdByAccountId: jest.Mock;
   };
   let service: RefundService;
-  let remaining = 10_000;
-  let reserved = 0;
-  let successful = 0;
+  let remaining = 10_000n;
+  let reserved = 0n;
+  let successful = 0n;
   let created: RefundRecord[] = [];
   let paymentMethod = 'ELECTRONIC';
   let orderStatus = 'COMPLETED';
   let paymentStatus = 'SUCCEEDED';
 
   beforeEach(() => {
-    remaining = 10_000;
-    reserved = 0;
-    successful = 0;
+    remaining = 10_000n;
+    reserved = 0n;
+    successful = 0n;
     created = [];
     paymentMethod = 'ELECTRONIC';
     orderStatus = 'COMPLETED';
@@ -81,9 +83,9 @@ describe('RefundService (FINAL)', () => {
           paymentId: PAYMENT_ID,
           paymentMethod,
           paymentStatus,
-          paymentAmountMinor: 10_000,
+          paymentAmountMinor: 10_000n,
           paymentCurrency: 'DZD',
-          snapshotPayableMinor: 10_000,
+          snapshotPayableMinor: 10_000n,
           snapshotCurrency: 'DZD',
         }),
       ),
@@ -93,7 +95,7 @@ describe('RefundService (FINAL)', () => {
           orderId: ORDER_ID,
           method: paymentMethod,
           status: paymentStatus,
-          amountMinor: 10_000,
+          amountMinor: 10_000n,
           currency: 'DZD',
         }),
       ),
@@ -107,13 +109,18 @@ describe('RefundService (FINAL)', () => {
         const row = refund({
           ...input,
           id: `r-${created.length + 1}`,
-          amountMinor: input.amountMinor ?? 0,
+          amountMinor:
+            input.amountMinor === undefined
+              ? 0n
+              : typeof input.amountMinor === 'bigint'
+                ? input.amountMinor
+                : BigInt(input.amountMinor),
           status: REFUND_STATUS_REQUESTED,
           refundMethod: input.refundMethod as RefundRecord['refundMethod'],
         });
         created.push(row);
         reserved += row.amountMinor;
-        remaining = 10_000 - reserved;
+        remaining = 10_000n - reserved;
         return Promise.resolve(row);
       }),
       findById: jest.fn((id: string) =>
@@ -150,7 +157,7 @@ describe('RefundService (FINAL)', () => {
             previous !== REFUND_STATUS_REJECTED
           ) {
             reserved -= row.amountMinor;
-            remaining = 10_000 - reserved;
+            remaining = 10_000n - reserved;
           }
           return Promise.resolve(row);
         },
@@ -269,9 +276,9 @@ describe('RefundService (FINAL)', () => {
       refundMethod: REFUND_METHOD_MANUAL_OTHER,
       requestedByAdminId: ADMIN_ID,
     });
-    expect(remaining).toBe(6_000);
+    expect(remaining).toBe(6_000n);
     await service.rejectRefund(row.id, { adminId: ADMIN_ID });
-    expect(remaining).toBe(10_000);
+    expect(remaining).toBe(10_000n);
   });
 
   it('supports multiple partial refunds and blocks over-cap', async () => {
@@ -289,7 +296,7 @@ describe('RefundService (FINAL)', () => {
       refundMethod: REFUND_METHOD_MANUAL_OTHER,
       requestedByAdminId: ADMIN_ID,
     });
-    expect(remaining).toBe(5_000);
+    expect(remaining).toBe(5_000n);
     await expect(
       service.createRefund({
         orderId: ORDER_ID,
@@ -348,7 +355,7 @@ describe('RefundService (FINAL)', () => {
       refundMethod: REFUND_METHOD_MANUAL_COD,
       requestedByAdminId: ADMIN_ID,
     });
-    expect(remaining).toBe(7_500);
+    expect(remaining).toBe(7_500n);
     await expect(
       service.createRefund({
         orderId: ORDER_ID,
@@ -397,6 +404,6 @@ describe('RefundService (FINAL)', () => {
       internalNote: 'ops aborted after failed bank transfer attempt',
     });
     expect(created[0]?.status).toBe(REFUND_STATUS_FAILED);
-    expect(remaining).toBe(10_000);
+    expect(remaining).toBe(10_000n);
   });
 });

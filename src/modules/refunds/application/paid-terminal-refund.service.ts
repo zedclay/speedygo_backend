@@ -137,7 +137,7 @@ export class PaidTerminalRefundService {
       currency: locked.currency,
     });
 
-    if (capacity.remainingRefundableMinor <= 0) {
+    if (capacity.remainingRefundableMinor <= 0n) {
       // Capacity already reserved (e.g. legacy ADMIN/partial rows) — reuse
       // the latest reserving row rather than inventing another intent.
       const existing = await this.refunds.listByOrderId(input.orderId, tx);
@@ -224,7 +224,7 @@ export class PaidTerminalRefundService {
 
   private requireCompatibleExistingIntent(
     existing: RefundRecord,
-    paymentAmountMinor: number,
+    paymentAmountMinor: bigint,
   ): void {
     if (!isPaidTerminalRefundOrigin(existing.requestOrigin)) {
       throw orderCancellationRefundRequired(
