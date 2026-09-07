@@ -25,6 +25,7 @@ import {
   TRACKING_EVENT_UNSUBSCRIBE,
   TRACKING_NAMESPACE,
 } from '../domain/tracking.events';
+import { createSocketIoServerOptions } from '../../../config/cors.policy';
 import { TrackingError, trackingUnauthorized } from '../domain/tracking.errors';
 import type {
   TrackingActor,
@@ -57,7 +58,7 @@ const connected = new Set<Socket>();
 
 @Injectable()
 @WebSocketGateway({
-  cors: { origin: true },
+  ...createSocketIoServerOptions(),
   namespace: TRACKING_NAMESPACE,
 })
 export class TrackingGateway
