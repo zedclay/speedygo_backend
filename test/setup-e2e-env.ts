@@ -15,6 +15,9 @@ import {
 
 process.env.NODE_ENV = 'test';
 process.env.OTP_TRANSPORT = 'test';
+// Explicit E2E browser origin allowlist (exact match only — not open CORS).
+process.env.CORS_ALLOWED_ORIGINS =
+  process.env.CORS_ALLOWED_ORIGINS?.trim() || 'http://127.0.0.1:5173';
 process.env.JWT_ACCESS_SECRET =
   process.env.JWT_ACCESS_SECRET && process.env.JWT_ACCESS_SECRET.length >= 32
     ? process.env.JWT_ACCESS_SECRET

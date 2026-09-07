@@ -1,10 +1,12 @@
-import { INestApplication, ValidationPipe } from '@nestjs/common';
+import { INestApplication, Logger, ValidationPipe } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { API_GLOBAL_PREFIX } from './common/constants/api.constants';
 import { AuthExceptionFilter } from './common/filters/auth-exception.filter';
 import { assertAuthSecurityConfig } from './config/auth-config.validation';
+import { assertCorsConfig } from './config/cors-config.validation';
+import { createHttpCorsOptions } from './config/cors.policy';
 import { assertDriverDeliveryConfig } from './config/driver-delivery-config.validation';
 import { assertMatchingConfig } from './config/matching-config.validation';
 import { assertPaymentConfig } from './config/payment-config.validation';
@@ -13,9 +15,17 @@ import { storageConfigInvalid } from './infrastructure/storage/domain/storage.er
 
 export function configureApp(app: INestApplication): void {
   const config = app.get(ConfigService);
+  const nodeEnv = config.get<string>('nodeEnv', 'development');
   assertStorageRuntimeConfig(config);
+  const cors = assertCorsConfig({
+    nodeEnv,
+    allowedOriginsEnv: config.get<string | undefined>('corsAllowedOrigins'),
+  });
+  new Logger('CorsPolicy').log(
+    `CORS enabled originCount=${cors.originCount} env=${nodeEnv}`,
+  );
   assertAuthSecurityConfig({
-    nodeEnv: config.get<string>('nodeEnv', 'development'),
+    nodeEnv,
     jwtAccessSecret: config.get<string>('auth.jwtAccessSecret', ''),
     otpHmacSecret: config.get<string>('auth.otpHmacSecret', ''),
     otpTransport: config.get<string>('auth.otpTransport', 'disabled'),
@@ -77,7 +87,7 @@ export function configureApp(app: INestApplication): void {
   });
 
   app.use(helmet());
-  app.enableCors();
+  app.enableCors(createHttpCorsOptions());
   if (config.get<boolean>('auth.trustProxy')) {
     const http = app.getHttpAdapter();
     const instance = http.getInstance() as {

@@ -42,6 +42,8 @@ Health: `GET /health` (also available under the global prefix as `GET /api/v1`).
 
 Auth architecture: [AUTHENTICATION.md](../../docs/architecture/AUTHENTICATION.md).
 
+CORS (P1-H): browser Origin allowlist via `CORS_ALLOWED_ORIGINS` (exact match; shared by HTTP and Socket.IO `/realtime`). See [CORS_CONFIGURATION_FOUNDATION.md](../../docs/architecture/CORS_CONFIGURATION_FOUNDATION.md). Local Admin Web (Vite) typically uses `http://localhost:5173` / `http://127.0.0.1:5173`. Native Flutter apps and provider webhooks do not send `Origin` and are not blocked by CORS. CORS is not authentication.
+
 Local OTP: set `OTP_TRANSPORT=console` (development only). Production refuses that transport.
 
 E2E uses isolated `speedygo_test` on SpeedyGo Postgres host port **5433**, and SpeedyGo Redis on host port **6381**, database **15** (`redis://127.0.0.1:6381/15`). E2E does not inherit shared `DATABASE_URL` on port 5432 or `REDIS_URL` on port 6379, and refuses unsafe targets. They never write to `speedygo_dev`. Apply the existing migration history to `speedygo_test` once (`prisma db migrate --db .../speedygo_test`). Jest is launched with `--experimental-vm-modules` because Prisma 8 runtime packages are ESM.

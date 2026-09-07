@@ -9,6 +9,8 @@ export default () => ({
   apiGlobalPrefix: process.env.API_GLOBAL_PREFIX ?? 'api/v1',
   databaseUrl: process.env.DATABASE_URL,
   redisUrl: process.env.REDIS_URL ?? 'redis://localhost:6379',
+  /** Comma-separated absolute origins. Parsed/validated at configureApp — not Auth. */
+  corsAllowedOrigins: process.env.CORS_ALLOWED_ORIGINS,
   auth: {
     jwtAccessSecret: process.env.JWT_ACCESS_SECRET ?? '',
     jwtAccessTtlSeconds: int(process.env.JWT_ACCESS_TTL_SECONDS, 900),
