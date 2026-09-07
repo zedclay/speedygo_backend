@@ -1,7 +1,10 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/database/database.module';
+import { SessionService } from '../../auth/application/session.service';
 import { DriverReviewService } from '../../drivers/application/driver-review.service';
 import type { DriverProfileView } from '../../drivers/domain/driver.types';
+import { DriverRepository } from '../../drivers/infrastructure/driver.repository';
+import { TrackingGateway } from '../../tracking/infrastructure/tracking.gateway';
 import {
   ADMIN_AUDIT_ACTIONS,
   ADMIN_AUDIT_TARGET_TYPES,
@@ -12,13 +15,17 @@ import { AdminAuditService } from './admin-audit.service';
 /**
  * DriverReviewService has no adminId parameter (kept for unit-test stability).
  * Admin identity is verified by AdminGuard; audit uses CurrentAdmin.adminProfileId.
- * Domain mutation and AuditLog commit in ONE DB transaction; audit failure rolls back.
+ * Domain mutation, session revocation, and AuditLog commit in ONE DB transaction.
+ * Redis + Socket.IO cleanup runs after commit (P1-G).
  */
 @Injectable()
 export class AdminDriverCommandsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly driverReview: DriverReviewService,
+    private readonly drivers: DriverRepository,
+    private readonly sessions: SessionService,
+    private readonly tracking: TrackingGateway,
     private readonly audit: AdminAuditService,
   ) {}
 
@@ -68,8 +75,15 @@ export class AdminDriverCommandsService {
     admin: CurrentAdminContext,
     driverId: string,
   ): Promise<DriverProfileView> {
-    return this.prisma.getDb().transaction(async (tx) => {
+    const committed = await this.prisma.getDb().transaction(async (tx) => {
       const result = await this.driverReview.suspendInTx(tx, driverId);
+      const profile = await this.drivers.findProfileById(driverId, tx);
+      if (!profile) {
+        throw new Error('Driver profile missing after suspend');
+      }
+      const accountId = profile.accountId;
+      const revokedSessionIds =
+        await this.sessions.revokeAllSessionsForAccountInTx(tx, accountId);
       await this.audit.recordInTx(tx, {
         adminId: admin.adminProfileId,
         action: ADMIN_AUDIT_ACTIONS.DRIVER_SUSPEND,
@@ -78,10 +92,21 @@ export class AdminDriverCommandsService {
         afterJson: {
           id: result.id,
           verificationStatus: result.verificationStatus,
+          alreadySuspended: result.alreadySuspended,
+          affectedAccountCount: 1,
+          sessionsRevoked: revokedSessionIds.length,
         },
         sessionId: admin.sessionId,
       });
-      return result;
+      const { alreadySuspended: _already, ...view } = result;
+      return { view, revokedSessionIds, accountId };
     });
+
+    await this.sessions.finalizeSessionRevocations(
+      [committed.accountId],
+      committed.revokedSessionIds,
+    );
+    this.tracking.disconnectSessions(committed.revokedSessionIds);
+    return committed.view;
   }
 }

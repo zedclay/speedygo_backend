@@ -136,6 +136,31 @@ export class TrackingGateway
     connected.delete(client);
   }
 
+  /**
+   * Immediate realtime cutoff after session revocation (P1-G).
+   * Disconnects sockets whose bound sessionId is in the revoked set.
+   */
+  disconnectSessions(sessionIds: readonly string[]): number {
+    if (sessionIds.length === 0) {
+      return 0;
+    }
+    const revoked = new Set(sessionIds);
+    let disconnected = 0;
+    for (const client of [...connected]) {
+      const principal = principals.get(client);
+      if (!principal || !revoked.has(principal.sessionId)) {
+        continue;
+      }
+      client.emit(TRACKING_EVENT_ERROR, {
+        code: 'AUTH_SESSION_REVOKED',
+        message: 'Session is no longer valid',
+      });
+      client.disconnect(true);
+      disconnected += 1;
+    }
+    return disconnected;
+  }
+
   @SubscribeMessage(TRACKING_EVENT_LOCATION_UPDATE)
   async onLocationUpdate(
     @ConnectedSocket() client: Socket,

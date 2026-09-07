@@ -78,10 +78,18 @@ export class DriverReviewService {
   async suspendInTx(
     tx: OrmClient,
     driverId: string,
-  ): Promise<DriverProfileView> {
+  ): Promise<DriverProfileView & { alreadySuspended: boolean }> {
     const locked = await this.drivers.lockProfile(driverId, tx);
     if (!locked) {
       throw driverProfileNotFound();
+    }
+    if (locked.verificationStatus === DRIVER_VERIFICATION_SUSPENDED) {
+      await this.drivers.forceAvailabilityStatus(
+        driverId,
+        DRIVER_AVAILABILITY_SUSPENDED,
+        tx,
+      );
+      return { ...toProfileView(locked), alreadySuspended: true };
     }
     if (locked.verificationStatus !== DRIVER_VERIFICATION_APPROVED) {
       throw driverVerificationInvalidState();
@@ -100,7 +108,7 @@ export class DriverReviewService {
     if (!updated) {
       throw driverProfileNotFound();
     }
-    return toProfileView(updated);
+    return { ...toProfileView(updated), alreadySuspended: false };
   }
 
   private async transitionInTx(

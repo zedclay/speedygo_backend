@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { RedisService } from '../../../infrastructure/cache/redis.service';
+import type { SpeedyGoDb } from '../../../infrastructure/database/database.module';
 import {
   authAccountBlocked,
   authInvalidToken,
@@ -53,37 +54,21 @@ export class SessionService {
     }
   }
 
+  /**
+   * Session rows in PostgreSQL are the revocation authority.
+   * Redis `auth:sess:*` is best-effort invalidation only — never authorize
+   * solely from a warm positive cache (P1-G Suspend + Session Revocation).
+   */
   async assertPrincipal(
     accountId: string,
     sessionId: string,
   ): Promise<AuthenticatedPrincipal> {
-    const ttl = this.config.get<number>('auth.sessionCacheTtlSeconds', 15);
-    const cached = await this.redis.getClient().get(this.cacheKey(sessionId));
-    if (cached) {
-      const snap = JSON.parse(cached) as {
-        accountId: string;
-        status: string;
-        revokedAt: string | null;
-        expiresAt: string;
-      };
-      if (snap.accountId !== accountId) {
-        throw authInvalidToken();
-      }
-      if (snap.revokedAt) {
-        throw authSessionRevoked();
-      }
-      if (Date.parse(snap.expiresAt) <= Date.now()) {
-        throw authSessionExpired();
-      }
-      this.assertUsableAccount(snap.status);
-      return { accountId, sessionId };
-    }
-
     const session = await this.accounts.findSession(sessionId);
     if (!session || session.accountId !== accountId) {
       throw authInvalidToken();
     }
     if (session.revokedAt) {
+      await this.dropCache(sessionId);
       throw authSessionRevoked();
     }
     if (Date.parse(session.expiresAt) <= Date.now()) {
@@ -94,17 +79,6 @@ export class SessionService {
       throw authInvalidToken();
     }
     this.assertUsableAccount(account.status);
-    await this.redis.getClient().set(
-      this.cacheKey(sessionId),
-      JSON.stringify({
-        accountId,
-        status: account.status,
-        revokedAt: session.revokedAt,
-        expiresAt: session.expiresAt,
-      }),
-      'EX',
-      ttl,
-    );
     return { accountId, sessionId };
   }
 
@@ -178,23 +152,43 @@ export class SessionService {
   }
 
   /**
-   * Immediate account-wide session invalidation.
-   *
-   * Revokes every active Session for the Account (history kept via
-   * `revoked_at`) and deletes `auth:sess:{sessionId}` cache entries so a
-   * 15s status snapshot cannot outlive the security action.
-   *
-   * Idempotent and account-scoped. Future application flows that set
-   * Account.status to SUSPENDED or DISABLED MUST call this in the same
-   * business operation. There is no Admin suspend endpoint in this foundation.
+   * Immediate account-wide session invalidation (standalone).
+   * Prefer `revokeAllSessionsForAccountInTx` inside Admin suspend transactions.
    */
   async revokeAllSessionsForAccount(accountId: string): Promise<string[]> {
     const revokedIds = await this.accounts.revokeAllSessions(accountId);
-    const owned = await this.accounts.listSessions(accountId);
-    const cacheIds = new Set([...revokedIds, ...owned.map((row) => row.id)]);
-    await Promise.all([...cacheIds].map((id) => this.dropCache(id)));
+    await this.invalidateSessionCaches(revokedIds);
     this.security.emit('all_sessions_revoked', { accountId });
-    return [...cacheIds];
+    return revokedIds;
+  }
+
+  /**
+   * DB-only revoke inside a caller transaction. Cache/socket cleanup MUST run
+   * after the transaction commits via `invalidateSessionCaches`.
+   */
+  async revokeAllSessionsForAccountInTx(
+    tx: { orm: SpeedyGoDb['orm'] },
+    accountId: string,
+  ): Promise<string[]> {
+    return this.accounts.revokeAllSessions(accountId, tx);
+  }
+
+  /** Best-effort Redis cleanup. DB revocation remains authoritative if this fails. */
+  async invalidateSessionCaches(sessionIds: readonly string[]): Promise<void> {
+    await Promise.all(sessionIds.map((id) => this.dropCache(id)));
+  }
+
+  /**
+   * Post-commit side effects after transactional Session.revokedAt updates.
+   */
+  async finalizeSessionRevocations(
+    accountIds: readonly string[],
+    sessionIds: readonly string[],
+  ): Promise<void> {
+    await this.invalidateSessionCaches(sessionIds);
+    for (const accountId of accountIds) {
+      this.security.emit('all_sessions_revoked', { accountId });
+    }
   }
 
   async logoutAll(accountId: string): Promise<void> {

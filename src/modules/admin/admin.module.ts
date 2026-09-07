@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AuthorizationModule } from '../authorization/authorization.module';
+import { AuthModule } from '../auth/auth.module';
 import { CodModule } from '../cod/cod.module';
 import { DriversModule } from '../drivers/drivers.module';
 import { FinancialLedgerModule } from '../financial-ledger/financial-ledger.module';
@@ -8,6 +9,7 @@ import { MerchantSettlementsModule } from '../merchant-settlements/merchant-sett
 import { NotificationsModule } from '../notifications/notifications.module';
 import { PromotionsModule } from '../promotions/promotions.module';
 import { RefundsModule } from '../refunds/refunds.module';
+import { TrackingModule } from '../tracking/tracking.module';
 import { AdminAuditService } from './application/admin-audit.service';
 import { AdminCodCommandsService } from './application/admin-cod-commands.service';
 import { AdminDocumentAccessService } from './application/admin-document-access.service';
@@ -35,8 +37,10 @@ import { AdminSettlementController } from './presentation/http/controllers/admin
 @Module({
   imports: [
     AuthorizationModule,
+    AuthModule,
     MerchantsModule,
     DriversModule,
+    TrackingModule,
     RefundsModule,
     CodModule,
     MerchantSettlementsModule,

@@ -79,6 +79,18 @@ export class MerchantRepository {
     return rows.map((row) => this.toMember(row));
   }
 
+  /** Distinct Account ids with a MerchantMember row for this Merchant. */
+  async listMemberAccountIds(
+    merchantId: string,
+    client: OrmClient = this.db(),
+  ): Promise<string[]> {
+    const rows = await orm(client)
+      .MerchantMember.where({ merchantId })
+      .select('accountId')
+      .all();
+    return [...new Set(rows.map((row) => row.accountId))];
+  }
+
   async findMembership(
     accountId: string,
     merchantId: string,
