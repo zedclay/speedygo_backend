@@ -76,7 +76,7 @@ export type RefundRecord = {
   orderId: string;
   paymentTransactionId: string | null;
   refundMethod: RefundMethod;
-  amountMinor: number;
+  amountMinor: bigint;
   status: RefundStatus;
   reason: string;
   internalNote: string | null;
@@ -95,17 +95,17 @@ export type RefundFinancialContext = {
   paymentId: string;
   paymentMethod: string;
   paymentStatus: string;
-  paymentAmountMinor: number;
+  paymentAmountMinor: bigint;
   paymentCurrency: string;
-  snapshotPayableMinor: number;
+  snapshotPayableMinor: bigint;
   snapshotCurrency: string;
 };
 
 export type RefundCapacitySummary = {
-  originalPaidMinor: number;
-  reservedRefundMinor: number;
-  successfulRefundMinor: number;
-  remainingRefundableMinor: number;
+  originalPaidMinor: bigint;
+  reservedRefundMinor: bigint;
+  successfulRefundMinor: bigint;
+  remainingRefundableMinor: bigint;
   currency: string;
 };
 

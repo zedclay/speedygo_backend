@@ -873,7 +873,7 @@ describe('Refunds Foundation (e2e)', () => {
       await refunds.authorizeRefund(full.id, { adminId: fixture.adminId });
       await refunds.confirmManualRefund(full.id, { adminId: fixture.adminId });
       const capacity = await refunds.getCapacity(orderId);
-      expect(capacity.remainingRefundableMinor).toBe(0);
+      expect(capacity.remainingRefundableMinor).toBe(0n);
       await expect(
         refunds.createRefund({
           orderId,
@@ -1013,8 +1013,8 @@ describe('Refunds Foundation (e2e)', () => {
       expect(a.status).toBe('REQUESTED');
       expect(b.status).toBe('REQUESTED');
       let capacity = await refunds.getCapacity(orderId);
-      expect(capacity.reservedRefundMinor).toBe(500);
-      expect(capacity.remainingRefundableMinor).toBe(paidMinor - 500);
+      expect(capacity.reservedRefundMinor).toBe(500n);
+      expect(capacity.remainingRefundableMinor).toBe(BigInt(paidMinor - 500));
 
       await expect(
         refunds.createRefund({
@@ -1060,8 +1060,10 @@ describe('Refunds Foundation (e2e)', () => {
       expect(fulfilled).toHaveLength(1);
       expect(rejected).toHaveLength(1);
       capacity = await refunds.getCapacity(parallelOrderId);
-      expect(capacity.reservedRefundMinor).toBe(target);
-      expect(capacity.reservedRefundMinor).toBeLessThanOrEqual(parallelPaid);
+      expect(capacity.reservedRefundMinor).toBe(BigInt(target));
+      expect(capacity.reservedRefundMinor).toBeLessThanOrEqual(
+        BigInt(parallelPaid),
+      );
 
       const own = await request(server)
         .get(`/api/v1/customer/orders/${orderId}/refunds`)
@@ -1132,7 +1134,7 @@ describe('Refunds Foundation (e2e)', () => {
       });
       await refunds.rejectRefund(reserved.id, { adminId: fixture.adminId });
       const capacity = await refunds.getCapacity(orderId);
-      expect(capacity.remainingRefundableMinor).toBe(paidMinor);
+      expect(capacity.remainingRefundableMinor).toBe(BigInt(paidMinor));
       const reused = await refunds.createRefund({
         orderId,
         amountMinor: Math.min(700, paidMinor),
@@ -1179,6 +1181,56 @@ describe('Refunds Foundation (e2e)', () => {
           .orm.public.Refund.where({ orderId: activeOrderId })
           .all(),
       ).toHaveLength(0);
+    } finally {
+      if (fixture) await cleanupFixture(fixture);
+    }
+  });
+
+  it('HTTP refund totals keep exact decimal strings above MAX_SAFE_INTEGER', async () => {
+    const suffix = `${Date.now().toString().slice(-5)}9`;
+    let fixture: Fixture | undefined;
+    const server = app.getHttpServer();
+    try {
+      fixture = await createFixture(suffix);
+      const { orderId } = await completeElectronicDelivery(fixture);
+      const created = await refunds.createRefund({
+        orderId,
+        amountMinor: 1,
+        reason: 'precision seed',
+        refundMethod: REFUND_METHOD_MANUAL_OTHER,
+        requestedByAdminId: fixture.adminId,
+      });
+      const exact = 9007199254740993n;
+      const payment = await prisma
+        .getDb()
+        .orm.public.Payment.where({ orderId })
+        .first();
+      expect(payment).toBeTruthy();
+      await prisma
+        .getDb()
+        .orm.public.Payment.where({ id: payment!.id })
+        .update({ amountMinor: pgBigInt(exact) });
+      await prisma
+        .getDb()
+        .orm.public.OrderFinancialSnapshot.where({ orderId })
+        .update({ customerPayableMinor: pgBigInt(exact) });
+      await prisma
+        .getDb()
+        .orm.public.Refund.where({ id: created.id })
+        .update({ amountMinor: pgBigInt(exact) });
+
+      const listed = await request(server)
+        .get(`/api/v1/customer/orders/${orderId}/refunds`)
+        .set('Authorization', `Bearer ${fixture.customerToken}`);
+      expect(listed.status).toBe(200);
+      const body = listed.body as RefundsBody;
+      expect(body.originalPaidMinor).toBe('9007199254740993');
+      expect(body.reservedRefundMinor).toBe('9007199254740993');
+      expect(body.remainingRefundableMinor).toBe('0');
+      expect(body.refunds[0]?.amountMinor).toBe('9007199254740993');
+      expect(body.refunds[0]?.amountMinor).not.toBe(
+        String(Number('9007199254740993')),
+      );
     } finally {
       if (fixture) await cleanupFixture(fixture);
     }

@@ -52,9 +52,7 @@ export class NotificationQueueService
           backoff: { type: 'exponential', delay: JOB_BACKOFF_MS },
           removeOnComplete: true,
           removeOnFail: 20,
-          ...(every
-            ? { repeat: { every }, delay: undefined }
-            : {}),
+          ...(every ? { repeat: { every }, delay: undefined } : {}),
         },
       );
     } catch (error) {

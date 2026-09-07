@@ -518,6 +518,12 @@ describe('Ratings Foundation (e2e)', () => {
     expect((driverRated.body as RatingBody).driverId).not.toBe(
       rejectedDriverId,
     );
+    const ownDriverRating = await request(server)
+      .get(`/api/v1/customer/orders/${orderId}/ratings/driver`)
+      .set('Authorization', `Bearer ${customerToken}`);
+    expect(ownDriverRating.status).toBe(200);
+    expect((ownDriverRating.body as RatingBody).driverId).toBe(driverId);
+    expect((ownDriverRating.body as RatingBody).score).toBe(4);
 
     // Target later SUSPENDED does not invalidate historical rating eligibility
     // (second order with RELEASED serving assignment after suspension)

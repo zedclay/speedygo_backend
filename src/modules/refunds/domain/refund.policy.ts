@@ -69,10 +69,45 @@ export function isRefundEligibleOrderStatus(status: string): boolean {
 }
 
 export function requirePositiveRefundAmount(amountMinor: number): number {
-  if (!Number.isInteger(amountMinor) || amountMinor <= 0) {
+  if (
+    !Number.isSafeInteger(amountMinor) ||
+    !Number.isInteger(amountMinor) ||
+    amountMinor <= 0
+  ) {
     throw refundAmountInvalid();
   }
   return amountMinor;
+}
+
+/**
+ * Exact refund minor-unit parse. No JS Number conversion and no catalog price cap.
+ * Persistence CHECK is amount_minor > 0; aggregates may exceed MAX_SAFE_INTEGER.
+ */
+export function parseRefundAmountMinor(value: unknown): bigint {
+  if (typeof value === 'bigint') {
+    if (value < 0n) {
+      throw refundFinancialStateInvalid('Refund amount is invalid');
+    }
+    return value;
+  }
+  if (typeof value === 'number') {
+    if (!Number.isSafeInteger(value) || value < 0) {
+      throw refundFinancialStateInvalid('Refund amount is invalid');
+    }
+    return BigInt(value);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed !== value || !/^[0-9]+$/.test(trimmed)) {
+      throw refundFinancialStateInvalid('Refund amount is invalid');
+    }
+    return BigInt(trimmed);
+  }
+  throw refundFinancialStateInvalid('Refund amount is invalid');
+}
+
+export function toRefundAmountMinor(value: bigint | number): bigint {
+  return parseRefundAmountMinor(value);
 }
 
 export function requireRefundReason(reason: string): string {
@@ -98,8 +133,8 @@ export function requireEligibleOrderStatus(status: string): void {
 }
 
 export function requirePaymentSnapshotConsistency(input: {
-  paymentAmountMinor: number;
-  snapshotPayableMinor: number;
+  paymentAmountMinor: bigint | number;
+  snapshotPayableMinor: bigint | number;
   paymentCurrency: string;
   snapshotCurrency: string;
 }): void {
@@ -111,41 +146,44 @@ export function requirePaymentSnapshotConsistency(input: {
       'Refund requires DZD Payment and OrderFinancialSnapshot currency',
     );
   }
-  if (input.paymentAmountMinor !== input.snapshotPayableMinor) {
+  const paymentAmountMinor = parseRefundAmountMinor(input.paymentAmountMinor);
+  const snapshotPayableMinor = parseRefundAmountMinor(
+    input.snapshotPayableMinor,
+  );
+  if (paymentAmountMinor !== snapshotPayableMinor) {
     throw refundFinancialStateInvalid(
       'Payment.amountMinor must equal OrderFinancialSnapshot.customerPayableMinor',
     );
   }
-  if (
-    !Number.isInteger(input.paymentAmountMinor) ||
-    input.paymentAmountMinor < 0
-  ) {
-    throw refundFinancialStateInvalid('Payment amount is invalid');
-  }
 }
 
 export function calculateRefundCapacity(input: {
-  originalPaidMinor: number;
-  reservedRefundMinor: number;
-  successfulRefundMinor: number;
+  originalPaidMinor: bigint | number;
+  reservedRefundMinor: bigint | number;
+  successfulRefundMinor: bigint | number;
   currency?: string;
 }): RefundCapacitySummary {
-  const remaining = input.originalPaidMinor - input.reservedRefundMinor;
+  const originalPaidMinor = toRefundAmountMinor(input.originalPaidMinor);
+  const reservedRefundMinor = toRefundAmountMinor(input.reservedRefundMinor);
+  const successfulRefundMinor = toRefundAmountMinor(
+    input.successfulRefundMinor,
+  );
+  const remaining = originalPaidMinor - reservedRefundMinor;
   return {
-    originalPaidMinor: input.originalPaidMinor,
-    reservedRefundMinor: input.reservedRefundMinor,
-    successfulRefundMinor: input.successfulRefundMinor,
-    remainingRefundableMinor: remaining < 0 ? 0 : remaining,
+    originalPaidMinor,
+    reservedRefundMinor,
+    successfulRefundMinor,
+    remainingRefundableMinor: remaining < 0n ? 0n : remaining,
     currency: input.currency ?? REFUND_CURRENCY_DZD,
   };
 }
 
 export function requireRefundableAmount(
   amountMinor: number,
-  remainingRefundableMinor: number,
+  remainingRefundableMinor: bigint | number,
 ): void {
   requirePositiveRefundAmount(amountMinor);
-  if (amountMinor > remainingRefundableMinor) {
+  if (BigInt(amountMinor) > toRefundAmountMinor(remainingRefundableMinor)) {
     throw refundInsufficientRemaining();
   }
 }

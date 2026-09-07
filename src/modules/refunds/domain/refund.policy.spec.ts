@@ -88,7 +88,7 @@ describe('refund.policy (FINAL)', () => {
       reservedRefundMinor: 5_000,
       successfulRefundMinor: 5_000,
     });
-    expect(capacity.remainingRefundableMinor).toBe(5_000);
+    expect(capacity.remainingRefundableMinor).toBe(5_000n);
   });
 
   it('blocks over-refund against remaining', () => {
@@ -202,13 +202,78 @@ describe('refund.policy (FINAL)', () => {
     ).toBe(false);
   });
 
+  it('keeps exact capacity at Number.MAX_SAFE_INTEGER + 2', () => {
+    const exact = 9007199254740993n;
+    const capacity = calculateRefundCapacity({
+      originalPaidMinor: exact,
+      reservedRefundMinor: 0n,
+      successfulRefundMinor: 0n,
+    });
+    expect(capacity.originalPaidMinor).toBe(exact);
+    expect(capacity.remainingRefundableMinor).toBe(exact);
+    expect(capacity.remainingRefundableMinor.toString(10)).toBe(
+      '9007199254740993',
+    );
+  });
+
+  it('sums reserved aggregates that exceed Number.MAX_SAFE_INTEGER', () => {
+    const left = 9007199254740993n;
+    const right = 2n;
+    const capacity = calculateRefundCapacity({
+      originalPaidMinor: left + right + 1n,
+      reservedRefundMinor: left + right,
+      successfulRefundMinor: 0n,
+    });
+    expect(capacity.reservedRefundMinor).toBe(9007199254740995n);
+    expect(capacity.remainingRefundableMinor).toBe(1n);
+    expect(Number.isSafeInteger(Number(capacity.reservedRefundMinor))).toBe(
+      false,
+    );
+  });
+
+  it('compares remaining capacity exactly at the boundary', () => {
+    const remaining = 10_000n;
+    expect(() => requireRefundableAmount(10_000, remaining)).not.toThrow();
+    expectCode(
+      () => requireRefundableAmount(10_001, remaining),
+      REFUND_ERROR_CODES.REFUND_INSUFFICIENT_REMAINING,
+    );
+
+    const aboveSafe = 9007199254740993n;
+    expect(() => requireRefundableAmount(1, aboveSafe)).not.toThrow();
+    const oneReserved = calculateRefundCapacity({
+      originalPaidMinor: aboveSafe,
+      reservedRefundMinor: aboveSafe - 1n,
+      successfulRefundMinor: 0n,
+    });
+    expect(oneReserved.remainingRefundableMinor).toBe(1n);
+    expect(() =>
+      requireRefundableAmount(1, oneReserved.remainingRefundableMinor),
+    ).not.toThrow();
+    expectCode(
+      () => requireRefundableAmount(2, oneReserved.remainingRefundableMinor),
+      REFUND_ERROR_CODES.REFUND_INSUFFICIENT_REMAINING,
+    );
+  });
+
+  it('treats empty reserved aggregates as zero remaining = original', () => {
+    const capacity = calculateRefundCapacity({
+      originalPaidMinor: 0n,
+      reservedRefundMinor: 0n,
+      successfulRefundMinor: 0n,
+    });
+    expect(capacity.reservedRefundMinor).toBe(0n);
+    expect(capacity.successfulRefundMinor).toBe(0n);
+    expect(capacity.remainingRefundableMinor).toBe(0n);
+  });
+
   it('does not invent component recalculation helpers', () => {
     const capacity = calculateRefundCapacity({
       originalPaidMinor: 1700,
       reservedRefundMinor: 500,
       successfulRefundMinor: 0,
     });
-    expect(capacity.remainingRefundableMinor).toBe(1200);
+    expect(capacity.remainingRefundableMinor).toBe(1200n);
     expect(Object.keys(capacity).sort()).toEqual(
       [
         'currency',

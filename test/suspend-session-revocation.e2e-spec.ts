@@ -23,6 +23,7 @@ import {
 } from '../src/infrastructure/realtime/redis-io.adapter';
 import { OTP_SENDER } from '../src/modules/auth/domain/ports/otp-sender.port';
 import { TestOtpSender } from '../src/modules/auth/infrastructure/otp/test-otp.sender';
+import { clearFixtureOtpResendCooldown } from './helpers/clear-fixture-otp-cooldown';
 import { PermissionService } from '../src/modules/authorization/permission.service';
 import { ADMIN_AUDIT_ACTIONS } from '../src/modules/admin/domain/admin-audit-actions';
 import { ADMIN_PERMISSIONS } from '../src/modules/admin/domain/admin-permissions';
@@ -172,11 +173,10 @@ describe('P1-G Suspend + Session Revocation (e2e)', () => {
     deviceName: string,
   ): Promise<TokenPair> {
     const server = app.getHttpServer();
-    // Clear OTP cooldown / hourly counters so multi-device auth on one phone works.
-    const otpKeys = await redis.getClient().keys('auth:test:otp:*');
-    if (otpKeys.length > 0) {
-      await redis.getClient().del(...otpKeys);
-    }
+    await clearFixtureOtpResendCooldown(redis, {
+      identifier: phone,
+      channel: 'PHONE',
+    });
     await request(server).post('/api/v1/auth/otp/request').send({
       channel: 'PHONE',
       identifier: phone,

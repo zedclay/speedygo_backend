@@ -212,6 +212,11 @@ describe('Admin Foundation Finance (e2e)', () => {
       ADMIN_PERMISSIONS.COD_READ,
       ADMIN_PERMISSIONS.COD_REMITTANCE_CONFIRM,
       ADMIN_PERMISSIONS.AUDIT_READ,
+      ADMIN_PERMISSIONS.CUSTOMERS_READ,
+      ADMIN_PERMISSIONS.MERCHANTS_READ,
+      ADMIN_PERMISSIONS.MERCHANTS_VERIFY,
+      ADMIN_PERMISSIONS.ORDERS_READ,
+      ADMIN_PERMISSIONS.PAYMENTS_READ,
     ]) {
       const existing = await prisma
         .getDb()
@@ -932,6 +937,67 @@ describe('Admin Foundation Finance (e2e)', () => {
     };
   }
 
+  it('PATCH admin orders/payments is rejected on existing records; rows unchanged', async () => {
+    const suffix = (Date.now() + 7).toString().slice(-6);
+    let fixture: Fixture | undefined;
+    const server = app.getHttpServer();
+    try {
+      fixture = await createFixture(suffix);
+      const { orderId } = await completeElectronicDelivery(fixture);
+      const paymentRow = await prisma
+        .getDb()
+        .orm.public.Payment.where({ orderId })
+        .first();
+      expect(paymentRow).toBeTruthy();
+
+      const orderBefore = await request(server)
+        .get(`/api/v1/admin/orders/${orderId}`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(orderBefore.status).toBe(200);
+      const paymentBefore = await request(server)
+        .get(`/api/v1/admin/payments/${paymentRow!.id}`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(paymentBefore.status).toBe(200);
+      const orderStatus = (orderBefore.body as { status: string }).status;
+      const paymentStatus = (paymentBefore.body as { status: string }).status;
+
+      const patchOrder = await request(server)
+        .patch(`/api/v1/admin/orders/${orderId}`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`)
+        .send({ status: 'CANCELLED' });
+      expect(patchOrder.status).toBe(404);
+      expect((patchOrder.body as ErrorBody).error.code).toBe('HTTP_ERROR');
+      expect((patchOrder.body as ErrorBody).error.message).toMatch(
+        /Cannot PATCH/i,
+      );
+
+      const patchPayment = await request(server)
+        .patch(`/api/v1/admin/payments/${paymentRow!.id}`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`)
+        .send({ status: 'REFUNDED' });
+      expect(patchPayment.status).toBe(404);
+      expect((patchPayment.body as ErrorBody).error.code).toBe('HTTP_ERROR');
+      expect((patchPayment.body as ErrorBody).error.message).toMatch(
+        /Cannot PATCH/i,
+      );
+
+      const orderAfter = await request(server)
+        .get(`/api/v1/admin/orders/${orderId}`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      const paymentAfter = await request(server)
+        .get(`/api/v1/admin/payments/${paymentRow!.id}`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect((orderAfter.body as { status: string }).status).toBe(orderStatus);
+      expect((paymentAfter.body as { status: string }).status).toBe(
+        paymentStatus,
+      );
+      expect((orderAfter.body as { id: string }).id).toBe(orderId);
+      expect((paymentAfter.body as { id: string }).id).toBe(paymentRow!.id);
+    } finally {
+      if (fixture) await cleanupFixture(fixture);
+    }
+  });
+
   it('refund HTTP create → approve → confirm-manual with audits', async () => {
     const suffix = Date.now().toString().slice(-6);
     let fixture: Fixture | undefined;
@@ -956,9 +1022,126 @@ describe('Admin Foundation Finance (e2e)', () => {
         id: string;
         status: string;
         requestedByAdminId: string;
+        amountMinor: string;
       };
       expect(refund.requestedByAdminId).toBe(fixture.financeAdminId);
       expect(refund.status).toBe('REQUESTED');
+      expect(typeof refund.amountMinor).toBe('string');
+
+      const refundList = await request(server)
+        .get('/api/v1/admin/refunds')
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(refundList.status).toBe(200);
+      expect(
+        (refundList.body as { items: Array<{ id: string }> }).items.some(
+          (item) => item.id === refund.id,
+        ),
+      ).toBe(true);
+      const refundDetail = await request(server)
+        .get(`/api/v1/admin/refunds/${refund.id}`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(refundDetail.status).toBe(200);
+      expect((refundDetail.body as { id: string }).id).toBe(refund.id);
+      expect(
+        typeof (refundDetail.body as { amountMinor: string }).amountMinor,
+      ).toBe('string');
+
+      const customerMe = await request(server)
+        .get('/api/v1/auth/me')
+        .set('Authorization', `Bearer ${fixture.customerToken}`);
+      expect(customerMe.status).toBe(200);
+      const customerAccountId = (customerMe.body as { account: { id: string } })
+        .account.id;
+      const customerRows = await prisma
+        .getDb()
+        .orm.public.CustomerProfile.where({
+          accountId: customerAccountId,
+        })
+        .all();
+      const customerId = customerRows[0]?.id;
+      expect(customerId).toBeTruthy();
+      const customers = await request(server)
+        .get('/api/v1/admin/customers')
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(customers.status).toBe(200);
+      const customerDetail = await request(server)
+        .get(`/api/v1/admin/customers/${customerId}`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(customerDetail.status).toBe(200);
+      expect(JSON.stringify(customerDetail.body)).not.toMatch(
+        /otp|refreshToken/i,
+      );
+
+      const merchantDetail = await request(server)
+        .get(`/api/v1/admin/merchants/${fixture.merchantId}`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(merchantDetail.status).toBe(200);
+      const merchantVerification = await request(server)
+        .get(`/api/v1/admin/merchants/${fixture.merchantId}/verification`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(merchantVerification.status).toBe(200);
+
+      const orderDetail = await request(server)
+        .get(`/api/v1/admin/orders/${orderId}`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(orderDetail.status).toBe(200);
+      const paymentRow = await prisma
+        .getDb()
+        .orm.public.Payment.where({ orderId })
+        .first();
+      expect(paymentRow).toBeTruthy();
+      const paymentDetail = await request(server)
+        .get(`/api/v1/admin/payments/${paymentRow!.id}`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(paymentDetail.status).toBe(200);
+      expect(JSON.stringify(paymentDetail.body)).not.toMatch(
+        /secret|checkoutUrl|chargily/i,
+      );
+
+      const toReject = await request(server)
+        .post('/api/v1/admin/refunds')
+        .set('Authorization', `Bearer ${fixture.financeToken}`)
+        .send({
+          orderId,
+          amountMinor: 1,
+          method: REFUND_METHOD_MANUAL_OTHER,
+          reason: 'reject path',
+        });
+      expect(toReject.status).toBe(201);
+      const rejectDenied = await request(server)
+        .post(
+          `/api/v1/admin/refunds/${(toReject.body as { id: string }).id}/reject`,
+        )
+        .set('Authorization', `Bearer ${fixture.ownerToken}`)
+        .send({ internalNote: 'not eligible' });
+      expect(rejectDenied.status).toBe(403);
+      const rejected = await request(server)
+        .post(
+          `/api/v1/admin/refunds/${(toReject.body as { id: string }).id}/reject`,
+        )
+        .set('Authorization', `Bearer ${fixture.financeToken}`)
+        .send({ internalNote: 'not eligible' });
+      expect(rejected.status).toBe(201);
+      expect((rejected.body as { status: string }).status).toBe('REJECTED');
+      expect(
+        (rejected.body as { completedAt: string | null }).completedAt,
+      ).toBeNull();
+      expect(JSON.stringify(rejected.body)).not.toMatch(
+        /money returned|REFUNDED/i,
+      );
+
+      const rejectAudits = await request(server)
+        .get('/api/v1/admin/audit')
+        .query({
+          adminId: fixture.financeAdminId,
+          action: ADMIN_AUDIT_ACTIONS.REFUND_REJECT,
+          targetId: (toReject.body as { id: string }).id,
+        })
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(rejectAudits.status).toBe(200);
+      expect(
+        (rejectAudits.body as { total: number }).total,
+      ).toBeGreaterThanOrEqual(1);
 
       const approved = await request(server)
         .post(`/api/v1/admin/refunds/${refund.id}/approve`)
@@ -1099,6 +1282,49 @@ describe('Admin Foundation Finance (e2e)', () => {
     }
   });
 
+  it('audit failure on reject rolls back (Refund stays REQUESTED)', async () => {
+    const suffix = (Date.now() + 6).toString().slice(-6);
+    let fixture: Fixture | undefined;
+    const server = app.getHttpServer();
+    const audit = app.get(AdminAuditService);
+    let spy: jest.SpyInstance | undefined;
+    try {
+      fixture = await createFixture(suffix);
+      const { orderId } = await completeElectronicDelivery(fixture);
+      const created = await request(server)
+        .post('/api/v1/admin/refunds')
+        .set('Authorization', `Bearer ${fixture.financeToken}`)
+        .send({
+          orderId,
+          amountMinor: 200,
+          method: REFUND_METHOD_MANUAL_OTHER,
+          reason: 'reject audit rollback',
+        });
+      expect(created.status).toBe(201);
+      const refundId = (created.body as { id: string }).id;
+
+      spy = jest
+        .spyOn(audit, 'recordInTx')
+        .mockRejectedValueOnce(adminAuditFailed());
+      const failed = await request(server)
+        .post(`/api/v1/admin/refunds/${refundId}/reject`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`)
+        .send({ internalNote: 'should roll back' });
+      expect(failed.status).toBe(500);
+      expect((failed.body as ErrorBody).error.code).toBe('ADMIN_AUDIT_FAILED');
+
+      const row = await prisma
+        .getDb()
+        .orm.public.Refund.where({ id: refundId })
+        .first();
+      expect(row?.status).toBe('REQUESTED');
+      expect(row?.completedAt).toBeNull();
+    } finally {
+      spy?.mockRestore();
+      if (fixture) await cleanupFixture(fixture);
+    }
+  });
+
   it('settlement open draft + build sale lines + finalize via Admin HTTP', async () => {
     const suffix = (Date.now() + 3).toString().slice(-6);
     let fixture: Fixture | undefined;
@@ -1133,11 +1359,155 @@ describe('Admin Foundation Finance (e2e)', () => {
       expect((finalized.body as { status: string }).status).toBe('FINALIZED');
       expect((finalized.body as { paidAt: string | null }).paidAt).toBeNull();
 
+      const settlementList = await request(server)
+        .get('/api/v1/admin/settlements')
+        .query({ merchantId: fixture.merchantId })
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(settlementList.status).toBe(200);
+      expect(
+        (settlementList.body as { items: Array<{ id: string }> }).items.some(
+          (item) => item.id === settlementId,
+        ),
+      ).toBe(true);
+      const settlementDetail = await request(server)
+        .get(`/api/v1/admin/settlements/${settlementId}`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(settlementDetail.status).toBe(200);
+      expect((settlementDetail.body as { id: string }).id).toBe(settlementId);
+
       const audits = await request(server)
         .get('/api/v1/admin/audit')
         .query({
           adminId: fixture.financeAdminId,
           action: ADMIN_AUDIT_ACTIONS.SETTLEMENT_FINALIZE,
+          targetId: settlementId,
+        })
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(audits.status).toBe(200);
+      expect((audits.body as { total: number }).total).toBeGreaterThanOrEqual(
+        1,
+      );
+    } finally {
+      if (fixture) await cleanupFixture(fixture);
+    }
+  });
+
+  it('settlement refund-liability Admin HTTP attach + audit; denial and replay', async () => {
+    const suffix = (Date.now() + 5).toString().slice(-6);
+    let fixture: Fixture | undefined;
+    const server = app.getHttpServer();
+    try {
+      fixture = await createFixture(suffix);
+      const { orderId, paidMinor } = await completeElectronicDelivery(fixture);
+      const refundAmount = Math.min(200, Math.max(1, paidMinor - 1));
+
+      const created = await request(server)
+        .post('/api/v1/admin/refunds')
+        .set('Authorization', `Bearer ${fixture.financeToken}`)
+        .send({
+          orderId,
+          amountMinor: refundAmount,
+          method: REFUND_METHOD_MANUAL_OTHER,
+          reason: 'settlement liability',
+        });
+      expect(created.status).toBe(201);
+      const refundId = (created.body as { id: string }).id;
+      await request(server)
+        .post(`/api/v1/admin/refunds/${refundId}/approve`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`)
+        .send({});
+      const confirmed = await request(server)
+        .post(`/api/v1/admin/refunds/${refundId}/confirm-manual`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`)
+        .send({ internalNote: 'paid out of band' });
+      expect(confirmed.status).toBe(201);
+      expect((confirmed.body as { status: string }).status).toBe('REFUNDED');
+
+      const draft = await request(server)
+        .post('/api/v1/admin/settlements')
+        .set('Authorization', `Bearer ${fixture.financeToken}`)
+        .send({
+          merchantId: fixture.merchantId,
+          periodStart: '2020-01-01T00:00:00.000Z',
+          periodEnd: '2099-01-01T00:00:00.000Z',
+        });
+      expect(draft.status).toBe(201);
+      const settlementId = (draft.body as { id: string }).id;
+      const built = await request(server)
+        .post(`/api/v1/admin/settlements/${settlementId}/build-sale-lines`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`)
+        .send({});
+      expect(built.status).toBe(201);
+
+      const unauthenticated = await request(server)
+        .post(`/api/v1/admin/settlements/${settlementId}/refund-liability`)
+        .send({
+          refundId,
+          merchantLiabilityMinor: refundAmount,
+        });
+      expect(unauthenticated.status).toBe(401);
+
+      const denied = await request(server)
+        .post(`/api/v1/admin/settlements/${settlementId}/refund-liability`)
+        .set('Authorization', `Bearer ${fixture.ownerToken}`)
+        .send({
+          refundId,
+          merchantLiabilityMinor: refundAmount,
+        });
+      expect(denied.status).toBe(403);
+
+      const invalid = await request(server)
+        .post(`/api/v1/admin/settlements/${settlementId}/refund-liability`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`)
+        .send({
+          refundId,
+          merchantLiabilityMinor: refundAmount + 1,
+        });
+      expect(invalid.status).toBe(400);
+      expect((invalid.body as ErrorBody).error.code).toBe(
+        'MERCHANT_SETTLEMENT_LIABILITY_INVALID',
+      );
+
+      const attached = await request(server)
+        .post(`/api/v1/admin/settlements/${settlementId}/refund-liability`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`)
+        .send({
+          refundId,
+          merchantLiabilityMinor: refundAmount,
+        });
+      expect(attached.status).toBe(201);
+      expect((attached.body as { type: string }).type).toBe(
+        'REFUND_ADJUSTMENT',
+      );
+      expect(
+        typeof (attached.body as { adjustmentMinor: string }).adjustmentMinor,
+      ).toBe('string');
+      expect(
+        (
+          attached.body as { adjustmentMinor: string }
+        ).adjustmentMinor.startsWith('-'),
+      ).toBe(true);
+      expect((attached.body as { settlementId: string }).settlementId).toBe(
+        settlementId,
+      );
+
+      const replay = await request(server)
+        .post(`/api/v1/admin/settlements/${settlementId}/refund-liability`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`)
+        .send({
+          refundId,
+          merchantLiabilityMinor: refundAmount,
+        });
+      expect(replay.status).toBe(409);
+      expect((replay.body as ErrorBody).error.code).toBe(
+        'MERCHANT_SETTLEMENT_REFUND_ADJUSTMENT_EXISTS',
+      );
+
+      const audits = await request(server)
+        .get('/api/v1/admin/audit')
+        .query({
+          adminId: fixture.financeAdminId,
+          action: ADMIN_AUDIT_ACTIONS.SETTLEMENT_ATTACH_REFUND_LIABILITY,
           targetId: settlementId,
         })
         .set('Authorization', `Bearer ${fixture.financeToken}`);
@@ -1158,6 +1528,16 @@ describe('Admin Foundation Finance (e2e)', () => {
       fixture = await createFixture(suffix);
       const { remittanceId, collectedMinor } =
         await completeCodDeliveryWithDeclaredRemittance(fixture);
+
+      const remittanceList = await request(server)
+        .get('/api/v1/admin/cod/remittances')
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(remittanceList.status).toBe(200);
+      const remittanceDetail = await request(server)
+        .get(`/api/v1/admin/cod/remittances/${remittanceId}`)
+        .set('Authorization', `Bearer ${fixture.financeToken}`);
+      expect(remittanceDetail.status).toBe(200);
+      expect((remittanceDetail.body as { id: string }).id).toBe(remittanceId);
 
       const denied = await request(server)
         .post(`/api/v1/admin/cod/remittances/${remittanceId}/confirm`)

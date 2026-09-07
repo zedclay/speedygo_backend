@@ -428,6 +428,88 @@ describe('Catalog foundation (e2e)', () => {
       expect(hideOption.status).toBe(200);
       expect((hideOption.body as OptionBody).available).toBe(false);
 
+      const listedProducts = await request(server)
+        .get(`/api/v1/merchant/${merchantId}/products`)
+        .query({ branchId })
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(listedProducts.status).toBe(200);
+      expect(
+        ((listedProducts.body as { items: ProductBody[] }).items ?? []).length,
+      ).toBeGreaterThan(0);
+
+      const listedGroups = await request(server)
+        .get(
+          `/api/v1/merchant/${merchantId}/products/${productBody.id}/option-groups`,
+        )
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(listedGroups.status).toBe(200);
+
+      const disposableCategory = await request(server)
+        .post(`/api/v1/merchant/${merchantId}/categories`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ branchId, name: 'Disposable Delete' });
+      expect(disposableCategory.status).toBe(201);
+      const disposableProduct = await request(server)
+        .post(`/api/v1/merchant/${merchantId}/products`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({
+          branchId,
+          categoryId: (disposableCategory.body as CategoryBody).id,
+          name: 'Disposable Product',
+          priceMinor: 100,
+        });
+      expect(disposableProduct.status).toBe(201);
+      const disposableGroup = await request(server)
+        .post(
+          `/api/v1/merchant/${merchantId}/products/${(disposableProduct.body as ProductBody).id}/option-groups`,
+        )
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({
+          name: 'Disposable Group',
+          required: false,
+          minSelections: 0,
+          maxSelections: 1,
+        });
+      expect(disposableGroup.status).toBe(201);
+      const patchedGroup = await request(server)
+        .patch(
+          `/api/v1/merchant/${merchantId}/products/${(disposableProduct.body as ProductBody).id}/option-groups/${(disposableGroup.body as OptionGroupBody).id}`,
+        )
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ name: 'Renamed Disposable Group' });
+      expect(patchedGroup.status).toBe(200);
+      const disposableOption = await request(server)
+        .post(
+          `/api/v1/merchant/${merchantId}/products/${(disposableProduct.body as ProductBody).id}/option-groups/${(disposableGroup.body as OptionGroupBody).id}/options`,
+        )
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ name: 'Disposable Option', additionalPriceMinor: 10 });
+      expect(disposableOption.status).toBe(201);
+      const deletedOption = await request(server)
+        .delete(
+          `/api/v1/merchant/${merchantId}/products/${(disposableProduct.body as ProductBody).id}/option-groups/${(disposableGroup.body as OptionGroupBody).id}/options/${(disposableOption.body as OptionBody).id}`,
+        )
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(deletedOption.status).toBe(200);
+      const deletedGroup = await request(server)
+        .delete(
+          `/api/v1/merchant/${merchantId}/products/${(disposableProduct.body as ProductBody).id}/option-groups/${(disposableGroup.body as OptionGroupBody).id}`,
+        )
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(deletedGroup.status).toBe(200);
+      const deletedProduct = await request(server)
+        .delete(
+          `/api/v1/merchant/${merchantId}/products/${(disposableProduct.body as ProductBody).id}`,
+        )
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(deletedProduct.status).toBe(200);
+      const deletedCategory = await request(server)
+        .delete(
+          `/api/v1/merchant/${merchantId}/categories/${(disposableCategory.body as CategoryBody).id}`,
+        )
+        .set('Authorization', `Bearer ${tokenA}`);
+      expect(deletedCategory.status).toBe(200);
+
       const me = await request(server)
         .get('/api/v1/merchant/me')
         .set('Authorization', `Bearer ${tokenA}`);
