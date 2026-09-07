@@ -239,8 +239,15 @@ export class AccountRepository {
       .update({ revokedAt: pgNow() });
   }
 
-  async revokeAllSessions(accountId: string): Promise<string[]> {
-    const sessions = orm(this.db()).Session;
+  /**
+   * Revokes every active Session for the Account. Optional `client` runs inside
+   * a caller transaction (Admin suspend + audit atomicity).
+   */
+  async revokeAllSessions(
+    accountId: string,
+    client: { orm: SpeedyGoDb['orm'] } = this.db(),
+  ): Promise<string[]> {
+    const sessions = orm(client).Session;
     const active = await sessions
       .where({ accountId })
       .where((session) => session.revokedAt.isNull())
@@ -250,10 +257,11 @@ export class AccountRepository {
     if (ids.length === 0) {
       return [];
     }
+    // Prisma 8 `.update()` mutates a single matching row; bulk revoke needs `updateAll`.
     await sessions
       .where({ accountId })
       .where((session) => session.revokedAt.isNull())
-      .update({ revokedAt: pgNow() });
+      .updateAll({ revokedAt: pgNow() });
     return ids;
   }
 

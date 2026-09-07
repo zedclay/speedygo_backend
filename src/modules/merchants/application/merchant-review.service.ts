@@ -160,11 +160,14 @@ export class MerchantReviewService {
   async suspendInTx(
     tx: OrmClient,
     input: { merchantId: string; adminId: string },
-  ): Promise<MerchantView> {
+  ): Promise<MerchantView & { alreadySuspended: boolean }> {
     await this.requireAdmin(input.adminId);
     const locked = await this.merchants.lockMerchant(input.merchantId, tx);
     if (!locked) {
       throw merchantNotFound();
+    }
+    if (locked.status === MERCHANT_STATUS_SUSPENDED) {
+      return { ...toMerchantView(locked), alreadySuspended: true };
     }
     if (locked.status !== MERCHANT_STATUS_ACTIVE || !locked.verifiedAt) {
       throw merchantVerificationInvalidState(
@@ -180,7 +183,7 @@ export class MerchantReviewService {
     if (!updated) {
       throw merchantNotFound();
     }
-    return toMerchantView(updated);
+    return { ...toMerchantView(updated), alreadySuspended: false };
   }
 
   private async requireAdmin(adminId: string): Promise<void> {

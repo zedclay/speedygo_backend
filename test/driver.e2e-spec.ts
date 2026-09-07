@@ -556,7 +556,7 @@ describe('Driver foundation (e2e)', () => {
     }
   });
 
-  it('suspends an ONLINE Driver without revoking the Account session', async () => {
+  it('suspends an ONLINE Driver via DriverReviewService without Admin session revocation', async () => {
     const server = app.getHttpServer();
     const phone = `0583${Date.now().toString().slice(-6)}`;
     let e164 = '';
