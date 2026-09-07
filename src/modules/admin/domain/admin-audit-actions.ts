@@ -28,6 +28,14 @@ export const ADMIN_AUDIT_ACTIONS = Object.freeze({
     'settings.update.platform.supportContactEmail',
   SETTINGS_UPDATE_SUPPORT_CONTACT_PHONE:
     'settings.update.platform.supportContactPhone',
+  /** Admin Delivery Zones + Pricing APIs v1.0. */
+  DELIVERY_ZONE_CREATE: 'delivery.zone.create',
+  DELIVERY_ZONE_UPDATE: 'delivery.zone.update',
+  DELIVERY_ZONE_ACTIVATE: 'delivery.zone.activate',
+  DELIVERY_ZONE_DEACTIVATE: 'delivery.zone.deactivate',
+  DELIVERY_PRICING_RULE_CREATE: 'delivery.pricing-rule.create',
+  DELIVERY_PRICING_RULE_ACTIVATE: 'delivery.pricing-rule.activate',
+  DELIVERY_PRICING_RULE_DEACTIVATE: 'delivery.pricing-rule.deactivate',
 } as const);
 
 export type AdminAuditAction =
@@ -43,6 +51,9 @@ export const ADMIN_AUDIT_TARGET_TYPES = Object.freeze({
   PROMOTION: 'Promotion',
   SUPPORT_TICKET: 'SupportTicket',
   PLATFORM_SETTING: 'PlatformSetting',
+  /** Admin Delivery Zones + Pricing APIs v1.0. */
+  DELIVERY_ZONE: 'DeliveryZone',
+  DELIVERY_PRICING_RULE: 'DeliveryPricingRule',
 } as const);
 
 export type AdminAuditTargetType =

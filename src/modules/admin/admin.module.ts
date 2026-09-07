@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { AuthModule } from '../auth/auth.module';
 import { CodModule } from '../cod/cod.module';
+import { DeliveryPricingModule } from '../delivery-pricing/delivery-pricing.module';
 import { DriversModule } from '../drivers/drivers.module';
 import { FinancialLedgerModule } from '../financial-ledger/financial-ledger.module';
 import { MerchantsModule } from '../merchants/merchants.module';
@@ -19,6 +20,8 @@ import { AdminProfileService } from './application/admin-profile.service';
 import { AdminPromotionCommandsService } from './application/admin-promotion-commands.service';
 import { AdminRefundCommandsService } from './application/admin-refund-commands.service';
 import { AdminSettlementCommandsService } from './application/admin-settlement-commands.service';
+import { AdminDeliveryPricingRuleCommandsService } from '../delivery-pricing/application/admin-delivery-pricing-rule-commands.service';
+import { AdminDeliveryZoneCommandsService } from '../delivery-pricing/application/admin-delivery-zone-commands.service';
 import { AdminQueryRepository } from './infrastructure/admin-query.repository';
 import { AdminGuard } from './presentation/guards/admin.guard';
 import { AdminAuditController } from './presentation/http/controllers/admin-audit.controller';
@@ -33,6 +36,8 @@ import { AdminPaymentController } from './presentation/http/controllers/admin-pa
 import { AdminPromotionController } from './presentation/http/controllers/admin-promotion.controller';
 import { AdminRefundController } from './presentation/http/controllers/admin-refund.controller';
 import { AdminSettlementController } from './presentation/http/controllers/admin-settlement.controller';
+import { AdminDeliveryPricingRuleController } from '../delivery-pricing/presentation/http/controllers/admin-delivery-pricing-rule.controller';
+import { AdminDeliveryZoneController } from '../delivery-pricing/presentation/http/controllers/admin-delivery-zone.controller';
 
 @Module({
   imports: [
@@ -47,6 +52,7 @@ import { AdminSettlementController } from './presentation/http/controllers/admin
     PromotionsModule,
     FinancialLedgerModule,
     NotificationsModule,
+    DeliveryPricingModule,
   ],
   controllers: [
     AdminMeController,
@@ -61,6 +67,8 @@ import { AdminSettlementController } from './presentation/http/controllers/admin
     AdminPromotionController,
     AdminLedgerController,
     AdminAuditController,
+    AdminDeliveryZoneController,
+    AdminDeliveryPricingRuleController,
   ],
   providers: [
     AdminProfileService,
@@ -73,6 +81,8 @@ import { AdminSettlementController } from './presentation/http/controllers/admin
     AdminCodCommandsService,
     AdminSettlementCommandsService,
     AdminPromotionCommandsService,
+    AdminDeliveryZoneCommandsService,
+    AdminDeliveryPricingRuleCommandsService,
     AdminGuard,
   ],
   exports: [AdminProfileService, AdminAuditService, AdminGuard],
