@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { DELIVERY_EVENT_COMPLETED } from '../../delivery/domain/driver-delivery.policy';
 import {
@@ -18,6 +18,10 @@ import {
   NOTIFICATION_TYPE_ORDER_READY,
   NOTIFICATION_TYPE_ORDER_REJECTED,
 } from '../domain/notification.types';
+import {
+  NOTIFICATION_JOBS,
+  type NotificationJobs,
+} from '../domain/notification.jobs';
 import { NotificationRecoveryRepository } from '../infrastructure/notification-recovery.repository';
 import { NotificationService } from './notification.service';
 
@@ -34,6 +38,7 @@ export type NotificationRecoveryResult = {
   earnings: number;
   matchOffers: number;
   matchOffersSkippedStale: number;
+  pushRequeued: number;
 };
 
 @Injectable()
@@ -44,6 +49,7 @@ export class NotificationRecoveryService {
     private readonly recoveryRows: NotificationRecoveryRepository,
     private readonly notifications: NotificationService,
     private readonly config: ConfigService,
+    @Inject(NOTIFICATION_JOBS) private readonly jobs: NotificationJobs,
   ) {}
 
   /**
@@ -80,6 +86,7 @@ export class NotificationRecoveryService {
       earnings: 0,
       matchOffers: 0,
       matchOffersSkippedStale: 0,
+      pushRequeued: 0,
     };
 
     for (const row of await this.recoveryRows.listRecentOrdersForMerchantNotify(
@@ -204,6 +211,29 @@ export class NotificationRecoveryService {
       result.matchOffers += 1;
     }
 
+    // Push enqueue-gap repair: the job id dedupes against live jobs, and the
+    // worker ignores logs that are no longer PENDING.
+    const pushMinAgeMs = this.config.get<number>(
+      'push.pendingSweepMinAgeMs',
+      60_000,
+    );
+    for (const row of await this.recoveryRows.listPendingPushNotificationIds({
+      lookbackIso,
+      olderThanIso: new Date(Date.now() - pushMinAgeMs).toISOString(),
+      limit: batch,
+    })) {
+      try {
+        await this.jobs.enqueuePushSend(row.notificationId);
+        result.pushRequeued += 1;
+      } catch (error) {
+        this.logger.warn(
+          `push requeue failed notification=${row.notificationId} err=${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+
     const total =
       result.merchantOrders +
       result.orderAccepted +
@@ -216,9 +246,13 @@ export class NotificationRecoveryService {
       result.settlements +
       result.earnings +
       result.matchOffers;
-    if (total > 0 || result.matchOffersSkippedStale > 0) {
+    if (
+      total > 0 ||
+      result.matchOffersSkippedStale > 0 ||
+      result.pushRequeued > 0
+    ) {
       this.logger.debug(
-        `Notification recovery candidates=${total} staleMatchSkipped=${result.matchOffersSkippedStale}`,
+        `Notification recovery candidates=${total} staleMatchSkipped=${result.matchOffersSkippedStale} pushRequeued=${result.pushRequeued}`,
       );
     }
     return result;

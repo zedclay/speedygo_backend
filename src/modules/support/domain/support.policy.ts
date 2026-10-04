@@ -110,3 +110,49 @@ export function isValidSupportBody(body: string): boolean {
   const trimmed = body.trim();
   return trimmed.length >= 1 && trimmed.length <= 4000;
 }
+
+export const SUPPORT_TOPIC_AUDIENCE_MERCHANT = 'MERCHANT';
+export const SUPPORT_TOPIC_AUDIENCE_ALL = 'ALL';
+/** Audiences whose active topics a Merchant may pick. */
+export const SUPPORT_MERCHANT_TOPIC_AUDIENCES = [
+  SUPPORT_TOPIC_AUDIENCE_MERCHANT,
+  SUPPORT_TOPIC_AUDIENCE_ALL,
+] as const;
+export const SUPPORT_FAQ_AUDIENCE_MERCHANT = 'MERCHANT';
+
+export const SUPPORT_SUBJECT_MAX_LENGTH = 255;
+export const SUPPORT_TOPIC_CODE_MAX_LENGTH = 64;
+
+const SUPPORT_TOPIC_CODE_PATTERN = /^[A-Z][A-Z0-9_]*$/;
+
+/** Trimmed subject, or null when blank / too long. */
+export function normalizeSupportSubject(
+  subject: string | null | undefined,
+): string | null {
+  if (typeof subject !== 'string') {
+    return null;
+  }
+  const trimmed = subject.trim();
+  if (trimmed.length < 1 || trimmed.length > SUPPORT_SUBJECT_MAX_LENGTH) {
+    return null;
+  }
+  return trimmed;
+}
+
+/** Trimmed topic code, or null when blank / malformed. */
+export function normalizeSupportTopicCode(
+  code: string | null | undefined,
+): string | null {
+  if (typeof code !== 'string') {
+    return null;
+  }
+  const trimmed = code.trim();
+  if (
+    trimmed.length < 1 ||
+    trimmed.length > SUPPORT_TOPIC_CODE_MAX_LENGTH ||
+    !SUPPORT_TOPIC_CODE_PATTERN.test(trimmed)
+  ) {
+    return null;
+  }
+  return trimmed;
+}

@@ -108,6 +108,8 @@ export type AdminPromotionListItem = {
   startsAt: string;
   endsAt: string;
   active: boolean;
+  customerDiscoverable: boolean;
+  customerLabel: string | null;
   createdAt: string;
   updatedAt: string;
 };

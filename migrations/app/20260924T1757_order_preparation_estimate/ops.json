@@ -1,0 +1,413 @@
+[
+  {
+    "id": "table.order_preparation_estimate_revisions",
+    "label": "Create table \"order_preparation_estimate_revisions\"",
+    "summary": "Creates table \"order_preparation_estimate_revisions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "order_preparation_estimate_revisions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"order_preparation_estimate_revisions\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"order_preparation_estimate_revisions\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"order_preparation_estimate_revisions\"",
+        "sql": "CREATE TABLE \"public\".\"order_preparation_estimate_revisions\" (\n  \"actor_account_id\" uuid NOT NULL,\n  \"add_minutes\" int4 NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"new_estimated_ready_at\" timestamptz(6) NOT NULL,\n  \"order_id\" uuid NOT NULL,\n  \"previous_estimated_ready_at\" timestamptz(6),\n  \"reason\" character varying(255),\n  \"revision_number\" int4 NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"order_prep_estimate_revisions_add_positive_bb75bf37\" CHECK (add_minutes > 0),\n  CONSTRAINT \"order_prep_estimate_revisions_rev_positive_fe94db1c\" CHECK (revision_number > 0)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"order_preparation_estimate_revisions\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"order_preparation_estimate_revisions\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.orders.estimated_ready_at",
+    "label": "Add column \"estimated_ready_at\" to \"orders\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "estimated_ready_at",
+        "table": "orders"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"estimated_ready_at\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "orders",
+          "estimated_ready_at"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"estimated_ready_at\"",
+        "sql": "ALTER TABLE \"public\".\"orders\" ADD COLUMN \"estimated_ready_at\" timestamptz(6)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"estimated_ready_at\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "orders",
+          "estimated_ready_at"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.orders.original_estimated_ready_at",
+    "label": "Add column \"original_estimated_ready_at\" to \"orders\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "original_estimated_ready_at",
+        "table": "orders"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"original_estimated_ready_at\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "orders",
+          "original_estimated_ready_at"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"original_estimated_ready_at\"",
+        "sql": "ALTER TABLE \"public\".\"orders\" ADD COLUMN \"original_estimated_ready_at\" timestamptz(6)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"original_estimated_ready_at\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "orders",
+          "original_estimated_ready_at"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.orders.original_preparation_minutes",
+    "label": "Add column \"original_preparation_minutes\" to \"orders\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "original_preparation_minutes",
+        "table": "orders"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"original_preparation_minutes\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "orders",
+          "original_preparation_minutes"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"original_preparation_minutes\"",
+        "sql": "ALTER TABLE \"public\".\"orders\" ADD COLUMN \"original_preparation_minutes\" int4"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"original_preparation_minutes\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "orders",
+          "original_preparation_minutes"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.orders.preparation_estimate_version",
+    "label": "Add column \"preparation_estimate_version\" to \"orders\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "preparation_estimate_version",
+        "table": "orders"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"preparation_estimate_version\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "orders",
+          "preparation_estimate_version"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"preparation_estimate_version\"",
+        "sql": "ALTER TABLE \"public\".\"orders\" ADD COLUMN \"preparation_estimate_version\" int4 DEFAULT 0 NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"preparation_estimate_version\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "orders",
+          "preparation_estimate_version"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.orders.preparation_minutes",
+    "label": "Add column \"preparation_minutes\" to \"orders\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "preparation_minutes",
+        "table": "orders"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"preparation_minutes\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "orders",
+          "preparation_minutes"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"preparation_minutes\"",
+        "sql": "ALTER TABLE \"public\".\"orders\" ADD COLUMN \"preparation_minutes\" int4"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"preparation_minutes\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "orders",
+          "preparation_minutes"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.order_preparation_estimate_revisions.order_preparation_estimate_revisions_order_id_revision_number_key",
+    "label": "Add unique constraint on \"order_preparation_estimate_revisions\" (order_id, revision_number)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "order_preparation_estimate_revisions_order_id_revision_number_key",
+        "table": "order_preparation_estimate_revisions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"order_preparation_estimate_revisions_order_id_revision_number_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "order_preparation_estimate_revisions_order_id_revision_number_key",
+          "public",
+          "\"public\".\"order_preparation_estimate_revisions\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"order_preparation_estimate_revisions_order_id_revision_number_key\"",
+        "sql": "ALTER TABLE \"public\".\"order_preparation_estimate_revisions\" ADD CONSTRAINT \"order_preparation_estimate_revisions_order_id_revision_number_key\" UNIQUE (\"order_id\", \"revision_number\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"order_preparation_estimate_revisions_order_id_revision_number_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "order_preparation_estimate_revisions_order_id_revision_number_key",
+          "public",
+          "\"public\".\"order_preparation_estimate_revisions\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.order_preparation_estimate_revisions.order_prep_estimate_revisions_order_created_7a2aab70",
+    "label": "Create index \"order_prep_estimate_revisions_order_created_7a2aab70\" on \"order_preparation_estimate_revisions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "order_prep_estimate_revisions_order_created_7a2aab70",
+        "table": "order_preparation_estimate_revisions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"order_prep_estimate_revisions_order_created_7a2aab70\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"order_prep_estimate_revisions_order_created_7a2aab70\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"order_prep_estimate_revisions_order_created_7a2aab70\"",
+        "sql": "CREATE INDEX \"order_prep_estimate_revisions_order_created_7a2aab70\" ON \"public\".\"order_preparation_estimate_revisions\" (\"order_id\", \"created_at\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"order_prep_estimate_revisions_order_created_7a2aab70\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"order_prep_estimate_revisions_order_created_7a2aab70\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.order_preparation_estimate_revisions.order_preparation_estimate_revisions_order_id_idx_39ad19ad",
+    "label": "Create index \"order_preparation_estimate_revisions_order_id_idx_39ad19ad\" on \"order_preparation_estimate_revisions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "order_preparation_estimate_revisions_order_id_idx_39ad19ad",
+        "table": "order_preparation_estimate_revisions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"order_preparation_estimate_revisions_order_id_idx_39ad19ad\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"order_preparation_estimate_revisions_order_id_idx_39ad19ad\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"order_preparation_estimate_revisions_order_id_idx_39ad19ad\"",
+        "sql": "CREATE INDEX \"order_preparation_estimate_revisions_order_id_idx_39ad19ad\" ON \"public\".\"order_preparation_estimate_revisions\" (\"order_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"order_preparation_estimate_revisions_order_id_idx_39ad19ad\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"order_preparation_estimate_revisions_order_id_idx_39ad19ad\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.order_preparation_estimate_revisions.order_preparation_estimate_revisions_order_id_fkey",
+    "label": "Add foreign key \"order_preparation_estimate_revisions_order_id_fkey\" on \"order_preparation_estimate_revisions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "order_preparation_estimate_revisions_order_id_fkey",
+        "table": "order_preparation_estimate_revisions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"order_preparation_estimate_revisions_order_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "order_preparation_estimate_revisions_order_id_fkey",
+          "public",
+          "\"public\".\"order_preparation_estimate_revisions\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"order_preparation_estimate_revisions_order_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"order_preparation_estimate_revisions\"\nADD CONSTRAINT \"order_preparation_estimate_revisions_order_id_fkey\"\nFOREIGN KEY (\"order_id\")\nREFERENCES \"public\".\"orders\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"order_preparation_estimate_revisions_order_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "order_preparation_estimate_revisions_order_id_fkey",
+          "public",
+          "\"public\".\"order_preparation_estimate_revisions\""
+        ]
+      }
+    ]
+  }
+]

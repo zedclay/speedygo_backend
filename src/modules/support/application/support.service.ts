@@ -11,14 +11,28 @@ import {
   supportInvalidState,
   supportNotFound,
   supportResourceForbidden,
+  supportSubjectInvalid,
+  supportTopicInvalid,
 } from '../domain/support.errors';
 import {
+  SUPPORT_FAQ_AUDIENCE_MERCHANT,
+  SUPPORT_MERCHANT_TOPIC_AUDIENCES,
+  SUPPORT_TOPIC_AUDIENCE_MERCHANT,
   canUserReply,
   isValidSupportBody,
   normalizeSupportListQuery,
+  normalizeSupportSubject,
+  normalizeSupportTopicCode,
   statusAfterUserReply,
 } from '../domain/support.policy';
+import {
+  SUPPORT_MERCHANT_FAQ_SEED,
+  SUPPORT_MERCHANT_SEED_VERSION,
+  SUPPORT_MERCHANT_TOPIC_SEED,
+} from '../domain/support-merchant-seed';
 import type {
+  SupportFaqArticleDto,
+  SupportTopicDto,
   SupportMessageDto,
   SupportPaginatedResult,
   SupportTicketDetailDto,
@@ -29,6 +43,7 @@ import {
   toTicketListItem,
   toUserTicketDetail,
 } from '../domain/support.types';
+import { isPostgresUniqueViolation } from '../../../common/errors/postgres-unique';
 import { SupportRepository } from '../infrastructure/support.repository';
 
 @Injectable()
@@ -343,11 +358,25 @@ export class SupportService {
   async createMerchantTicket(
     accountId: string,
     merchantId: string,
-    body: string,
-    orderId?: string,
+    input: {
+      body: string;
+      orderId?: string;
+      topicCode?: string | null;
+      subject?: string | null;
+    },
   ): Promise<SupportTicketDetailDto> {
     await this.requireMerchantSupportAccess(accountId, merchantId);
-    const trimmed = this.assertBody(body);
+    const subject = normalizeSupportSubject(input.subject);
+    if (subject === null) {
+      throw supportSubjectInvalid();
+    }
+    const topicCode = normalizeSupportTopicCode(input.topicCode);
+    if (topicCode === null) {
+      throw supportTopicInvalid('topicCode is required');
+    }
+    const trimmed = this.assertBody(input.body);
+    await this.requireActiveMerchantTopic(topicCode);
+    const orderId = input.orderId;
     if (orderId) {
       const owned = await this.support.orderBelongsToMerchant(
         orderId,
@@ -365,6 +394,8 @@ export class SupportService {
           orderId: orderId ?? null,
           merchantId,
           driverId: null,
+          topicCode,
+          subject,
         },
         tx,
       ),
@@ -375,6 +406,101 @@ export class SupportService {
     return toUserTicketDetail(created.ticket, order, [
       this.mapMessage(created.message, false),
     ]);
+  }
+
+  async listMerchantTopics(
+    accountId: string,
+    merchantId: string,
+  ): Promise<{ topics: SupportTopicDto[] }> {
+    await this.requireMerchantSupportAccess(accountId, merchantId);
+    await this.ensureMerchantSupportSeed();
+    const rows = await this.support.listActiveTopics([
+      ...SUPPORT_MERCHANT_TOPIC_AUDIENCES,
+    ]);
+    return {
+      topics: rows.map((row) => ({
+        code: row.code,
+        labelFr: row.labelFr,
+        sortOrder: row.sortOrder,
+      })),
+    };
+  }
+
+  async listMerchantFaq(
+    accountId: string,
+    merchantId: string,
+  ): Promise<{ articles: SupportFaqArticleDto[] }> {
+    await this.requireMerchantSupportAccess(accountId, merchantId);
+    await this.ensureMerchantSupportSeed();
+    const rows = await this.support.listActiveFaq(
+      SUPPORT_FAQ_AUDIENCE_MERCHANT,
+    );
+    return {
+      articles: rows.map((row) => ({
+        slug: row.slug,
+        titleFr: row.titleFr,
+        bodyFr: row.bodyFr,
+        version: row.version,
+        publishedAt: row.publishedAt,
+      })),
+    };
+  }
+
+  private async requireActiveMerchantTopic(topicCode: string): Promise<void> {
+    const audiences = [...SUPPORT_MERCHANT_TOPIC_AUDIENCES];
+    let topic = await this.support.findActiveTopicByCode(topicCode, audiences);
+    if (!topic) {
+      await this.ensureMerchantSupportSeed();
+      topic = await this.support.findActiveTopicByCode(topicCode, audiences);
+    }
+    if (!topic) {
+      throw supportTopicInvalid();
+    }
+  }
+
+  /**
+   * Seeds default Merchant topics / FAQ only when the audience has no rows at
+   * all (so Admin-deactivated rows are never resurrected). Unique violations
+   * from a concurrent first request are ignored.
+   */
+  async ensureMerchantSupportSeed(): Promise<void> {
+    if (
+      (await this.support.countTopicsForAudience(
+        SUPPORT_TOPIC_AUDIENCE_MERCHANT,
+      )) === 0
+    ) {
+      for (const topic of SUPPORT_MERCHANT_TOPIC_SEED) {
+        try {
+          await this.support.createTopic({
+            ...topic,
+            audience: SUPPORT_TOPIC_AUDIENCE_MERCHANT,
+          });
+        } catch (error) {
+          if (!isPostgresUniqueViolation(error)) {
+            throw error;
+          }
+        }
+      }
+    }
+    if (
+      (await this.support.countFaqForAudience(
+        SUPPORT_FAQ_AUDIENCE_MERCHANT,
+      )) === 0
+    ) {
+      for (const article of SUPPORT_MERCHANT_FAQ_SEED) {
+        try {
+          await this.support.createFaqArticle({
+            ...article,
+            audience: SUPPORT_FAQ_AUDIENCE_MERCHANT,
+            version: SUPPORT_MERCHANT_SEED_VERSION,
+          });
+        } catch (error) {
+          if (!isPostgresUniqueViolation(error)) {
+            throw error;
+          }
+        }
+      }
+    }
   }
 
   async listMerchantTickets(
@@ -452,6 +578,8 @@ export class SupportService {
       status: import('../domain/support.policy').SupportStatus;
       priority: import('../domain/support.policy').SupportPriority;
       assignedAdminId: string | null;
+      topicCode: string | null;
+      subject: string | null;
       createdAt: string;
       updatedAt: string;
     },

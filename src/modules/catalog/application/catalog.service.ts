@@ -12,8 +12,10 @@ import {
 } from '../domain/catalog.errors';
 import {
   CATALOG_PRODUCT_LIST_DEFAULT_LIMIT,
+  normalizeSellingUnit,
   requireCatalogPriceMinor,
   requireOptionGroupRules,
+  resolveSellingUnitUpdate,
 } from '../domain/catalog.policy';
 import {
   toCategoryView,
@@ -38,6 +40,8 @@ import {
   type UpdateProductInput,
 } from '../domain/catalog.types';
 import { CatalogRepository } from '../infrastructure/catalog.repository';
+import { ProductImageRepository } from '../infrastructure/product-image.repository';
+import { MerchantProductImageService } from './merchant-product-image.service';
 
 @Injectable()
 export class CatalogService {
@@ -45,6 +49,8 @@ export class CatalogService {
     private readonly catalog: CatalogRepository,
     private readonly access: MerchantAccessService,
     private readonly merchants: MerchantRepository,
+    private readonly productImages: ProductImageRepository,
+    private readonly merchantProductImages: MerchantProductImageService,
   ) {}
 
   async bootstrap(
@@ -176,8 +182,13 @@ export class CatalogService {
       limit,
       offset,
     });
+    const withImage = await this.productImages.findProductIdsWithImages(
+      result.items.map((item) => item.id),
+    );
     return {
-      items: result.items.map(toProductSummaryView),
+      items: result.items.map((item) =>
+        toProductSummaryView(item, withImage.has(item.id)),
+      ),
       limit,
       offset,
       total: result.total,
@@ -218,9 +229,14 @@ export class CatalogService {
     if (category.merchantBranchId !== branchId) {
       throw catalogCategoryNotFound();
     }
+    const sellingUnit = normalizeSellingUnit({
+      sellingUnitCode: input.sellingUnitCode ?? null,
+      sellingUnitLabelFr: input.sellingUnitLabelFr,
+    });
     const created = await this.catalog.createProduct(branchId, {
       ...input,
       description: this.normalizeDescription(input.description),
+      ...sellingUnit,
     });
     return this.toProductDetail(created);
   }
@@ -249,12 +265,15 @@ export class CatalogService {
         throw catalogCategoryNotFound();
       }
     }
+    const sellingUnit = resolveSellingUnitUpdate(input, product);
     const updated = await this.catalog.updateProduct(product.id, {
       ...input,
       description:
         input.description !== undefined
           ? this.normalizeDescription(input.description)
           : undefined,
+      sellingUnitCode: sellingUnit?.sellingUnitCode,
+      sellingUnitLabelFr: sellingUnit?.sellingUnitLabelFr,
     });
     if (!updated) {
       throw catalogProductNotFound();
@@ -273,9 +292,13 @@ export class CatalogService {
       MERCHANT_CAPABILITIES.PRODUCT_MANAGE,
     );
     const product = await this.requireOwnedProduct(merchantId, productId);
+    const image = await this.productImages.findByProduct(product.id);
     const deleted = await this.catalog.deleteProduct(product.id);
     if (!deleted) {
       throw catalogProductNotFound();
+    }
+    if (image) {
+      await this.merchantProductImages.deleteUnreferencedImage(image.objectId);
     }
     return { deleted: true };
   }
@@ -508,8 +531,9 @@ export class CatalogService {
     const options = await this.catalog.listOptionsByGroupIds(
       groups.map((group) => group.id),
     );
+    const image = await this.productImages.findByProduct(product.id);
     return {
-      ...toProductSummaryView(product),
+      ...toProductSummaryView(product, image != null),
       optionGroups: groups.map((group) =>
         toOptionGroupView(
           group,

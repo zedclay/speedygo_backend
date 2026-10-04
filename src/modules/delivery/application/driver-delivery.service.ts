@@ -40,15 +40,18 @@ import {
   decideArrivalLocation,
   DRIVER_DELIVERY_ACTION_ARRIVE_CUSTOMER,
   DRIVER_DELIVERY_ACTION_ARRIVE_PICKUP,
+  DRIVER_DELIVERY_ACTION_CONFIRM_PICKUP,
   DRIVER_DELIVERY_ACTION_COMPLETE_DELIVERY,
   DRIVER_DELIVERY_DROPOFF_RADIUS_METERS,
   DRIVER_DELIVERY_PICKUP_RADIUS_METERS,
   transitionForAction,
   type DriverDeliveryAction,
 } from '../domain/driver-delivery.policy';
+import type { ConfirmPickupBody } from '../domain/pickup-handoff.types';
 import { DeliveryRepository } from '../infrastructure/delivery.repository';
 import { DriverRemunerationService } from '../../driver-remuneration/application/driver-remuneration.service';
 import { NotificationService } from '../../notifications/application/notification.service';
+import { PickupHandoffService } from './pickup-handoff.service';
 
 export type DriverCurrentDeliveryView = {
   assignmentId: string;
@@ -75,6 +78,7 @@ export class DriverDeliveryService {
     private readonly codCollections: CodCollectionRepository,
     private readonly remuneration: DriverRemunerationService,
     private readonly notifications: NotificationService,
+    private readonly pickupHandoffs: PickupHandoffService,
   ) {}
 
   async getCurrent(
@@ -106,7 +110,11 @@ export class DriverDeliveryService {
   async performAction(
     accountId: string,
     action: DriverDeliveryAction,
+    body?: ConfirmPickupBody,
   ): Promise<DriverCurrentDeliveryView> {
+    if (action === DRIVER_DELIVERY_ACTION_CONFIRM_PICKUP) {
+      return this.confirmPickup(accountId, body);
+    }
     const context = await this.resolveActiveAssignment(accountId, true);
     if (!context) {
       throw driverDeliveryAssignmentNotActive();
@@ -151,6 +159,83 @@ export class DriverDeliveryService {
           driverId: context.driverId,
           pickedUpAt: transition.timestampField === 'pickedUpAt',
           arrivedCustomerAt: transition.timestampField === 'arrivedCustomerAt',
+        },
+        tx,
+      );
+    });
+    if (!moved) {
+      throw driverDeliveryInvalidState();
+    }
+    const current = await this.getCurrent(accountId);
+    if (!current) {
+      throw driverDeliveryNotFound();
+    }
+    return current;
+  }
+
+  async confirmPickup(
+    accountId: string,
+    body?: ConfirmPickupBody,
+  ): Promise<DriverCurrentDeliveryView> {
+    const context = await this.resolveActiveAssignment(accountId, true);
+    if (!context) {
+      throw driverDeliveryAssignmentNotActive();
+    }
+    if (
+      await this.pickupHandoffs.isAlreadyConfirmed(
+        context.deliveryId,
+        context.assignmentId,
+        context.driverId,
+      )
+    ) {
+      const current = await this.getCurrent(accountId);
+      if (!current) {
+        throw driverDeliveryNotFound();
+      }
+      return current;
+    }
+    const outcome = await this.pickupHandoffs.verifyForConfirmPickup({
+      deliveryId: context.deliveryId,
+      driverId: context.driverId,
+      assignmentId: context.assignmentId,
+      assignmentVersion: context.assignmentVersion,
+      body,
+    });
+    if (outcome === 'verified') {
+      const current = await this.getCurrent(accountId);
+      if (!current) {
+        throw driverDeliveryNotFound();
+      }
+      return current;
+    }
+    const transition = transitionForAction(DRIVER_DELIVERY_ACTION_CONFIRM_PICKUP);
+    const moved = await this.deliveries.runInTransaction(async (tx) => {
+      const locked = await this.deliveries.lockDelivery(context.deliveryId, tx);
+      if (!locked) {
+        throw driverDeliveryNotFound();
+      }
+      const accepted = await this.drivers.findOpenAcceptedAssignment(
+        context.driverId,
+        tx,
+      );
+      if (
+        !accepted ||
+        accepted.deliveryId !== context.deliveryId ||
+        !isAcceptedAssignment(accepted.status, null)
+      ) {
+        throw driverDeliveryAssignmentNotActive();
+      }
+      if (locked.status !== transition.from) {
+        throw driverDeliveryInvalidState();
+      }
+      return this.deliveries.transitionIfStatus(
+        {
+          deliveryId: context.deliveryId,
+          fromStatus: transition.from,
+          toStatus: transition.to,
+          eventType: transition.eventType,
+          driverId: context.driverId,
+          pickedUpAt: transition.timestampField === 'pickedUpAt',
         },
         tx,
       );
@@ -382,6 +467,7 @@ export class DriverDeliveryService {
   ): Promise<{
     driverId: string;
     assignmentId: string;
+    assignmentVersion: number;
     deliveryId: string;
     orderId: string;
     assignmentStatus: string;
@@ -412,6 +498,7 @@ export class DriverDeliveryService {
     return {
       driverId: profile.id,
       assignmentId: accepted.id,
+      assignmentVersion: accepted.version,
       deliveryId: delivery.id,
       orderId: delivery.orderId,
       assignmentStatus: accepted.status,

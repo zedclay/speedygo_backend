@@ -29,6 +29,7 @@ import {
 import { MerchantAccessService } from './merchant-access.service';
 import { MerchantBranchService } from './merchant-branch.service';
 import { MerchantProfileService } from './merchant-profile.service';
+import type { GeoService } from '../../geo/application/geo.service';
 
 const ACCOUNT_A = '11111111-1111-7111-8111-111111111111';
 const ACCOUNT_B = '22222222-2222-7222-8222-222222222222';
@@ -36,6 +37,39 @@ const ACCOUNT_MANAGER = '33333333-3333-7333-8333-333333333333';
 const ACCOUNT_STAFF = '44444444-4444-7444-8444-444444444444';
 const ACCOUNT_UNKNOWN = '55555555-5555-7555-8555-555555555555';
 const FOREIGN_MERCHANT = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
+
+function stubGeo(): GeoService {
+  return {
+    listWilayas: async () => ({ wilayas: [] }),
+    listCommunes: async () => ({ communes: [] }),
+    assertValidPair: async (wilayaCode: string, communeId: number) => {
+      if (wilayaCode !== '16' || communeId !== 556) {
+        throw new Error('unexpected geo pair in unit stub');
+      }
+      return { wilayaNameFr: 'Alger', communeNameFr: 'Alger Centre' };
+    },
+    resolveDisplayNames: async () => ({
+      wilayaNameFr: null,
+      communeNameFr: null,
+    }),
+    resolveDisplayNamesForBranches: async (
+      branches: Array<{ wilayaCode: string | null; communeId: number | null }>,
+    ) => {
+      const out = new Map<
+        string,
+        { wilayaNameFr: string | null; communeNameFr: string | null }
+      >();
+      for (const branch of branches) {
+        const key = `${branch.wilayaCode ?? ''}:${branch.communeId ?? ''}`;
+        out.set(key, {
+          wilayaNameFr: branch.wilayaCode === '16' ? 'Alger' : null,
+          communeNameFr: branch.communeId === 556 ? 'Alger Centre' : null,
+        });
+      }
+      return out;
+    },
+  } as unknown as GeoService;
+}
 
 function now(): string {
   return new Date().toISOString();
@@ -47,6 +81,8 @@ const BRANCH_INPUT = {
   addressText: 'Street 1',
   latitude: 36.75,
   longitude: 3.05,
+  wilayaCode: '16',
+  communeId: 556,
 };
 
 class MemoryMerchantRepository {
@@ -54,6 +90,10 @@ class MemoryMerchantRepository {
   members: MerchantMemberRecord[] = [];
   branches = new Map<string, MerchantBranchRecord[]>();
   documents = new Map<string, MerchantDocumentSummary[]>();
+  classifications = new Map<
+    string,
+    { verticalId: string; slug: string; name: string; iconKey: string }
+  >();
   private locks = new Map<string, Promise<unknown>>();
 
   listMembershipsByAccountId(
@@ -104,6 +144,24 @@ class MemoryMerchantRepository {
     return Promise.resolve(
       merchantIds.flatMap((id) => this.documents.get(id) ?? []),
     );
+  }
+
+  listBranchClassifications(branchIds: string[]) {
+    const out = new Map<
+      string,
+      { verticalId: string; slug: string; name: string; iconKey: string }
+    >();
+    for (const id of branchIds) {
+      const row = this.classifications.get(id);
+      if (row) {
+        out.set(id, row);
+      }
+    }
+    return Promise.resolve(out);
+  }
+
+  loadVerificationRecords(): Promise<Map<string, never>> {
+    return Promise.resolve(new Map<string, never>());
   }
 
   createMerchantWithOwner(
@@ -221,7 +279,12 @@ class MemoryMerchantRepository {
       addressText: input.addressText,
       latitude: input.latitude,
       longitude: input.longitude,
+      wilayaCode: input.wilayaCode,
+      communeId: input.communeId,
       operationalStatus: MERCHANT_BRANCH_OPERATIONAL_STATUS_ACTIVE,
+      description: null,
+      nameAr: null,
+      publicEmail: null,
       createdAt: now(),
       updatedAt: now(),
     };
@@ -254,6 +317,21 @@ class MemoryMerchantRepository {
     }
     if (input.longitude !== undefined) {
       row.longitude = input.longitude;
+    }
+    if (input.wilayaCode !== undefined) {
+      row.wilayaCode = input.wilayaCode;
+    }
+    if (input.communeId !== undefined) {
+      row.communeId = input.communeId;
+    }
+    if (input.description !== undefined) {
+      row.description = input.description;
+    }
+    if (input.nameAr !== undefined) {
+      row.nameAr = input.nameAr;
+    }
+    if (input.publicEmail !== undefined) {
+      row.publicEmail = input.publicEmail;
     }
     row.updatedAt = now();
     return Promise.resolve(row);
@@ -335,8 +413,9 @@ describe('Merchant foundation services', () => {
   beforeEach(() => {
     repo = new MemoryMerchantRepository();
     access = new MerchantAccessService(repo as never);
-    profiles = new MerchantProfileService(repo as never, access);
-    branches = new MerchantBranchService(repo as never, access, config());
+    const geo = stubGeo();
+    profiles = new MerchantProfileService(repo as never, access, geo);
+    branches = new MerchantBranchService(repo as never, access, geo, config());
   });
 
   it('returns empty bootstrap state when membership is absent', async () => {
@@ -515,6 +594,134 @@ describe('Merchant foundation services', () => {
     const me = await profiles.getMe(ACCOUNT_A);
     expect(me.memberships[0]?.branchReady).toBe(false);
     expect(me.memberships[0]?.operationalReady).toBe(false);
+  });
+
+  it('returns null store information and classification on a new branch', async () => {
+    const merchant = await profiles.create(ACCOUNT_A, { name: 'Cafe A' });
+    const created = await branches.create(
+      ACCOUNT_A,
+      merchant.merchantId,
+      BRANCH_INPUT,
+    );
+    expect(created.description).toBeNull();
+    expect(created.nameAr).toBeNull();
+    expect(created.publicEmail).toBeNull();
+    expect(created.classification).toBeNull();
+  });
+
+  it('updates store information with trimming and clears with empty string or null', async () => {
+    const merchant = await profiles.create(ACCOUNT_A, { name: 'Cafe A' });
+    const created = await branches.create(
+      ACCOUNT_A,
+      merchant.merchantId,
+      BRANCH_INPUT,
+    );
+    const updated = await branches.update(
+      ACCOUNT_A,
+      merchant.merchantId,
+      created.id,
+      {
+        description: '  Cuisine maison  ',
+        nameAr: ' مطعم ',
+        publicEmail: ' contact@example.dz ',
+      },
+    );
+    expect(updated.description).toBe('Cuisine maison');
+    expect(updated.nameAr).toBe('مطعم');
+    expect(updated.publicEmail).toBe('contact@example.dz');
+    expect(updated.name).toBe('Main');
+
+    const untouched = await branches.update(
+      ACCOUNT_A,
+      merchant.merchantId,
+      created.id,
+      { name: 'Renamed' },
+    );
+    expect(untouched.description).toBe('Cuisine maison');
+    expect(untouched.publicEmail).toBe('contact@example.dz');
+
+    const cleared = await branches.update(
+      ACCOUNT_A,
+      merchant.merchantId,
+      created.id,
+      { description: '   ', nameAr: '', publicEmail: null },
+    );
+    expect(cleared.description).toBeNull();
+    expect(cleared.nameAr).toBeNull();
+    expect(cleared.publicEmail).toBeNull();
+  });
+
+  it('rejects invalid publicEmail and over-long store information', async () => {
+    const merchant = await profiles.create(ACCOUNT_A, { name: 'Cafe A' });
+    const created = await branches.create(
+      ACCOUNT_A,
+      merchant.merchantId,
+      BRANCH_INPUT,
+    );
+    await expect(
+      branches.update(ACCOUNT_A, merchant.merchantId, created.id, {
+        publicEmail: 'not-an-email',
+      }),
+    ).rejects.toMatchObject({
+      code: MERCHANT_ERROR_CODES.MERCHANT_BRANCH_INVALID,
+    });
+    await expect(
+      branches.update(ACCOUNT_A, merchant.merchantId, created.id, {
+        description: 'x'.repeat(2001),
+      }),
+    ).rejects.toMatchObject({
+      code: MERCHANT_ERROR_CODES.MERCHANT_BRANCH_INVALID,
+    });
+    await expect(
+      branches.update(ACCOUNT_A, merchant.merchantId, created.id, {
+        nameAr: 'x'.repeat(256),
+      }),
+    ).rejects.toMatchObject({
+      code: MERCHANT_ERROR_CODES.MERCHANT_BRANCH_INVALID,
+    });
+  });
+
+  it('forbids STAFF from updating store information', async () => {
+    const created = await profiles.create(ACCOUNT_A, { name: 'Cafe A' });
+    repo.addMember(
+      created.merchantId,
+      ACCOUNT_STAFF,
+      MERCHANT_MEMBER_ROLE_STAFF,
+    );
+    const branch = await branches.create(
+      ACCOUNT_A,
+      created.merchantId,
+      BRANCH_INPUT,
+    );
+    await expect(
+      branches.update(ACCOUNT_STAFF, created.merchantId, branch.id, {
+        description: 'nope',
+      }),
+    ).rejects.toMatchObject({
+      code: MERCHANT_ERROR_CODES.MERCHANT_ROLE_FORBIDDEN,
+    });
+  });
+
+  it('includes classification on branch list and profile bootstrap', async () => {
+    const merchant = await profiles.create(ACCOUNT_A, { name: 'Cafe A' });
+    const created = await branches.create(
+      ACCOUNT_A,
+      merchant.merchantId,
+      BRANCH_INPUT,
+    );
+    const classification = {
+      verticalId: 'vertical-1',
+      slug: 'restaurants',
+      name: 'Restaurants',
+      iconKey: 'restaurant',
+    };
+    repo.classifications.set(created.id, classification);
+    const listed = await branches.list(ACCOUNT_A, merchant.merchantId);
+    expect(listed.branches[0]?.classification).toEqual(classification);
+    const me = await profiles.getMe(ACCOUNT_A);
+    expect(me.memberships[0]?.branches[0]?.classification).toEqual(
+      classification,
+    );
   });
 
   it('lets MANAGER mutate branches and STAFF cannot', async () => {

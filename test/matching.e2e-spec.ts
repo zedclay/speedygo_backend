@@ -1,5 +1,6 @@
 import { getQueueToken } from '@nestjs/bullmq';
 import { INestApplication } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { Test } from '@nestjs/testing';
 import { Queue } from 'bullmq';
 import request from 'supertest';
@@ -28,6 +29,12 @@ import { TestOtpSender } from '../src/modules/auth/infrastructure/otp/test-otp.s
 import { DriverReviewService } from '../src/modules/drivers/application/driver-review.service';
 import { MatchingService } from '../src/modules/matching/application/matching.service';
 import {
+  MATCHING_RECOVERY_JOB_ID,
+  matchingRetryJobId,
+  matchingTimeoutJobId,
+} from '../src/infrastructure/queue/bull-job-id';
+import {
+  MATCHING_JOB_RECOVERY,
   MATCHING_JOB_TIMEOUT,
   MATCHING_QUEUE_NAME,
 } from '../src/modules/matching/domain/matching.jobs';
@@ -35,6 +42,7 @@ import {
   DRIVER_LOCATION_STORE,
   type DriverLocationStore,
 } from '../src/modules/matching/domain/matching.types';
+import { MatchingQueueService } from '../src/modules/matching/infrastructure/matching-queue.service';
 import { MatchingRecoveryService } from '../src/modules/matching/infrastructure/matching-recovery.service';
 import { MatchingProcessor } from '../src/modules/matching/infrastructure/matching.processor';
 
@@ -205,7 +213,7 @@ describe('Driver matching (e2e)', () => {
   async function cleanupByPhone(phoneE164: string): Promise<void> {
     const account = await prisma
       .getDb()
-      .orm.public.Account.where({ phone: phoneE164 })
+      .orm.public.Account.where({ phone: pgVarchar<32>(phoneE164) })
       .first();
     if (!account) {
       return;
@@ -479,6 +487,7 @@ describe('Driver matching (e2e)', () => {
       owner: `0572${suffix}`,
       driverA: `0573${suffix}`,
       driverB: `0574${suffix}`,
+      driverC: `0575${suffix}`,
     };
     const e164: string[] = [];
     const zoneIds: string[] = [];
@@ -526,6 +535,8 @@ describe('Driver matching (e2e)', () => {
           addressText: 'Street A',
           latitude: 36.75,
           longitude: 3.05,
+          wilayaCode: '16',
+          communeId: 556,
         });
       const branchId = (branch.body as BranchBody).id;
       await ensureBranchOpeningHours(prisma, branchId, accountOwner.id);
@@ -1035,7 +1046,215 @@ describe('Driver matching (e2e)', () => {
           .assignedDriverId,
       ).toBe(driverB);
       expect(JSON.stringify(customerRead.body)).not.toContain('license');
+
+      // Recurring recovery through the real worker: both Drivers are busy, so
+      // several Deliveries sit idle in SEARCHING_DRIVER.
+      const db = prisma.getDb().orm.public;
+      const deliveryOf = async (id: string) =>
+        (await db.Delivery.where({ orderId: id }).first())!;
+      const cancelledDelivery = await deliveryOf(staleOrder);
+      const deliveredDelivery = await deliveryOf(orderId);
+      const assignedDelivery = await deliveryOf(acceptTimeoutOrder);
+      await db.Delivery.where({ id: cancelledDelivery.id }).update({
+        status: 'CANCELLED',
+        updatedAt: pgNow(),
+      });
+      await db.Delivery.where({ id: deliveredDelivery.id }).update({
+        status: 'DELIVERED',
+        updatedAt: pgNow(),
+      });
+      for (const id of [cancelledDelivery.id, deliveredDelivery.id]) {
+        await queue.remove(matchingRetryJobId(id));
+      }
+      await request(server)
+        .post('/api/v1/customer/cart/items')
+        .set('Authorization', `Bearer ${tokenCustomer}`)
+        .send({ productId, quantity: 1, optionIds: [largeId] });
+      const cancelPreview = await request(server)
+        .post('/api/v1/customer/checkout/preview')
+        .set('Authorization', `Bearer ${tokenCustomer}`)
+        .send({ addressId: homeId });
+      const cancelCreated = await request(server)
+        .post('/api/v1/customer/orders')
+        .set('Authorization', `Bearer ${tokenCustomer}`)
+        .send({
+          addressId: homeId,
+          paymentMethod: 'COD',
+          expectedMerchandiseSubtotalMinor: Number(
+            (cancelPreview.body as PreviewBody).merchandiseSubtotalMinor,
+          ),
+          expectedDeliveryFeeMinor: Number(
+            (cancelPreview.body as PreviewBody).deliveryFeeMinor,
+          ),
+          expectedCustomerTotalMinor: Number(
+            (cancelPreview.body as PreviewBody).customerTotalMinor,
+          ),
+        });
+      expect(cancelCreated.status).toBe(201);
+      const cancelledOrderId = (cancelCreated.body as { id: string }).id;
+      const cancelled = await request(server)
+        .post(`/api/v1/customer/orders/${cancelledOrderId}/cancel`)
+        .set('Authorization', `Bearer ${tokenCustomer}`)
+        .send({});
+      expect(cancelled.status).toBe(200);
+
+      const customerOrderIds = (
+        await db.Order.where({
+          customerId: (await db.CustomerProfile.where({
+            accountId: accountCustomer.id,
+          }).first())!.id,
+        }).all()
+      ).map((row) => row.id);
+      const assignmentSnapshot = async () => {
+        const rows: Array<{ id: string; deliveryId: string; status: string }> =
+          [];
+        for (const id of customerOrderIds) {
+          const delivery = await db.Delivery.where({ orderId: id }).first();
+          if (delivery) {
+            rows.push(
+              ...(await db.DriverAssignment.where({
+                deliveryId: delivery.id,
+              }).all()),
+            );
+          }
+        }
+        return rows
+          .map((row) => `${row.id}:${row.deliveryId}:${row.status}`)
+          .sort();
+      };
+      const expectNoDuplicates = async () => {
+        for (const id of customerOrderIds) {
+          const deliveries = await db.Delivery.where({ orderId: id }).all();
+          expect(deliveries.length).toBeLessThanOrEqual(1);
+          for (const delivery of deliveries) {
+            const open = await db.DriverAssignment.where({
+              deliveryId: delivery.id,
+              releasedAt: null,
+            }).all();
+            expect(open.length).toBeLessThanOrEqual(1);
+          }
+        }
+        expect(
+          await db.Delivery.where({ orderId: cancelledOrderId }).all(),
+        ).toHaveLength(0);
+        expect(
+          (await db.Order.where({ id: cancelledOrderId }).first())?.status,
+        ).toBe('CANCELLED');
+        expect(
+          (await db.Delivery.where({ id: cancelledDelivery.id }).first())
+            ?.status,
+        ).toBe('CANCELLED');
+        expect(
+          (await db.Delivery.where({ id: deliveredDelivery.id }).first())
+            ?.status,
+        ).toBe('DELIVERED');
+        expect(
+          (await db.Delivery.where({ id: assignedDelivery.id }).first())
+            ?.status,
+        ).toBe('DRIVER_ASSIGNED');
+        for (const id of [cancelledDelivery.id, deliveredDelivery.id]) {
+          expect(await queue.getJob(matchingRetryJobId(id))).toBeUndefined();
+        }
+      };
+      const sweeps = jest.spyOn(recovery, 'recover');
+      const waitForSweeps = async (count: number) => {
+        const target = sweeps.mock.calls.length + count;
+        const started = Date.now();
+        while (sweeps.mock.calls.length < target) {
+          if (Date.now() - started > 10_000) {
+            throw new Error('recovery sweep did not recur');
+          }
+          await new Promise((resolve) => setTimeout(resolve, 50));
+        }
+      };
+      const appConfig = app.get(ConfigService);
+      const schedulerAt = (every: number) =>
+        new MatchingQueueService(queue, {
+          get: (key: string, fallback?: unknown): unknown =>
+            key === 'matching.recoveryIntervalMs'
+              ? every
+              : appConfig.get<unknown>(key, fallback),
+        } as ConfigService);
+
+      const beforeSweeps = await assignmentSnapshot();
+      await schedulerAt(400).onModuleInit();
+      await waitForSweeps(4);
+      expect(await queue.getJobSchedulers()).toHaveLength(1);
+      expect(await assignmentSnapshot()).toEqual(beforeSweeps);
+      await expectNoDuplicates();
+
+      // Restart: a fresh service instance re-upserts the same scheduler.
+      await schedulerAt(600).onModuleInit();
+      const schedulers = await queue.getJobSchedulers();
+      expect(schedulers).toHaveLength(1);
+      expect(schedulers[0].key).toBe(MATCHING_RECOVERY_JOB_ID);
+      expect(schedulers[0].every).toBe(600);
+      const pendingSweeps = (
+        await queue.getJobs(['waiting', 'delayed', 'prioritized'])
+      ).filter((job) => job.name === MATCHING_JOB_RECOVERY);
+      expect(pendingSweeps.length).toBeLessThanOrEqual(1);
+      await waitForSweeps(3);
+      expect(await assignmentSnapshot()).toEqual(beforeSweeps);
+      await expectNoDuplicates();
+
+      // A newly available Driver resumes the idle search without new events.
+      const tokenC = await authenticate(phones.driverC);
+      e164.push((await authMe(tokenC)).phone);
+      const driverC = await onboardApprovedDriver(
+        tokenC,
+        'New Driver',
+        `MC${suffix}`,
+      );
+      await locations.upsert(
+        driverC,
+        36.7502,
+        3.0502,
+        new Date().toISOString(),
+      );
+      const resumeStarted = Date.now();
+      let offersC = await db.DriverAssignment.where({
+        driverId: driverC,
+        releasedAt: null,
+      }).all();
+      while (offersC.length === 0 && Date.now() - resumeStarted < 40_000) {
+        await new Promise((resolve) => setTimeout(resolve, 250));
+        offersC = await db.DriverAssignment.where({
+          driverId: driverC,
+          releasedAt: null,
+        }).all();
+      }
+      expect(offersC).toHaveLength(1);
+      const offerC = offersC[0];
+      expect(offerC.status).toBe('OFFERED');
+      expect([
+        cancelledDelivery.id,
+        deliveredDelivery.id,
+        assignedDelivery.id,
+      ]).not.toContain(offerC.deliveryId);
+      expect(
+        (await db.Delivery.where({ id: offerC.deliveryId }).first())?.status,
+      ).toBe('SEARCHING_DRIVER');
+      await expectNoDuplicates();
+
+      await waitForSweeps(3);
+      const offersCAfter = await db.DriverAssignment.where({
+        driverId: driverC,
+        releasedAt: null,
+      }).all();
+      expect(offersCAfter).toHaveLength(1);
+      expect(offersCAfter[0].id).toBe(offerC.id);
+      expect(String(offersCAfter[0].assignedAt)).toBe(
+        String(offerC.assignedAt),
+      );
+      expect(await queue.getJob(matchingTimeoutJobId(offerC.id))).toBeTruthy();
+      expect(
+        (await db.DriverAssignment.where({ driverId: driverC }).all()).length,
+      ).toBe(1);
+      await expectNoDuplicates();
+      await queue.removeJobScheduler(MATCHING_RECOVERY_JOB_ID);
+      sweeps.mockRestore();
     } finally {
+      await queue.removeJobScheduler(MATCHING_RECOVERY_JOB_ID).catch(() => {});
       if (e164[0]) {
         await cleanupByPhone(e164[0]);
       }

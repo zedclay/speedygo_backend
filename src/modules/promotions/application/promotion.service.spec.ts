@@ -8,6 +8,9 @@ describe('PromotionService', () => {
     findById: jest.Mock;
     createPromotion: jest.Mock;
     setActive: jest.Mock;
+    setCustomerDiscovery: jest.Mock;
+    listDiscoverableCandidates: jest.Mock;
+    findCustomerProfileIdByAccountId: jest.Mock;
     lockPromotion: jest.Mock;
     countRedemptionsForOrder: jest.Mock;
     createRedemption: jest.Mock;
@@ -22,6 +25,9 @@ describe('PromotionService', () => {
       findById: jest.fn(),
       createPromotion: jest.fn(),
       setActive: jest.fn(),
+      setCustomerDiscovery: jest.fn(),
+      listDiscoverableCandidates: jest.fn().mockResolvedValue([]),
+      findCustomerProfileIdByAccountId: jest.fn().mockResolvedValue('cust-1'),
       lockPromotion: jest.fn().mockResolvedValue(undefined),
       countRedemptionsForOrder: jest.fn().mockResolvedValue(0),
       createRedemption: jest.fn(),
@@ -38,6 +44,8 @@ describe('PromotionService', () => {
     startsAt: '2020-01-01T00:00:00.000Z',
     endsAt: '2099-01-01T00:00:00.000Z',
     active: true,
+    customerDiscoverable: false,
+    customerLabel: null,
     createdAt: '2020-01-01T00:00:00.000Z',
     updatedAt: '2020-01-01T00:00:00.000Z',
   };
@@ -109,5 +117,21 @@ describe('PromotionService', () => {
     ).rejects.toMatchObject({
       code: PROMOTION_ERROR_CODES.PROMOTION_NOT_FOUND,
     });
+  });
+
+  it('lists discoverable promotions without creating a redemption', async () => {
+    repo.listDiscoverableCandidates.mockResolvedValue([
+      { ...promo, customerDiscoverable: true, customerLabel: 'Offre' },
+    ]);
+    const listed = await service.listDiscoverableForCustomer(
+      'acc-1',
+      new Date('2026-01-01T00:00:00.000Z'),
+    );
+    expect(listed.items).toHaveLength(1);
+    expect(listed.items[0]?.discountKind).toBe('RATE_BPS');
+    expect(listed.items[0]?.value).toBe(1000);
+    expect(listed.items[0]).not.toHaveProperty('type');
+    expect(repo.createRedemption).not.toHaveBeenCalled();
+    expect(repo.lockPromotion).not.toHaveBeenCalled();
   });
 });

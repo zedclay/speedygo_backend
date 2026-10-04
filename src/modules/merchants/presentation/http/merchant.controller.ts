@@ -9,6 +9,9 @@ import {
   Patch,
   Post,
   Put,
+  Query,
+  Res,
+  StreamableFile,
   UploadedFile,
   UseInterceptors,
 } from '@nestjs/common';
@@ -24,18 +27,30 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import type { AuthenticatedPrincipal } from '../../../auth/domain/auth.types';
 import { CurrentPrincipal } from '../../../auth/presentation/http/decorators/current-principal.decorator';
+import {
+  COVER_MAX_BYTES,
+  LOGO_MAX_BYTES,
+} from '../../../../infrastructure/storage/domain/cover-media.policy';
 import { STORAGE_MAX_BYTES } from '../../../../infrastructure/storage/domain/content-validation';
 import { storageMalformedMultipart } from '../../../../infrastructure/storage/domain/storage.errors';
+import { MerchantBranchCoverService } from '../../application/merchant-branch-cover.service';
+import { MerchantBranchLogoService } from '../../application/merchant-branch-logo.service';
 import { MerchantBranchService } from '../../application/merchant-branch.service';
 import { MerchantProfileService } from '../../application/merchant-profile.service';
 import { MerchantVerificationService } from '../../application/merchant-verification.service';
 import { OpeningHoursService } from '../../application/opening-hours.service';
+import { OpeningHoursExceptionService } from '../../application/opening-hours-exception.service';
+import { BranchAvailabilityService } from '../../application/branch-availability.service';
 import { MERCHANT_ERROR_CODES } from '../../domain/merchant.errors';
 import { OPENING_HOURS_ERROR_CODES } from '../../domain/opening-hours.errors';
+import { OPENING_HOURS_EXCEPTION_ERROR_CODES } from '../../domain/opening-hours-exception.errors';
+import { AVAILABILITY_ERROR_CODES } from '../../domain/branch-availability.errors';
 import { MERCHANT_DOCUMENT_TYPES } from '../../domain/merchant.policy';
 import {
+  MerchantCurrentLegalResponseDto,
   MerchantBranchListResponseDto,
   MerchantBranchResponseDto,
   MerchantDeletedResponseDto,
@@ -44,8 +59,11 @@ import {
   MerchantVerificationPackageResponseDto,
 } from './dto/merchant-response.dto';
 import {
+  BindMerchantBranchCoverDto,
+  BindMerchantBranchLogoDto,
   CreateMerchantBranchDto,
   CreateMerchantProfileDto,
+  SubmitMerchantVerificationDto,
   UpdateMerchantBranchDto,
   UpdateMerchantProfileDto,
   UpsertMerchantDocumentDto,
@@ -54,6 +72,16 @@ import {
   OpeningHoursResponseDto,
   PutOpeningHoursDto,
 } from './dto/opening-hours.dto';
+import {
+  BranchAvailabilityResponseDto,
+  PutBranchAvailabilityDto,
+} from './dto/branch-availability.dto';
+import {
+  OpeningHoursExceptionDeletedResponseDto,
+  OpeningHoursExceptionListResponseDto,
+  OpeningHoursExceptionResponseDto,
+  PutOpeningHoursExceptionDto,
+} from './dto/opening-hours-exception.dto';
 
 @ApiTags('merchant')
 @ApiBearerAuth()
@@ -64,6 +92,10 @@ export class MerchantController {
     private readonly branches: MerchantBranchService,
     private readonly verification: MerchantVerificationService,
     private readonly openingHours: OpeningHoursService,
+    private readonly availability: BranchAvailabilityService,
+    private readonly covers: MerchantBranchCoverService,
+    private readonly logos: MerchantBranchLogoService,
+    private readonly hoursExceptions: OpeningHoursExceptionService,
   ) {}
 
   @Get('me')
@@ -75,6 +107,17 @@ export class MerchantController {
   @ApiOkResponse({ type: MerchantMeResponseDto })
   getMe(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
     return this.profiles.getMe(principal.accountId);
+  }
+
+  @Get('legal/current')
+  @ApiOperation({
+    summary: 'Current active legal document versions',
+    description:
+      'Authenticated. Returns the active MERCHANT_TERMS and DOSSIER_ACCURACY_DECLARATION versions required by POST :merchantId/verification/submit. Seeds the default version 2026-10-03 for any kind with no active row. Registered before :merchantId routes.',
+  })
+  @ApiOkResponse({ type: MerchantCurrentLegalResponseDto })
+  getCurrentLegal() {
+    return this.verification.getCurrentLegalVersions();
   }
 
   @Post('profile')
@@ -125,7 +168,7 @@ export class MerchantController {
   @ApiOperation({
     summary: 'Merchant verification package for an accessible Merchant',
     description:
-      'OWNER: full checklist and document metadata (no fileUrl). MANAGER: verification status and readiness/attention only (no document metadata). STAFF forbidden. status/verifiedAt are read-only. No binary download. No rejection reason field exists in v1.0.',
+      'OWNER: full checklist and document metadata (no fileUrl). MANAGER: verification status and readiness/attention only (no document metadata). STAFF forbidden. status/verifiedAt are read-only. No binary download. Includes submittedAt, reviewedAt, attemptNumber, legalAcceptance (OWNER), currentIssues (OWNER) and unresolvedIssueCount; null/empty for legacy Merchants.',
   })
   @ApiOkResponse({ type: MerchantVerificationPackageResponseDto })
   @ApiResponse({
@@ -233,9 +276,16 @@ export class MerchantController {
   @ApiOperation({
     summary: 'Submit Merchant verification package for trusted review',
     description:
-      'OWNER only. Requires verificationReady. Marks required evidence SUBMITTED. Does not set ACTIVE. From REJECTED transitions Merchant to PENDING_REVIEW then submits. Repeat submit while already submitted is MERCHANT_VERIFICATION_INVALID_STATE.',
+      'OWNER only. Requires verificationReady and body.acceptances for both active legal kinds at their current versions. Creates a verification submission (attempt n+1) with append-only legal acceptances, marks required evidence SUBMITTED. Does not set ACTIVE. From REJECTED transitions Merchant to PENDING_REVIEW then submits. Repeat submit while already submitted is MERCHANT_VERIFICATION_INVALID_STATE.',
   })
   @ApiOkResponse({ type: MerchantMembershipResponseDto })
+  @ApiResponse({
+    status: 400,
+    description:
+      MERCHANT_ERROR_CODES.LEGAL_ACCEPTANCE_REQUIRED +
+      ' / ' +
+      MERCHANT_ERROR_CODES.LEGAL_VERSION_OUTDATED,
+  })
   @ApiResponse({
     status: 403,
     description: MERCHANT_ERROR_CODES.MERCHANT_ROLE_FORBIDDEN,
@@ -254,10 +304,12 @@ export class MerchantController {
   submitVerification(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Body() body: SubmitMerchantVerificationDto,
   ) {
     return this.verification.submitVerification(
       principal.accountId,
       merchantId,
+      body.acceptances ?? [],
     );
   }
 
@@ -314,6 +366,8 @@ export class MerchantController {
       addressText: body.addressText,
       latitude: body.latitude,
       longitude: body.longitude,
+      wilayaCode: body.wilayaCode,
+      communeId: body.communeId,
     });
   }
 
@@ -348,6 +402,11 @@ export class MerchantController {
       addressText: body.addressText,
       latitude: body.latitude,
       longitude: body.longitude,
+      wilayaCode: body.wilayaCode,
+      communeId: body.communeId,
+      description: body.description,
+      nameAr: body.nameAr,
+      publicEmail: body.publicEmail,
     });
   }
 
@@ -443,5 +502,405 @@ export class MerchantController {
         days: body.days,
       },
     );
+  }
+
+  @Get(':merchantId/branches/:branchId/opening-hours/exceptions')
+  @ApiOperation({
+    summary: 'List upcoming Branch opening-hours exceptions',
+    description:
+      'MERCHANT_READ (all Merchant roles). Exceptions dated today or later (Africa/Algiers) in date order. Each replaces the weekly schedule for its civil date only.',
+  })
+  @ApiOkResponse({ type: OpeningHoursExceptionListResponseDto })
+  @ApiResponse({
+    status: 404,
+    description: MERCHANT_ERROR_CODES.MERCHANT_BRANCH_NOT_FOUND,
+  })
+  listOpeningHoursExceptions(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+  ) {
+    return this.hoursExceptions.list(principal.accountId, merchantId, branchId);
+  }
+
+  @Put(':merchantId/branches/:branchId/opening-hours/exceptions/:date')
+  @ApiOperation({
+    summary: 'Create or replace the opening-hours exception for one date',
+    description:
+      'MERCHANT_BRANCH_UPDATE (OWNER, MANAGER). date is YYYY-MM-DD in Africa/Algiers, today..today+365. closed=true closes the whole date; otherwise 1–3 same-day intervals replace the weekly schedule for that date. expectedVersion=0 creates. Stale version → 409 OPENING_HOURS_EXCEPTION_VERSION_CONFLICT with error.openingHoursException (current row or null). Requires weekly hours.',
+  })
+  @ApiParam({ name: 'date', example: '2026-10-05' })
+  @ApiOkResponse({ type: OpeningHoursExceptionResponseDto })
+  @ApiResponse({
+    status: 400,
+    description:
+      OPENING_HOURS_EXCEPTION_ERROR_CODES.OPENING_HOURS_EXCEPTION_INVALID,
+  })
+  @ApiResponse({
+    status: 403,
+    description: MERCHANT_ERROR_CODES.MERCHANT_ROLE_FORBIDDEN,
+  })
+  @ApiResponse({
+    status: 409,
+    description: `${OPENING_HOURS_EXCEPTION_ERROR_CODES.OPENING_HOURS_EXCEPTION_VERSION_CONFLICT} | ${OPENING_HOURS_EXCEPTION_ERROR_CODES.OPENING_HOURS_EXCEPTION_WEEKLY_REQUIRED}`,
+  })
+  putOpeningHoursException(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+    @Param('date') date: string,
+    @Body() body: PutOpeningHoursExceptionDto,
+  ) {
+    return this.hoursExceptions.put(
+      principal.accountId,
+      merchantId,
+      branchId,
+      date,
+      {
+        expectedVersion: body.expectedVersion,
+        closed: body.closed,
+        intervals: body.intervals,
+        label: body.label,
+        customerMessage: body.customerMessage,
+      },
+    );
+  }
+
+  @Delete(':merchantId/branches/:branchId/opening-hours/exceptions/:date')
+  @ApiOperation({
+    summary: 'Delete the opening-hours exception for one date',
+    description:
+      'MERCHANT_BRANCH_UPDATE. Query expectedVersion must match. The date falls back to the weekly schedule. Missing → 404 OPENING_HOURS_EXCEPTION_NOT_FOUND; stale → 409.',
+  })
+  @ApiParam({ name: 'date', example: '2026-10-05' })
+  @ApiOkResponse({ type: OpeningHoursExceptionDeletedResponseDto })
+  @ApiResponse({
+    status: 404,
+    description:
+      OPENING_HOURS_EXCEPTION_ERROR_CODES.OPENING_HOURS_EXCEPTION_NOT_FOUND,
+  })
+  @ApiResponse({
+    status: 409,
+    description:
+      OPENING_HOURS_EXCEPTION_ERROR_CODES.OPENING_HOURS_EXCEPTION_VERSION_CONFLICT,
+  })
+  deleteOpeningHoursException(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+    @Param('date') date: string,
+    @Query('expectedVersion') expectedVersion: string,
+  ) {
+    const parsed = /^\d+$/.test(expectedVersion ?? '')
+      ? Number(expectedVersion)
+      : Number.NaN;
+    return this.hoursExceptions.remove(
+      principal.accountId,
+      merchantId,
+      branchId,
+      date,
+      parsed,
+    );
+  }
+
+  @Get(':merchantId/branches/:branchId/availability')
+  @ApiOperation({
+    summary: 'Get Branch availability override + effective open state',
+    description:
+      'MERCHANT_READ. FOLLOW_SCHEDULE means weekly hours decide (not Ouvert). isOpenNow/acceptingOrders are effective. Expired temporary overrides are evaluated without DB writes. operationalStatus is separate.',
+  })
+  @ApiOkResponse({ type: BranchAvailabilityResponseDto })
+  @ApiResponse({
+    status: 403,
+    description: MERCHANT_ERROR_CODES.MERCHANT_ROLE_FORBIDDEN,
+  })
+  @ApiResponse({
+    status: 404,
+    description: MERCHANT_ERROR_CODES.MERCHANT_BRANCH_NOT_FOUND,
+  })
+  async getAvailability(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+  ): Promise<BranchAvailabilityResponseDto> {
+    const view = await this.availability.getForMerchant(
+      principal.accountId,
+      merchantId,
+      branchId,
+    );
+    return this.toAvailabilityResponse(view);
+  }
+
+  @Put(':merchantId/branches/:branchId/availability')
+  @ApiOperation({
+    summary: 'Set Branch availability override',
+    description:
+      'MERCHANT_BRANCH_UPDATE. expectedVersion=0 creates. TEMPORARY_CLOSED requires future closedUntil. FORCE_CLOSED has null closedUntil. Version conflict → AVAILABILITY_VERSION_CONFLICT (reload).',
+  })
+  @ApiOkResponse({ type: BranchAvailabilityResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: AVAILABILITY_ERROR_CODES.AVAILABILITY_INVALID,
+  })
+  @ApiResponse({
+    status: 403,
+    description: MERCHANT_ERROR_CODES.MERCHANT_ROLE_FORBIDDEN,
+  })
+  @ApiResponse({
+    status: 404,
+    description: MERCHANT_ERROR_CODES.MERCHANT_BRANCH_NOT_FOUND,
+  })
+  @ApiResponse({
+    status: 409,
+    description: AVAILABILITY_ERROR_CODES.AVAILABILITY_VERSION_CONFLICT,
+  })
+  async putAvailability(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+    @Body() body: PutBranchAvailabilityDto,
+  ): Promise<BranchAvailabilityResponseDto> {
+    const view = await this.availability.putForMerchant(
+      principal.accountId,
+      merchantId,
+      branchId,
+      {
+        expectedVersion: body.expectedVersion,
+        mode: body.mode,
+        reasonCode: body.reasonCode,
+        customerMessage: body.customerMessage,
+        closedUntil: body.closedUntil,
+      },
+    );
+    return this.toAvailabilityResponse(view);
+  }
+
+  private toAvailabilityResponse(
+    view: Awaited<ReturnType<BranchAvailabilityService['getForMerchant']>>,
+  ): BranchAvailabilityResponseDto {
+    return {
+      branchId: view.branchId,
+      timezone: view.timezone,
+      availabilityMode: view.availabilityMode,
+      effectiveMode: view.effectiveMode,
+      hoursConfigured: view.hoursConfigured,
+      isOpenNow: view.isOpenNow,
+      acceptingOrders: view.acceptingOrders,
+      temporaryExpired: view.temporaryExpired,
+      outsideWeeklyHours: view.outsideWeeklyHours,
+      hoursException: view.hoursException,
+      reasonCode: view.reasonCode,
+      customerMessage: view.customerMessage,
+      closedUntil: view.closedUntil,
+      nextOpenAt: view.nextOpenAt ? view.nextOpenAt.toISOString() : null,
+      currentClosesAt: view.currentClosesAt
+        ? view.currentClosesAt.toISOString()
+        : null,
+      version: view.version,
+      updatedAt: view.updatedAt,
+    };
+  }
+
+  @Post(':merchantId/branches/:branchId/cover/content')
+  @HttpCode(200)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'JPEG or PNG. 400–4096 px. Max 2 MiB.',
+        },
+      },
+    },
+  })
+  @ApiOperation({
+    summary: 'Upload pending storefront cover bytes',
+    description:
+      'OWNER and MANAGER (MERCHANT_BRANCH_UPDATE). Multipart field `file`. Purpose MERCHANT_BRANCH_COVER only. Returns opaque uploadReference for PUT bind. Never a verification document or public URL.',
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: COVER_MAX_BYTES, files: 1, fields: 0 },
+    }),
+  )
+  uploadBranchCoverContent(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    if (!file?.buffer?.length) {
+      throw storageMalformedMultipart('Expected multipart field "file"');
+    }
+    return this.covers.uploadContent(
+      principal.accountId,
+      merchantId,
+      branchId,
+      {
+        body: file.buffer,
+        declaredMime: file.mimetype,
+        originalFilename: file.originalname,
+      },
+    );
+  }
+
+  @Get(':merchantId/branches/:branchId/cover')
+  @ApiOperation({
+    summary: 'Stream the bound storefront cover',
+    description:
+      'MERCHANT_READ (and stronger roles). Streams the bound covers/ object for an owned Branch. Missing cover → STORAGE_OBJECT_MISSING. Never a verification document or product image.',
+  })
+  async getBranchCover(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const file = await this.covers.readForMerchant(
+      principal.accountId,
+      merchantId,
+      branchId,
+    );
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, max-age=300');
+    return new StreamableFile(file.body);
+  }
+
+  @Put(':merchantId/branches/:branchId/cover')
+  @ApiOperation({
+    summary: 'Bind or replace the storefront cover',
+    description:
+      'OWNER and MANAGER. uploadReference must be a MERCHANT_BRANCH_COVER pending token owned by this Account and Merchant. Replaces the previous covers/ object.',
+  })
+  bindBranchCover(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+    @Body() body: BindMerchantBranchCoverDto,
+  ) {
+    return this.covers.bind(
+      principal.accountId,
+      merchantId,
+      branchId,
+      body.uploadReference,
+    );
+  }
+
+  @Delete(':merchantId/branches/:branchId/cover')
+  @ApiOperation({
+    summary: 'Delete the storefront cover',
+    description: 'OWNER and MANAGER. Removes metadata and the covers/ object.',
+  })
+  deleteBranchCover(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+  ) {
+    return this.covers.remove(principal.accountId, merchantId, branchId);
+  }
+
+  @Post(':merchantId/branches/:branchId/logo/content')
+  @HttpCode(200)
+  @ApiConsumes('multipart/form-data')
+  @ApiBody({
+    schema: {
+      type: 'object',
+      required: ['file'],
+      properties: {
+        file: {
+          type: 'string',
+          format: 'binary',
+          description: 'JPEG or PNG. 128–2048 px. Max 1 MiB.',
+        },
+      },
+    },
+  })
+  @ApiOperation({
+    summary: 'Upload pending store logo bytes',
+    description:
+      'OWNER and MANAGER (MERCHANT_BRANCH_UPDATE). Multipart field `file`. Purpose MERCHANT_BRANCH_LOGO only. Returns opaque uploadReference for PUT bind. A cover token cannot be bound as a logo.',
+  })
+  @UseInterceptors(
+    FileInterceptor('file', {
+      limits: { fileSize: LOGO_MAX_BYTES, files: 1, fields: 0 },
+    }),
+  )
+  uploadBranchLogoContent(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+    @UploadedFile() file: Express.Multer.File | undefined,
+  ) {
+    if (!file?.buffer?.length) {
+      throw storageMalformedMultipart('Expected multipart field "file"');
+    }
+    return this.logos.uploadContent(principal.accountId, merchantId, branchId, {
+      body: file.buffer,
+      declaredMime: file.mimetype,
+      originalFilename: file.originalname,
+    });
+  }
+
+  @Get(':merchantId/branches/:branchId/logo')
+  @ApiOperation({
+    summary: 'Stream the bound store logo',
+    description:
+      'MERCHANT_READ (all Merchant roles). Streams the bound logos/ object for an owned Branch. ETag changes on every replacement; Cache-Control private, no-cache. Missing logo → STORAGE_OBJECT_MISSING (404).',
+  })
+  async getBranchLogo(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+    @Res({ passthrough: true }) res: Response,
+  ): Promise<StreamableFile> {
+    const file = await this.logos.readForMerchant(
+      principal.accountId,
+      merchantId,
+      branchId,
+    );
+    res.setHeader('Content-Type', file.contentType);
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('Cache-Control', 'private, no-cache');
+    res.setHeader('ETag', `"${file.version}"`);
+    return new StreamableFile(file.body);
+  }
+
+  @Put(':merchantId/branches/:branchId/logo')
+  @ApiOperation({
+    summary: 'Bind or replace the store logo',
+    description:
+      'OWNER and MANAGER. uploadReference must be a MERCHANT_BRANCH_LOGO pending token owned by this Account, Merchant and Branch. Each bind creates a new logos/ object; the replaced object is deleted only when unreferenced.',
+  })
+  bindBranchLogo(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+    @Body() body: BindMerchantBranchLogoDto,
+  ) {
+    return this.logos.bind(
+      principal.accountId,
+      merchantId,
+      branchId,
+      body.uploadReference,
+    );
+  }
+
+  @Delete(':merchantId/branches/:branchId/logo')
+  @ApiOperation({
+    summary: 'Delete the store logo',
+    description:
+      'OWNER and MANAGER. Removes logo metadata and the logos/ object. Idempotent: deleting a missing logo returns deleted=true.',
+  })
+  deleteBranchLogo(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('branchId', new ParseUUIDPipe()) branchId: string,
+  ) {
+    return this.logos.remove(principal.accountId, merchantId, branchId);
   }
 }

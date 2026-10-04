@@ -56,6 +56,20 @@ export default () => ({
       86_400_000,
     ),
   },
+  push: {
+    provider: process.env.PUSH_PROVIDER ?? 'disabled',
+    fcmProjectId: process.env.FCM_PROJECT_ID ?? '',
+    fcmServiceAccountFile: process.env.FCM_SERVICE_ACCOUNT_FILE ?? '',
+    /** Non-production only (local contract stub). Ignored in production. */
+    fcmApiBaseUrl: process.env.FCM_API_BASE_URL ?? '',
+    requestTimeoutMs: int(process.env.PUSH_REQUEST_TIMEOUT_MS, 10_000),
+    sendMaxAttempts: int(process.env.PUSH_SEND_MAX_ATTEMPTS, 5),
+    sendBackoffMs: int(process.env.PUSH_SEND_BACKOFF_MS, 2_000),
+    pendingSweepMinAgeMs: int(
+      process.env.PUSH_PENDING_SWEEP_MIN_AGE_MS,
+      60_000,
+    ),
+  },
   payments: {
     provider: process.env.PAYMENT_PROVIDER ?? '',
     returnUrl: process.env.PAYMENT_RETURN_URL ?? '',

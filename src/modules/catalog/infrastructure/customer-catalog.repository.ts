@@ -4,6 +4,9 @@ import {
   PrismaService,
   type SpeedyGoDb,
 } from '../../../infrastructure/database/database.module';
+import { customerCoverImagePath } from '../../../infrastructure/storage/domain/cover-media.policy';
+import { customerProductImagePath } from '../../../infrastructure/storage/domain/product-image.policy';
+import type { OpenNowLocalParts } from '../../merchants/domain/opening-hours.open-now-filter';
 import { customerSearchQueryInvalid } from '../domain/customer-catalog.errors';
 import { CUSTOMER_CATALOG_SEARCH_MIN_LENGTH } from '../domain/customer-catalog.policy';
 import type {
@@ -57,8 +60,36 @@ export class CustomerCatalogRepository {
   async listStorefronts(input: {
     limit: number;
     offset: number;
+    verticalId?: string;
+    openNowLocal?: OpenNowLocalParts;
+  }): Promise<CustomerCatalogPage<CustomerStorefrontBase>> {
+    return input.verticalId
+      ? this.listStorefrontsByVertical({
+          limit: input.limit,
+          offset: input.offset,
+          verticalId: input.verticalId,
+          openNowLocal: input.openNowLocal,
+        })
+      : this.listStorefrontsUnfiltered({
+          limit: input.limit,
+          offset: input.offset,
+          openNowLocal: input.openNowLocal,
+        });
+  }
+
+  private async listStorefrontsUnfiltered(input: {
+    limit: number;
+    offset: number;
+    openNowLocal?: OpenNowLocalParts;
   }): Promise<CustomerCatalogPage<CustomerStorefrontBase>> {
     const db = this.db();
+    const openNowFlag = input.openNowLocal !== undefined ? 1 : 0;
+    const localDay = input.openNowLocal?.dayOfWeek ?? 1;
+    const prevDay = input.openNowLocal?.previousDayOfWeek ?? 7;
+    const minute = input.openNowLocal?.minuteOfDay ?? 0;
+    const localDate = input.openNowLocal?.localDate ?? '2000-01-02';
+    const previousLocalDate =
+      input.openNowLocal?.previousLocalDate ?? '2000-01-01';
     const countPlan = db.raw.sql`
         SELECT COUNT(*)::int8 AS total
         FROM merchant_branches b
@@ -67,6 +98,79 @@ export class CustomerCatalogRepository {
           AND m.verified_at IS NOT NULL
           AND length(btrim(m.name)) > 0
           AND b.operational_status = 'ACTIVE'
+          AND (
+            ${openNowFlag} = 0
+            OR (
+              (
+                EXISTS (
+                  SELECT 1
+                  FROM merchant_branch_hours_exceptions he
+                  INNER JOIN merchant_branch_hours_exception_intervals hi ON hi.exception_id = he.id
+                  WHERE he.branch_id = b.id
+                    AND he.local_date = ${localDate}::date
+                    AND he.closed = false
+                    AND ${minute} >= hi.opens_minute
+                    AND (
+                      hi.closes_next_day = true
+                      OR ${minute} < hi.closes_minute
+                    )
+                    AND EXISTS (
+                      SELECT 1
+                      FROM merchant_branch_opening_schedules hs
+                      WHERE hs.branch_id = b.id
+                    )
+                )
+                OR (
+                  NOT EXISTS (
+                    SELECT 1
+                    FROM merchant_branch_hours_exceptions ht
+                    WHERE ht.branch_id = b.id
+                      AND ht.local_date = ${localDate}::date
+                  )
+                  AND EXISTS (
+                  SELECT 1
+                  FROM merchant_branch_opening_schedules s
+                  INNER JOIN merchant_branch_opening_intervals i ON i.schedule_id = s.id
+                  WHERE s.branch_id = b.id
+                    AND (
+                      (
+                        i.day_of_week = ${localDay}
+                        AND ${minute} >= i.opens_minute
+                        AND (
+                          i.closes_next_day = true
+                          OR ${minute} < i.closes_minute
+                        )
+                      )
+                      OR (
+                        i.day_of_week = ${prevDay}
+                        AND i.closes_next_day = true
+                        AND ${minute} < i.closes_minute
+                        AND NOT EXISTS (
+                          SELECT 1
+                          FROM merchant_branch_hours_exceptions hp
+                          WHERE hp.branch_id = b.id
+                            AND hp.local_date = ${previousLocalDate}::date
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                FROM merchant_branch_availability_overrides o
+                WHERE o.branch_id = b.id
+                  AND (
+                    o.mode = 'FORCE_CLOSED'
+                    OR (
+                      o.mode = 'TEMPORARY_CLOSED'
+                      AND o.closed_until IS NOT NULL
+                      AND o.closed_until > NOW()
+                    )
+                  )
+              )
+            )
+          )
       `
       .returnsRow({ total: 'pg/int8@1' })
       .build();
@@ -85,26 +189,308 @@ export class CustomerCatalogRepository {
           b.longitude,
           m.id AS merchant_id,
           m.name AS merchant_name,
-          m.public_reference
+          m.public_reference,
+          cov.object_id::varchar AS cover_object_id
         FROM merchant_branches b
         INNER JOIN merchants m ON m.id = b.merchant_id
+        LEFT JOIN merchant_branch_covers cov ON cov.branch_id = b.id
         WHERE m.status = 'ACTIVE'
           AND m.verified_at IS NOT NULL
           AND length(btrim(m.name)) > 0
           AND b.operational_status = 'ACTIVE'
+          AND (
+            ${openNowFlag} = 0
+            OR (
+              (
+                EXISTS (
+                  SELECT 1
+                  FROM merchant_branch_hours_exceptions he
+                  INNER JOIN merchant_branch_hours_exception_intervals hi ON hi.exception_id = he.id
+                  WHERE he.branch_id = b.id
+                    AND he.local_date = ${localDate}::date
+                    AND he.closed = false
+                    AND ${minute} >= hi.opens_minute
+                    AND (
+                      hi.closes_next_day = true
+                      OR ${minute} < hi.closes_minute
+                    )
+                    AND EXISTS (
+                      SELECT 1
+                      FROM merchant_branch_opening_schedules hs
+                      WHERE hs.branch_id = b.id
+                    )
+                )
+                OR (
+                  NOT EXISTS (
+                    SELECT 1
+                    FROM merchant_branch_hours_exceptions ht
+                    WHERE ht.branch_id = b.id
+                      AND ht.local_date = ${localDate}::date
+                  )
+                  AND EXISTS (
+                  SELECT 1
+                  FROM merchant_branch_opening_schedules s
+                  INNER JOIN merchant_branch_opening_intervals i ON i.schedule_id = s.id
+                  WHERE s.branch_id = b.id
+                    AND (
+                      (
+                        i.day_of_week = ${localDay}
+                        AND ${minute} >= i.opens_minute
+                        AND (
+                          i.closes_next_day = true
+                          OR ${minute} < i.closes_minute
+                        )
+                      )
+                      OR (
+                        i.day_of_week = ${prevDay}
+                        AND i.closes_next_day = true
+                        AND ${minute} < i.closes_minute
+                        AND NOT EXISTS (
+                          SELECT 1
+                          FROM merchant_branch_hours_exceptions hp
+                          WHERE hp.branch_id = b.id
+                            AND hp.local_date = ${previousLocalDate}::date
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                FROM merchant_branch_availability_overrides o
+                WHERE o.branch_id = b.id
+                  AND (
+                    o.mode = 'FORCE_CLOSED'
+                    OR (
+                      o.mode = 'TEMPORARY_CLOSED'
+                      AND o.closed_until IS NOT NULL
+                      AND o.closed_until > NOW()
+                    )
+                  )
+              )
+            )
+          )
         ORDER BY b.name ASC, b.id ASC
         LIMIT ${input.limit} OFFSET ${input.offset}
       `
-      .returnsRow({
-        branch_id: 'pg/uuid@1',
-        branch_name: 'sql/varchar@1',
-        address_text: 'sql/varchar@1',
-        latitude: 'pg/numeric@1',
-        longitude: 'pg/numeric@1',
-        merchant_id: 'pg/uuid@1',
-        merchant_name: 'sql/varchar@1',
-        public_reference: 'sql/varchar@1',
-      })
+      .returnsRow(this.storefrontRowCodec())
+      .build();
+
+    const items: CustomerStorefrontBase[] = [];
+    for await (const row of db.runtime().query(pagePlan)) {
+      items.push(this.toStorefront(row));
+    }
+    return { items, total, limit: input.limit, offset: input.offset };
+  }
+
+  private async listStorefrontsByVertical(input: {
+    limit: number;
+    offset: number;
+    verticalId: string;
+    openNowLocal?: OpenNowLocalParts;
+  }): Promise<CustomerCatalogPage<CustomerStorefrontBase>> {
+    const db = this.db();
+    const openNowFlag = input.openNowLocal !== undefined ? 1 : 0;
+    const localDay = input.openNowLocal?.dayOfWeek ?? 1;
+    const prevDay = input.openNowLocal?.previousDayOfWeek ?? 7;
+    const minute = input.openNowLocal?.minuteOfDay ?? 0;
+    const localDate = input.openNowLocal?.localDate ?? '2000-01-02';
+    const previousLocalDate =
+      input.openNowLocal?.previousLocalDate ?? '2000-01-01';
+    const countPlan = db.raw.sql`
+        SELECT COUNT(*)::int8 AS total
+        FROM merchant_branches b
+        INNER JOIN merchants m ON m.id = b.merchant_id
+        INNER JOIN merchant_branch_classifications cl ON cl.branch_id = b.id
+        INNER JOIN commerce_verticals v ON v.id = cl.vertical_id
+        WHERE m.status = 'ACTIVE'
+          AND m.verified_at IS NOT NULL
+          AND length(btrim(m.name)) > 0
+          AND b.operational_status = 'ACTIVE'
+          AND v.id = ${input.verticalId}::uuid
+          AND v.active = true
+          AND (
+            ${openNowFlag} = 0
+            OR (
+              (
+                EXISTS (
+                  SELECT 1
+                  FROM merchant_branch_hours_exceptions he
+                  INNER JOIN merchant_branch_hours_exception_intervals hi ON hi.exception_id = he.id
+                  WHERE he.branch_id = b.id
+                    AND he.local_date = ${localDate}::date
+                    AND he.closed = false
+                    AND ${minute} >= hi.opens_minute
+                    AND (
+                      hi.closes_next_day = true
+                      OR ${minute} < hi.closes_minute
+                    )
+                    AND EXISTS (
+                      SELECT 1
+                      FROM merchant_branch_opening_schedules hs
+                      WHERE hs.branch_id = b.id
+                    )
+                )
+                OR (
+                  NOT EXISTS (
+                    SELECT 1
+                    FROM merchant_branch_hours_exceptions ht
+                    WHERE ht.branch_id = b.id
+                      AND ht.local_date = ${localDate}::date
+                  )
+                  AND EXISTS (
+                  SELECT 1
+                  FROM merchant_branch_opening_schedules s
+                  INNER JOIN merchant_branch_opening_intervals i ON i.schedule_id = s.id
+                  WHERE s.branch_id = b.id
+                    AND (
+                      (
+                        i.day_of_week = ${localDay}
+                        AND ${minute} >= i.opens_minute
+                        AND (
+                          i.closes_next_day = true
+                          OR ${minute} < i.closes_minute
+                        )
+                      )
+                      OR (
+                        i.day_of_week = ${prevDay}
+                        AND i.closes_next_day = true
+                        AND ${minute} < i.closes_minute
+                        AND NOT EXISTS (
+                          SELECT 1
+                          FROM merchant_branch_hours_exceptions hp
+                          WHERE hp.branch_id = b.id
+                            AND hp.local_date = ${previousLocalDate}::date
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                FROM merchant_branch_availability_overrides o
+                WHERE o.branch_id = b.id
+                  AND (
+                    o.mode = 'FORCE_CLOSED'
+                    OR (
+                      o.mode = 'TEMPORARY_CLOSED'
+                      AND o.closed_until IS NOT NULL
+                      AND o.closed_until > NOW()
+                    )
+                  )
+              )
+            )
+          )
+      `
+      .returnsRow({ total: 'pg/int8@1' })
+      .build();
+
+    let total = 0;
+    for await (const row of db.runtime().query(countPlan)) {
+      total = Number(row.total);
+    }
+
+    const pagePlan = db.raw.sql`
+        SELECT
+          b.id AS branch_id,
+          b.name AS branch_name,
+          b.address_text::varchar AS address_text,
+          b.latitude,
+          b.longitude,
+          m.id AS merchant_id,
+          m.name AS merchant_name,
+          m.public_reference,
+          cov.object_id::varchar AS cover_object_id
+        FROM merchant_branches b
+        INNER JOIN merchants m ON m.id = b.merchant_id
+        INNER JOIN merchant_branch_classifications cl ON cl.branch_id = b.id
+        INNER JOIN commerce_verticals v ON v.id = cl.vertical_id
+        LEFT JOIN merchant_branch_covers cov ON cov.branch_id = b.id
+        WHERE m.status = 'ACTIVE'
+          AND m.verified_at IS NOT NULL
+          AND length(btrim(m.name)) > 0
+          AND b.operational_status = 'ACTIVE'
+          AND v.id = ${input.verticalId}::uuid
+          AND v.active = true
+          AND (
+            ${openNowFlag} = 0
+            OR (
+              (
+                EXISTS (
+                  SELECT 1
+                  FROM merchant_branch_hours_exceptions he
+                  INNER JOIN merchant_branch_hours_exception_intervals hi ON hi.exception_id = he.id
+                  WHERE he.branch_id = b.id
+                    AND he.local_date = ${localDate}::date
+                    AND he.closed = false
+                    AND ${minute} >= hi.opens_minute
+                    AND (
+                      hi.closes_next_day = true
+                      OR ${minute} < hi.closes_minute
+                    )
+                    AND EXISTS (
+                      SELECT 1
+                      FROM merchant_branch_opening_schedules hs
+                      WHERE hs.branch_id = b.id
+                    )
+                )
+                OR (
+                  NOT EXISTS (
+                    SELECT 1
+                    FROM merchant_branch_hours_exceptions ht
+                    WHERE ht.branch_id = b.id
+                      AND ht.local_date = ${localDate}::date
+                  )
+                  AND EXISTS (
+                  SELECT 1
+                  FROM merchant_branch_opening_schedules s
+                  INNER JOIN merchant_branch_opening_intervals i ON i.schedule_id = s.id
+                  WHERE s.branch_id = b.id
+                    AND (
+                      (
+                        i.day_of_week = ${localDay}
+                        AND ${minute} >= i.opens_minute
+                        AND (
+                          i.closes_next_day = true
+                          OR ${minute} < i.closes_minute
+                        )
+                      )
+                      OR (
+                        i.day_of_week = ${prevDay}
+                        AND i.closes_next_day = true
+                        AND ${minute} < i.closes_minute
+                        AND NOT EXISTS (
+                          SELECT 1
+                          FROM merchant_branch_hours_exceptions hp
+                          WHERE hp.branch_id = b.id
+                            AND hp.local_date = ${previousLocalDate}::date
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                FROM merchant_branch_availability_overrides o
+                WHERE o.branch_id = b.id
+                  AND (
+                    o.mode = 'FORCE_CLOSED'
+                    OR (
+                      o.mode = 'TEMPORARY_CLOSED'
+                      AND o.closed_until IS NOT NULL
+                      AND o.closed_until > NOW()
+                    )
+                  )
+              )
+            )
+          )
+        ORDER BY b.name ASC, b.id ASC
+        LIMIT ${input.limit} OFFSET ${input.offset}
+      `
+      .returnsRow(this.storefrontRowCodec())
       .build();
 
     const items: CustomerStorefrontBase[] = [];
@@ -127,9 +513,11 @@ export class CustomerCatalogRepository {
           b.longitude,
           m.id AS merchant_id,
           m.name AS merchant_name,
-          m.public_reference
+          m.public_reference,
+          cov.object_id::varchar AS cover_object_id
         FROM merchant_branches b
         INNER JOIN merchants m ON m.id = b.merchant_id
+        LEFT JOIN merchant_branch_covers cov ON cov.branch_id = b.id
         WHERE b.id = ${branchId}::uuid
           AND m.status = 'ACTIVE'
           AND m.verified_at IS NOT NULL
@@ -137,16 +525,7 @@ export class CustomerCatalogRepository {
           AND b.operational_status = 'ACTIVE'
         LIMIT 1
       `
-      .returnsRow({
-        branch_id: 'pg/uuid@1',
-        branch_name: 'sql/varchar@1',
-        address_text: 'sql/varchar@1',
-        latitude: 'pg/numeric@1',
-        longitude: 'pg/numeric@1',
-        merchant_id: 'pg/uuid@1',
-        merchant_name: 'sql/varchar@1',
-        public_reference: 'sql/varchar@1',
-      })
+      .returnsRow(this.storefrontRowCodec())
       .build();
 
     for await (const row of db.runtime().query(plan)) {
@@ -251,11 +630,13 @@ export class CustomerCatalogRepository {
           p.category_id,
           p.name,
           p.description::varchar AS description,
-          p.price_minor
+          p.price_minor,
+          pi.object_id::varchar AS image_object_id
         FROM products p
         INNER JOIN categories c ON c.id = p.category_id
         INNER JOIN merchant_branches b ON b.id = p.merchant_branch_id
         INNER JOIN merchants m ON m.id = b.merchant_id
+        LEFT JOIN product_images pi ON pi.product_id = p.id
         WHERE p.merchant_branch_id = ${input.branchId}::uuid
           AND m.status = 'ACTIVE'
           AND m.verified_at IS NOT NULL
@@ -266,14 +647,7 @@ export class CustomerCatalogRepository {
         ORDER BY p.name ASC, p.id ASC
         LIMIT ${input.limit} OFFSET ${input.offset}
       `
-      .returnsRow({
-        product_id: 'pg/uuid@1',
-        branch_id: 'pg/uuid@1',
-        category_id: 'pg/uuid@1',
-        name: 'sql/varchar@1',
-        description: { codecId: 'sql/varchar@1', nullable: true },
-        price_minor: 'pg/int8@1',
-      })
+      .returnsRow(this.productRowCodec())
       .build();
 
     const items: CustomerProductSummary[] = [];
@@ -320,11 +694,13 @@ export class CustomerCatalogRepository {
           p.category_id,
           p.name,
           p.description::varchar AS description,
-          p.price_minor
+          p.price_minor,
+          pi.object_id::varchar AS image_object_id
         FROM products p
         INNER JOIN categories c ON c.id = p.category_id
         INNER JOIN merchant_branches b ON b.id = p.merchant_branch_id
         INNER JOIN merchants m ON m.id = b.merchant_id
+        LEFT JOIN product_images pi ON pi.product_id = p.id
         WHERE p.merchant_branch_id = ${input.branchId}::uuid
           AND p.category_id = ${input.categoryId}::uuid
           AND m.status = 'ACTIVE'
@@ -336,14 +712,7 @@ export class CustomerCatalogRepository {
         ORDER BY p.name ASC, p.id ASC
         LIMIT ${input.limit} OFFSET ${input.offset}
       `
-      .returnsRow({
-        product_id: 'pg/uuid@1',
-        branch_id: 'pg/uuid@1',
-        category_id: 'pg/uuid@1',
-        name: 'sql/varchar@1',
-        description: { codecId: 'sql/varchar@1', nullable: true },
-        price_minor: 'pg/int8@1',
-      })
+      .returnsRow(this.productRowCodec())
       .build();
 
     const items: CustomerProductSummary[] = [];
@@ -365,11 +734,13 @@ export class CustomerCatalogRepository {
           p.category_id,
           p.name,
           p.description::varchar AS description,
-          p.price_minor
+          p.price_minor,
+          pi.object_id::varchar AS image_object_id
         FROM products p
         INNER JOIN categories c ON c.id = p.category_id
         INNER JOIN merchant_branches b ON b.id = p.merchant_branch_id
         INNER JOIN merchants m ON m.id = b.merchant_id
+        LEFT JOIN product_images pi ON pi.product_id = p.id
         WHERE p.id = ${productId}::uuid
           AND p.merchant_branch_id = ${branchId}::uuid
           AND m.status = 'ACTIVE'
@@ -380,14 +751,7 @@ export class CustomerCatalogRepository {
           AND p.available = true
         LIMIT 1
       `
-      .returnsRow({
-        product_id: 'pg/uuid@1',
-        branch_id: 'pg/uuid@1',
-        category_id: 'pg/uuid@1',
-        name: 'sql/varchar@1',
-        description: { codecId: 'sql/varchar@1', nullable: true },
-        price_minor: 'pg/int8@1',
-      })
+      .returnsRow(this.productRowCodec())
       .build();
 
     let product: CustomerProductSummary | null = null;
@@ -469,13 +833,16 @@ export class CustomerCatalogRepository {
             m.id AS merchant_id,
             m.name AS merchant_name,
             m.public_reference,
+            cov.object_id::varchar AS cover_object_id,
             NULL::uuid AS product_id,
             NULL::uuid AS category_id,
             NULL::varchar AS product_name,
             NULL::varchar AS product_description,
-            NULL::int8 AS price_minor
+            NULL::int8 AS price_minor,
+            NULL::varchar AS product_image_object_id
           FROM merchant_branches b
           INNER JOIN merchants m ON m.id = b.merchant_id
+          LEFT JOIN merchant_branch_covers cov ON cov.branch_id = b.id
           WHERE m.status = 'ACTIVE'
             AND m.verified_at IS NOT NULL
             AND length(btrim(m.name)) > 0
@@ -497,15 +864,19 @@ export class CustomerCatalogRepository {
             m.id AS merchant_id,
             m.name AS merchant_name,
             m.public_reference,
+            cov.object_id::varchar AS cover_object_id,
             p.id AS product_id,
             p.category_id,
             p.name AS product_name,
             p.description::varchar AS product_description,
-            p.price_minor
+            p.price_minor,
+            pi.object_id::varchar AS product_image_object_id
           FROM products p
           INNER JOIN categories c ON c.id = p.category_id
           INNER JOIN merchant_branches b ON b.id = p.merchant_branch_id
           INNER JOIN merchants m ON m.id = b.merchant_id
+          LEFT JOIN merchant_branch_covers cov ON cov.branch_id = b.id
+          LEFT JOIN product_images pi ON pi.product_id = p.id
           WHERE m.status = 'ACTIVE'
             AND m.verified_at IS NOT NULL
             AND length(btrim(m.name)) > 0
@@ -529,11 +900,13 @@ export class CustomerCatalogRepository {
         merchant_id: 'pg/uuid@1',
         merchant_name: 'sql/varchar@1',
         public_reference: 'sql/varchar@1',
+        cover_object_id: { codecId: 'sql/varchar@1', nullable: true },
         product_id: { codecId: 'pg/uuid@1', nullable: true },
         category_id: { codecId: 'pg/uuid@1', nullable: true },
         product_name: { codecId: 'sql/varchar@1', nullable: true },
         product_description: { codecId: 'sql/varchar@1', nullable: true },
         price_minor: { codecId: 'pg/int8@1', nullable: true },
+        product_image_object_id: { codecId: 'sql/varchar@1', nullable: true },
       })
       .build();
 
@@ -547,18 +920,19 @@ export class CustomerCatalogRepository {
       items.push({
         type: 'PRODUCT',
         storefront,
-        product: {
-          productId: String(row.product_id),
-          branchId: String(row.branch_id),
-          categoryId: String(row.category_id),
+        product: this.toProduct({
+          product_id: String(row.product_id),
+          branch_id: String(row.branch_id),
+          category_id: String(row.category_id),
           name: String(row.product_name),
           description:
             row.product_description === null ||
             row.product_description === undefined
               ? null
               : String(row.product_description),
-          priceMinor: moneyMinorToDecimalString(row.price_minor),
-        },
+          price_minor: row.price_minor as bigint | number | string,
+          image_object_id: row.product_image_object_id,
+        }),
       });
     }
     return { items, total, limit: input.limit, offset: input.offset };
@@ -599,6 +973,20 @@ export class CustomerCatalogRepository {
     }));
   }
 
+  private storefrontRowCodec() {
+    return {
+      branch_id: 'pg/uuid@1' as const,
+      branch_name: 'sql/varchar@1' as const,
+      address_text: 'sql/varchar@1' as const,
+      latitude: 'pg/numeric@1' as const,
+      longitude: 'pg/numeric@1' as const,
+      merchant_id: 'pg/uuid@1' as const,
+      merchant_name: 'sql/varchar@1' as const,
+      public_reference: 'sql/varchar@1' as const,
+      cover_object_id: { codecId: 'sql/varchar@1' as const, nullable: true },
+    };
+  }
+
   private toStorefront(row: {
     branch_id: string;
     branch_name: string;
@@ -608,9 +996,11 @@ export class CustomerCatalogRepository {
     merchant_id: string;
     merchant_name: string;
     public_reference: string;
+    cover_object_id?: string | null;
   }): CustomerStorefrontBase {
+    const branchId = String(row.branch_id);
     return {
-      branchId: String(row.branch_id),
+      branchId,
       branchName: String(row.branch_name),
       addressText: String(row.address_text),
       latitude: this.parseCoordinate(row.latitude),
@@ -618,6 +1008,24 @@ export class CustomerCatalogRepository {
       merchantId: String(row.merchant_id),
       merchantName: String(row.merchant_name),
       merchantPublicReference: String(row.public_reference),
+      coverImageUrl:
+        row.cover_object_id === null ||
+        row.cover_object_id === undefined ||
+        String(row.cover_object_id).length === 0
+          ? null
+          : customerCoverImagePath(branchId),
+    };
+  }
+
+  private productRowCodec() {
+    return {
+      product_id: 'pg/uuid@1' as const,
+      branch_id: 'pg/uuid@1' as const,
+      category_id: 'pg/uuid@1' as const,
+      name: 'sql/varchar@1' as const,
+      description: { codecId: 'sql/varchar@1' as const, nullable: true },
+      price_minor: 'pg/int8@1' as const,
+      image_object_id: { codecId: 'sql/varchar@1' as const, nullable: true },
     };
   }
 
@@ -628,10 +1036,13 @@ export class CustomerCatalogRepository {
     name: string;
     description: string | null;
     price_minor: bigint | number | string;
+    image_object_id?: string | null;
   }): CustomerProductSummary {
+    const productId = String(row.product_id);
+    const branchId = String(row.branch_id);
     return {
-      productId: String(row.product_id),
-      branchId: String(row.branch_id),
+      productId,
+      branchId,
       categoryId: String(row.category_id),
       name: String(row.name),
       description:
@@ -639,6 +1050,12 @@ export class CustomerCatalogRepository {
           ? null
           : String(row.description),
       priceMinor: moneyMinorToDecimalString(row.price_minor),
+      imageUrl:
+        row.image_object_id === null ||
+        row.image_object_id === undefined ||
+        String(row.image_object_id).length === 0
+          ? null
+          : customerProductImagePath(branchId, productId),
     };
   }
 

@@ -87,6 +87,28 @@ export class CatalogProductSummaryResponseDto {
   })
   available!: boolean;
 
+  @ApiProperty({
+    description:
+      'True when a product photograph is bound. Bytes stream at GET …/branches/:branchId/products/:productId/image under Merchant JWT.',
+  })
+  hasImage!: boolean;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description:
+      'Selling unit allowlist code (PLAT, PIECE, PORTION, BOITE, PACK, PLATEAU, CUSTOM). null = legacy, no unit.',
+  })
+  sellingUnitCode!: string | null;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description:
+      'Resolved FR label for display (server label for allowlist codes, merchant label for CUSTOM). null when no unit.',
+  })
+  sellingUnitLabelFr!: string | null;
+
   @ApiProperty()
   createdAt!: string;
 
@@ -183,4 +205,31 @@ export class CatalogOptionGroupListResponseDto {
 export class CatalogDeletedResponseDto {
   @ApiProperty()
   deleted!: true;
+}
+
+export class CatalogDuplicateCopiedDto {
+  @ApiProperty()
+  optionGroupCount!: number;
+
+  @ApiProperty()
+  optionCount!: number;
+
+  @ApiProperty({
+    description:
+      'True when the photograph bytes were copied to a new object. False when the source had no image or its object was missing.',
+  })
+  imageCopied!: boolean;
+}
+
+export class CatalogProductDuplicateResponseDto {
+  @ApiProperty({ type: () => CatalogProductDetailResponseDto })
+  product!: CatalogProductDetailResponseDto;
+
+  @ApiProperty({
+    description: 'true when the same requestId had already produced this copy',
+  })
+  replayed!: boolean;
+
+  @ApiProperty({ type: () => CatalogDuplicateCopiedDto })
+  copied!: CatalogDuplicateCopiedDto;
 }

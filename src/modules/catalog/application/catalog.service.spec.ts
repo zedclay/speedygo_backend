@@ -98,7 +98,12 @@ class MemoryMerchantRepository {
       addressText: 'Street',
       latitude: 36.75,
       longitude: 3.05,
+      wilayaCode: null,
+      communeId: null,
       operationalStatus: 'ACTIVE',
+      description: null,
+      nameAr: null,
+      publicEmail: null,
       createdAt: now(),
       updatedAt: now(),
     };
@@ -227,6 +232,9 @@ class MemoryCatalogRepository {
       description: input.description ?? null,
       priceMinor: input.priceMinor,
       available: input.available ?? true,
+      sellingUnitCode: (input.sellingUnitCode ??
+        null) as ProductRecord['sellingUnitCode'],
+      sellingUnitLabelFr: input.sellingUnitLabelFr ?? null,
       createdAt: now(),
       updatedAt: now(),
     };
@@ -253,6 +261,10 @@ class MemoryCatalogRepository {
     }
     if (input.available !== undefined) {
       row.available = input.available;
+    }
+    if (input.sellingUnitCode !== undefined) {
+      row.sellingUnitCode = input.sellingUnitCode as ProductRecord['sellingUnitCode'];
+      row.sellingUnitLabelFr = input.sellingUnitLabelFr ?? null;
     }
     row.updatedAt = now();
     return Promise.resolve(row);
@@ -378,7 +390,18 @@ describe('Catalog foundation services', () => {
     merchants = new MemoryMerchantRepository();
     catalog = new MemoryCatalogRepository();
     const access = new MerchantAccessService(merchants as never);
-    service = new CatalogService(catalog as never, access, merchants as never);
+    service = new CatalogService(
+      catalog as never,
+      access,
+      merchants as never,
+      {
+        findByProduct: jest.fn().mockResolvedValue(null),
+        findProductIdsWithImages: jest
+          .fn()
+          .mockImplementation(async (ids: string[]) => new Set<string>()),
+      } as never,
+      { deleteUnreferencedImage: jest.fn() } as never,
+    );
   });
 
   function seedOwned() {
@@ -407,6 +430,199 @@ describe('Catalog foundation services', () => {
       }),
     ).rejects.toMatchObject({
       code: MERCHANT_ERROR_CODES.MERCHANT_BRANCH_NOT_FOUND,
+    });
+  });
+
+  describe('selling unit', () => {
+    async function seedCategory() {
+      const { merchant, branch } = seedOwned();
+      const category = await service.createCategory(
+        ACCOUNT_A,
+        merchant.id,
+        branch.id,
+        { name: 'Plats' },
+      );
+      return { merchant, branch, category };
+    }
+
+    it('treats a Product without a unit as legacy (null code and label)', async () => {
+      const { merchant, branch, category } = await seedCategory();
+      const product = await service.createProduct(
+        ACCOUNT_A,
+        merchant.id,
+        branch.id,
+        { categoryId: category.id, name: 'Couscous', priceMinor: 100 },
+      );
+      expect(product.sellingUnitCode).toBeNull();
+      expect(product.sellingUnitLabelFr).toBeNull();
+    });
+
+    it('resolves the server FR label for allowlisted codes', async () => {
+      const { merchant, branch, category } = await seedCategory();
+      const product = await service.createProduct(
+        ACCOUNT_A,
+        merchant.id,
+        branch.id,
+        {
+          categoryId: category.id,
+          name: 'Boîte de baklawa',
+          priceMinor: 100,
+          sellingUnitCode: 'BOITE',
+        },
+      );
+      expect(product.sellingUnitCode).toBe('BOITE');
+      expect(product.sellingUnitLabelFr).toBe('Boîte');
+    });
+
+    it('requires a label for CUSTOM and stores the trimmed merchant label', async () => {
+      const { merchant, branch, category } = await seedCategory();
+      await expect(
+        service.createProduct(ACCOUNT_A, merchant.id, branch.id, {
+          categoryId: category.id,
+          name: 'X',
+          priceMinor: 100,
+          sellingUnitCode: 'CUSTOM',
+        }),
+      ).rejects.toMatchObject({
+        code: CATALOG_ERROR_CODES.CATALOG_SELLING_UNIT_INVALID,
+      });
+      const product = await service.createProduct(
+        ACCOUNT_A,
+        merchant.id,
+        branch.id,
+        {
+          categoryId: category.id,
+          name: 'Tajine',
+          priceMinor: 100,
+          sellingUnitCode: 'CUSTOM',
+          sellingUnitLabelFr: '  Marmite  ',
+        },
+      );
+      expect(product.sellingUnitCode).toBe('CUSTOM');
+      expect(product.sellingUnitLabelFr).toBe('Marmite');
+    });
+
+    it('rejects unknown codes and labels on non-CUSTOM codes', async () => {
+      const { merchant, branch, category } = await seedCategory();
+      await expect(
+        service.createProduct(ACCOUNT_A, merchant.id, branch.id, {
+          categoryId: category.id,
+          name: 'X',
+          priceMinor: 100,
+          sellingUnitCode: 'KG',
+        }),
+      ).rejects.toMatchObject({
+        code: CATALOG_ERROR_CODES.CATALOG_SELLING_UNIT_INVALID,
+      });
+      await expect(
+        service.createProduct(ACCOUNT_A, merchant.id, branch.id, {
+          categoryId: category.id,
+          name: 'X',
+          priceMinor: 100,
+          sellingUnitCode: 'PLAT',
+          sellingUnitLabelFr: 'Assiette',
+        }),
+      ).rejects.toMatchObject({
+        code: CATALOG_ERROR_CODES.CATALOG_SELLING_UNIT_INVALID,
+      });
+    });
+
+    it('updates, keeps and clears the selling unit', async () => {
+      const { merchant, branch, category } = await seedCategory();
+      const product = await service.createProduct(
+        ACCOUNT_A,
+        merchant.id,
+        branch.id,
+        {
+          categoryId: category.id,
+          name: 'Pizza',
+          priceMinor: 100,
+          sellingUnitCode: 'PIECE',
+        },
+      );
+      const renamed = await service.updateProduct(
+        ACCOUNT_A,
+        merchant.id,
+        product.id,
+        { name: 'Pizza maison' },
+      );
+      expect(renamed.sellingUnitCode).toBe('PIECE');
+      expect(renamed.sellingUnitLabelFr).toBe('Pièce');
+      const custom = await service.updateProduct(
+        ACCOUNT_A,
+        merchant.id,
+        product.id,
+        { sellingUnitCode: 'CUSTOM', sellingUnitLabelFr: 'Part' },
+      );
+      expect(custom.sellingUnitLabelFr).toBe('Part');
+      const relabelled = await service.updateProduct(
+        ACCOUNT_A,
+        merchant.id,
+        product.id,
+        { sellingUnitLabelFr: 'Grande part' },
+      );
+      expect(relabelled.sellingUnitCode).toBe('CUSTOM');
+      expect(relabelled.sellingUnitLabelFr).toBe('Grande part');
+      const switched = await service.updateProduct(
+        ACCOUNT_A,
+        merchant.id,
+        product.id,
+        { sellingUnitCode: 'PACK' },
+      );
+      expect(switched.sellingUnitLabelFr).toBe('Pack familial');
+      const cleared = await service.updateProduct(
+        ACCOUNT_A,
+        merchant.id,
+        product.id,
+        { sellingUnitCode: null },
+      );
+      expect(cleared.sellingUnitCode).toBeNull();
+      expect(cleared.sellingUnitLabelFr).toBeNull();
+    });
+
+    it('lets MANAGER write and forbids STAFF', async () => {
+      const { merchant, branch, category } = await seedCategory();
+      merchants.addMember(
+        merchant.id,
+        ACCOUNT_MANAGER,
+        MERCHANT_MEMBER_ROLE_MANAGER,
+      );
+      merchants.addMember(
+        merchant.id,
+        ACCOUNT_STAFF,
+        MERCHANT_MEMBER_ROLE_STAFF,
+      );
+      const body = {
+        categoryId: category.id,
+        name: 'Soupe',
+        priceMinor: 100,
+        sellingUnitCode: 'PORTION',
+      };
+      const created = await service.createProduct(
+        ACCOUNT_MANAGER,
+        merchant.id,
+        branch.id,
+        body,
+      );
+      expect(created.sellingUnitLabelFr).toBe('Portion');
+      await expect(
+        service.createProduct(ACCOUNT_STAFF, merchant.id, branch.id, body),
+      ).rejects.toMatchObject({
+        code: MERCHANT_ERROR_CODES.MERCHANT_ROLE_FORBIDDEN,
+      });
+      await expect(
+        service.updateProduct(ACCOUNT_STAFF, merchant.id, created.id, {
+          sellingUnitCode: 'PLAT',
+        }),
+      ).rejects.toMatchObject({
+        code: MERCHANT_ERROR_CODES.MERCHANT_ROLE_FORBIDDEN,
+      });
+      const read = await service.getProduct(
+        ACCOUNT_STAFF,
+        merchant.id,
+        created.id,
+      );
+      expect(read.sellingUnitCode).toBe('PORTION');
     });
   });
 

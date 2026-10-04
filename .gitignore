@@ -39,6 +39,9 @@ lerna-debug.log*
 .env.*.local
 !.env.example
 
+# Local development OTP capture (owner-only; never commit)
+.speedygo/
+
 # Prisma
 /prisma/*.db
 /prisma/*.db-journal

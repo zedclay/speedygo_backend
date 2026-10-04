@@ -20,6 +20,7 @@ import {
   AdminEmptyBodyDto,
   AdminPromotionListQueryDto,
   CreateAdminPromotionDto,
+  UpdateAdminPromotionPresentationDto,
 } from '../dto/admin.dto';
 
 @ApiTags('admin-promotions')
@@ -76,5 +77,50 @@ export class AdminPromotionController {
     @Body() _body: AdminEmptyBodyDto,
   ) {
     return this.commands.deactivate(admin, id);
+  }
+
+  @Post(':id/publish-discovery')
+  @RequirePermissions(ADMIN_PERMISSIONS.PROMOTIONS_MANAGE)
+  @ApiOperation({
+    summary: 'Publish promotion for Customer discovery',
+    description:
+      'Sets customerDiscoverable=true. Optional customerLabel in the body. Does not change type, value, or window. Discovery is not cart eligibility.',
+  })
+  publishDiscovery(
+    @CurrentAdmin() admin: CurrentAdminContext,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: UpdateAdminPromotionPresentationDto,
+  ) {
+    return this.commands.publishDiscovery(admin, id, body.customerLabel);
+  }
+
+  @Post(':id/hide-discovery')
+  @RequirePermissions(ADMIN_PERMISSIONS.PROMOTIONS_MANAGE)
+  @ApiOperation({
+    summary: 'Hide promotion from Customer discovery',
+    description:
+      'Sets customerDiscoverable=false. The offer remains usable at Checkout if still effective.',
+  })
+  hideDiscovery(
+    @CurrentAdmin() admin: CurrentAdminContext,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() _body: AdminEmptyBodyDto,
+  ) {
+    return this.commands.hideDiscovery(admin, id);
+  }
+
+  @Post(':id/presentation')
+  @RequirePermissions(ADMIN_PERMISSIONS.PROMOTIONS_MANAGE)
+  @ApiOperation({
+    summary: 'Update Customer presentation metadata',
+    description:
+      'Updates customerLabel only. Does not change economics, active, or discoverability.',
+  })
+  updatePresentation(
+    @CurrentAdmin() admin: CurrentAdminContext,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: UpdateAdminPromotionPresentationDto,
+  ) {
+    return this.commands.updatePresentation(admin, id, body.customerLabel);
   }
 }

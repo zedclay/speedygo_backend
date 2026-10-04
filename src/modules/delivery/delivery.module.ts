@@ -3,9 +3,11 @@ import { DriversModule } from '../drivers/drivers.module';
 import { MatchingModule } from '../matching/matching.module';
 import { MerchantsModule } from '../merchants/merchants.module';
 import { DeliveryService } from './application/delivery.service';
+import { PickupHandoffService } from './application/pickup-handoff.service';
 import { DriverDeliveryService } from './application/driver-delivery.service';
 import { DriverDeliveryHistoryService } from './application/driver-delivery-history.service';
 import { DeliveryRepository } from './infrastructure/delivery.repository';
+import { PickupHandoffRepository } from './infrastructure/pickup-handoff.repository';
 import { DriverDeliveryHistoryRepository } from './infrastructure/driver-delivery-history.repository';
 import { CodModule } from '../cod/cod.module';
 import { DriverRemunerationModule } from '../driver-remuneration/driver-remuneration.module';
@@ -32,7 +34,9 @@ import { MerchantDeliveryController } from './presentation/http/merchant-deliver
   ],
   providers: [
     DeliveryRepository,
+    PickupHandoffRepository,
     DeliveryService,
+    PickupHandoffService,
     DriverDeliveryService,
     DriverDeliveryHistoryRepository,
     DriverDeliveryHistoryService,
@@ -40,6 +44,7 @@ import { MerchantDeliveryController } from './presentation/http/merchant-deliver
   exports: [
     DeliveryService,
     DeliveryRepository,
+    PickupHandoffService,
     DriverDeliveryService,
     DriverDeliveryHistoryService,
   ],

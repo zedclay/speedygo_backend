@@ -11,6 +11,8 @@ import {
 import {
   isMerchantApproved,
   MERCHANT_CAPABILITIES,
+  merchantFinanceAccess,
+  parseMerchantMemberRole,
 } from '../../merchants/domain/merchant.policy';
 import { NotificationService } from '../../notifications/application/notification.service';
 import { PaidTerminalRefundService } from '../../refunds/application/paid-terminal-refund.service';
@@ -22,6 +24,9 @@ import {
   merchantOrderNotFound,
   merchantOrderNotRejectable,
   merchantOrderPaymentNotReady,
+  merchantOrderPrepEstimateConflict,
+  merchantOrderPrepEstimateInvalid,
+  merchantOrderPrepEstimateNotAllowed,
 } from '../domain/order.errors';
 import {
   inspectMerchantWorkflowTransition,
@@ -34,9 +39,23 @@ import {
   PAYMENT_STATUS_SUCCEEDED,
   type MerchantWorkflowAction,
 } from '../domain/order.policy';
+import {
+  PREPARATION_ADD_MINUTES_MAX,
+  PREPARATION_ADD_MINUTES_MIN,
+  PREPARATION_ESTIMATE_REASON_MAX,
+  PREPARATION_MINUTES_MAX,
+  PREPARATION_MINUTES_MIN,
+  isEligibleFulfillmentForPrepEstimateUpdate,
+} from '../domain/preparation-estimate.policy';
+import {
+  isMerchantCancellationReasonCode,
+  type MerchantCancellationReasonCode,
+} from '../domain/merchant-cancellation-reason';
+import { projectMerchantOrderForRole } from '../domain/merchant-order-visibility.policy';
 import type {
-  MerchantOrderDetailView,
-  MerchantOrderListView,
+  MerchantOrderDetailResponseView,
+  MerchantOrderFinancialAccess,
+  MerchantOrderListResponseView,
 } from '../domain/order.types';
 import { OrderRepository } from '../infrastructure/order.repository';
 
@@ -62,8 +81,8 @@ export class MerchantOrderService {
       orderStatus?: string;
       fulfillmentStatus?: string;
     },
-  ): Promise<MerchantOrderListView> {
-    await this.access.requireCapability(
+  ): Promise<MerchantOrderListResponseView> {
+    const financialAccess = await this.requireOrderCapability(
       accountId,
       merchantId,
       MERCHANT_CAPABILITIES.ORDER_READ,
@@ -77,7 +96,9 @@ export class MerchantOrderService {
       fulfillmentStatus: query.fulfillmentStatus,
     });
     return {
-      items: listed.items,
+      items: listed.items.map((item) =>
+        projectMerchantOrderForRole(item, financialAccess),
+      ),
       limit: page.limit,
       offset: page.offset,
       total: listed.total,
@@ -88,8 +109,8 @@ export class MerchantOrderService {
     accountId: string,
     merchantId: string,
     orderId: string,
-  ): Promise<MerchantOrderDetailView> {
-    await this.access.requireCapability(
+  ): Promise<MerchantOrderDetailResponseView> {
+    const financialAccess = await this.requireOrderCapability(
       accountId,
       merchantId,
       MERCHANT_CAPABILITIES.ORDER_READ,
@@ -101,15 +122,154 @@ export class MerchantOrderService {
     if (!detail) {
       throw merchantOrderNotFound();
     }
-    return detail;
+    return projectMerchantOrderForRole(detail, financialAccess);
   }
 
   async acceptOrder(
     accountId: string,
     merchantId: string,
     orderId: string,
-  ): Promise<MerchantOrderDetailView> {
-    return this.transition(accountId, merchantId, orderId, 'ACCEPT');
+    preparationMinutes?: number,
+  ): Promise<MerchantOrderDetailResponseView> {
+    if (preparationMinutes !== undefined) {
+      this.requirePreparationMinutes(preparationMinutes);
+    }
+    return this.transition(
+      accountId,
+      merchantId,
+      orderId,
+      'ACCEPT',
+      undefined,
+      preparationMinutes,
+    );
+  }
+
+  async updatePreparationEstimate(
+    accountId: string,
+    merchantId: string,
+    orderId: string,
+    input: {
+      addMinutes: number;
+      expectedEstimateVersion: number;
+      reason?: string;
+    },
+  ): Promise<MerchantOrderDetailResponseView> {
+    const financialAccess = await this.requireOrderCapability(
+      accountId,
+      merchantId,
+      MERCHANT_CAPABILITIES.ORDER_WORKFLOW_MUTATE,
+    );
+    if (
+      !Number.isInteger(input.addMinutes) ||
+      input.addMinutes < PREPARATION_ADD_MINUTES_MIN ||
+      input.addMinutes > PREPARATION_ADD_MINUTES_MAX
+    ) {
+      throw merchantOrderPrepEstimateInvalid(
+        `addMinutes must be an integer between ${PREPARATION_ADD_MINUTES_MIN} and ${PREPARATION_ADD_MINUTES_MAX}`,
+      );
+    }
+    if (
+      !Number.isInteger(input.expectedEstimateVersion) ||
+      input.expectedEstimateVersion < 1
+    ) {
+      throw merchantOrderPrepEstimateInvalid(
+        'expectedEstimateVersion must be an integer >= 1',
+      );
+    }
+    let reason: string | null = null;
+    if (input.reason != null && input.reason.trim() !== '') {
+      reason = input.reason.trim();
+      if (reason.length > PREPARATION_ESTIMATE_REASON_MAX) {
+        throw merchantOrderPrepEstimateInvalid(
+          `reason must be at most ${PREPARATION_ESTIMATE_REASON_MAX} characters`,
+        );
+      }
+    }
+
+    await this.orders.runInTransaction(async (tx) => {
+      const merchant = await this.orders.findMerchantById(merchantId, tx);
+      if (
+        !merchant ||
+        !isMerchantApproved(merchant.status, merchant.verifiedAt)
+      ) {
+        throw merchantStatusRestricted(
+          'Merchant is not operational for Order workflow',
+        );
+      }
+      const ownerMerchantId = await this.orders.findOrderMerchantId(
+        orderId,
+        tx,
+      );
+      if (ownerMerchantId !== merchantId) {
+        throw merchantOrderNotFound();
+      }
+      const locked = await this.orders.lockOrder(orderId, tx);
+      if (!locked) {
+        throw merchantOrderNotFound();
+      }
+      const branchMerchantId = await this.orders.findBranchMerchantId(
+        locked.merchantBranchId,
+        tx,
+      );
+      if (branchMerchantId !== merchantId) {
+        throw merchantOrderNotFound();
+      }
+      if (
+        !isEligibleFulfillmentForPrepEstimateUpdate(
+          locked.fulfillmentStatus,
+          locked.status,
+        )
+      ) {
+        throw merchantOrderPrepEstimateNotAllowed();
+      }
+      const result = await this.orders.applyPreparationEstimateAdd(
+        orderId,
+        accountId,
+        locked.updatedAt,
+        input.expectedEstimateVersion,
+        input.addMinutes,
+        reason,
+        tx,
+      );
+      if (!result.ok) {
+        if (result.reason === 'CONFLICT') {
+          const current = await this.orders.findMerchantOrderDetail(
+            orderId,
+            merchantId,
+            tx,
+          );
+          throw merchantOrderPrepEstimateConflict(
+            current
+              ? {
+                  estimatedReadyAt: current.estimatedReadyAt,
+                  originalEstimatedReadyAt: current.originalEstimatedReadyAt,
+                  preparationMinutes: current.preparationMinutes,
+                  originalPreparationMinutes:
+                    current.originalPreparationMinutes,
+                  preparationEstimateVersion:
+                    current.preparationEstimateVersion,
+                  isPreparationLate: current.isPreparationLate,
+                }
+              : undefined,
+          );
+        }
+        if (result.reason === 'NO_ESTIMATE') {
+          throw merchantOrderPrepEstimateNotAllowed(
+            'Order has no preparation estimate to update',
+          );
+        }
+        throw merchantOrderPrepEstimateNotAllowed();
+      }
+    });
+
+    const detail = await this.orders.findMerchantOrderDetail(
+      orderId,
+      merchantId,
+    );
+    if (!detail) {
+      throw merchantOrderNotFound();
+    }
+    return projectMerchantOrderForRole(detail, financialAccess);
   }
 
   async rejectOrder(
@@ -117,15 +277,24 @@ export class MerchantOrderService {
     merchantId: string,
     orderId: string,
     reason: string,
-  ): Promise<MerchantOrderDetailView> {
-    return this.transition(accountId, merchantId, orderId, 'REJECT', reason);
+    reasonCode?: string | null,
+  ): Promise<MerchantOrderDetailResponseView> {
+    return this.transition(
+      accountId,
+      merchantId,
+      orderId,
+      'REJECT',
+      reason,
+      undefined,
+      reasonCode,
+    );
   }
 
   async startPreparation(
     accountId: string,
     merchantId: string,
     orderId: string,
-  ): Promise<MerchantOrderDetailView> {
+  ): Promise<MerchantOrderDetailResponseView> {
     return this.transition(accountId, merchantId, orderId, 'START_PREPARATION');
   }
 
@@ -133,7 +302,7 @@ export class MerchantOrderService {
     accountId: string,
     merchantId: string,
     orderId: string,
-  ): Promise<MerchantOrderDetailView> {
+  ): Promise<MerchantOrderDetailResponseView> {
     return this.transition(accountId, merchantId, orderId, 'MARK_READY');
   }
 
@@ -143,14 +312,18 @@ export class MerchantOrderService {
     orderId: string,
     action: MerchantWorkflowAction,
     reason?: string,
-  ): Promise<MerchantOrderDetailView> {
-    await this.access.requireCapability(
+    preparationMinutes?: number,
+    reasonCode?: string | null,
+  ): Promise<MerchantOrderDetailResponseView> {
+    const financialAccess = await this.requireOrderCapability(
       accountId,
       merchantId,
       MERCHANT_CAPABILITIES.ORDER_WORKFLOW_MUTATE,
     );
     const rejectionReason =
       action === 'REJECT' ? this.requireRejectionReason(reason) : undefined;
+    const rejectionReasonCode =
+      action === 'REJECT' ? this.normalizeReasonCode(reasonCode) : null;
     let customerId = '';
     let publicReference = '';
     await this.orders.runInTransaction(async (tx) => {
@@ -225,6 +398,7 @@ export class MerchantOrderService {
               accountId,
               locked.updatedAt,
               tx,
+              preparationMinutes,
             )
           : action === 'REJECT'
             ? await this.orders.applyMerchantReject(
@@ -233,6 +407,7 @@ export class MerchantOrderService {
                 rejectionReason ?? '',
                 locked.updatedAt,
                 tx,
+                rejectionReasonCode,
               )
             : action === 'START_PREPARATION'
               ? await this.orders.applyStartPreparation(
@@ -301,7 +476,22 @@ export class MerchantOrderService {
         publicReference,
       });
     }
-    return detail;
+    return projectMerchantOrderForRole(detail, financialAccess);
+  }
+
+  private async requireOrderCapability(
+    accountId: string,
+    merchantId: string,
+    capability:
+      | typeof MERCHANT_CAPABILITIES.ORDER_READ
+      | typeof MERCHANT_CAPABILITIES.ORDER_WORKFLOW_MUTATE,
+  ): Promise<MerchantOrderFinancialAccess> {
+    const context = await this.access.requireCapability(
+      accountId,
+      merchantId,
+      capability,
+    );
+    return merchantFinanceAccess(parseMerchantMemberRole(context.member.role));
   }
 
   private requireRejectionReason(reason: string | undefined): string {
@@ -313,6 +503,30 @@ export class MerchantOrderService {
       throw merchantOrderNotRejectable();
     }
     return trimmed;
+  }
+
+  private normalizeReasonCode(
+    reasonCode: string | null | undefined,
+  ): MerchantCancellationReasonCode | null {
+    if (reasonCode == null) {
+      return null;
+    }
+    if (!isMerchantCancellationReasonCode(reasonCode)) {
+      throw merchantOrderNotRejectable();
+    }
+    return reasonCode;
+  }
+
+  private requirePreparationMinutes(minutes: number): void {
+    if (
+      !Number.isInteger(minutes) ||
+      minutes < PREPARATION_MINUTES_MIN ||
+      minutes > PREPARATION_MINUTES_MAX
+    ) {
+      throw merchantOrderPrepEstimateInvalid(
+        `preparationMinutes must be an integer between ${PREPARATION_MINUTES_MIN} and ${PREPARATION_MINUTES_MAX}`,
+      );
+    }
   }
 
   private async resolveBranchScope(

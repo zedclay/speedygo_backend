@@ -1,0 +1,101 @@
+{
+  "name": "speedygo-dev-checkout-preview",
+  "fictionalIdentity": true,
+  "purpose": "Synthetic active DeliveryZone + DeliveryPricingRule so Customer Checkout preview can succeed on speedygo_dev. Test amounts only — not production pricing. Optional companion GLOBAL_DEFAULT merchant commission enables Order creation (preview does not require it).",
+  "target": {
+    "host": "127.0.0.1",
+    "port": 5433,
+    "database": "speedygo_dev",
+    "api": "http://127.0.0.1:3000/api/v1",
+    "never": ["speedygo_test", "production", "shared Redis DB15"]
+  },
+  "namespace": {
+    "idPrefix": "0d00c072-d000-7000-8000-",
+    "idempotency": "Stable synthetic admin + permission seed via INSERT … ON CONFLICT DO NOTHING. Zone/rule created once via audited Admin API and reused by exact fixture names. Never deactivates unrelated zones/rules. Commission companion uses INSERT … WHERE NOT EXISTS an active open GLOBAL_DEFAULT.",
+    "doesNotOwn": [
+      "0d00c070-* demo catalog",
+      "0d00c071-* review catalog",
+      "promotion DEMOHOME150",
+      "live customer accounts except synthetic admin actor"
+    ]
+  },
+  "syntheticAdmin": {
+    "phone": "+213550000097",
+    "accountId": "0d00c072-d000-7000-8000-000000000001",
+    "roleId": "0d00c072-d000-7000-8000-000000000002",
+    "adminProfileId": "0d00c072-d000-7000-8000-000000000003",
+    "roleName": "speedygo-dev-checkout-fixtures",
+    "displayName": "SpeedyGo Dev Checkout Fixtures",
+    "permissions": [
+      "delivery.zones.read",
+      "delivery.zones.manage",
+      "delivery.pricing.read",
+      "delivery.pricing.manage"
+    ],
+    "customerProfile": false,
+    "note": "Synthetic only. No privileges granted to real users. changed_by_admin_id for the commission companion row."
+  },
+  "coverage": {
+    "address": {
+      "label": "Revue checkout Hydra",
+      "latitude": 36.7538,
+      "longitude": 3.0588,
+      "note": "Customer delivery address used by live Revue checkout preview."
+    },
+    "alsoCovers": {
+      "Demo Cafe Hydra branch": { "latitude": 36.75347, "longitude": 3.05214 },
+      "note": "Checkout zone resolution uses the owned delivery address, not the branch pin."
+    },
+    "geoJsonOrder": "[longitude, latitude] SRID 4326 Polygon, closed ring, no holes",
+    "zoneName": "SpeedyGo Dev Revue Hydra Zone",
+    "ring": [
+      [3.0, 36.7],
+      [3.1, 36.7],
+      [3.1, 36.8],
+      [3.0, 36.8],
+      [3.0, 36.7]
+    ]
+  },
+  "pricingRule": {
+    "name": "SpeedyGo Dev Revue Hydra All-Day",
+    "timeBand": "DAY",
+    "localWindow": "both null = all-day (Africa/Algiers)",
+    "effectiveFrom": "2020-01-01T00:00:00.000Z",
+    "effectiveTo": null,
+    "syntheticAmounts": {
+      "customerDeliveryFeeMinor": {
+        "centimes": 500,
+        "dzd": "5,00 DZD",
+        "role": "Customer-facing delivery fee returned by checkout preview"
+      },
+      "driverRemunerationMinor": {
+        "centimes": 300,
+        "dzd": "3,00 DZD",
+        "role": "Required driver remuneration field on the pricing rule (not shown on customer preview)"
+      }
+    },
+    "consistency": "Matches common checkout E2E fixture pair fee=500 / remun=300 and customer_app mock preview deliveryFeeMinor=500."
+  },
+  "merchantCommissionCompanion": {
+    "id": "01a086cd-b5c0-7000-8000-00000000c001",
+    "scope": "GLOBAL_DEFAULT",
+    "merchantId": null,
+    "rateBps": 700,
+    "active": true,
+    "effectiveFrom": "2020-01-01T00:00:00.000Z",
+    "effectiveTo": null,
+    "changedByAdminId": "0d00c072-d000-7000-8000-000000000003",
+    "ownership": "Companion to checkout fixtures for Order creation only. Owned by this fixture namespace on speedygo_dev. Not created by Admin commission HTTP (none in this phase). Inserted as SQL data when no active open GLOBAL_DEFAULT exists. Script: seed-commission-companion.sql",
+    "why": "POST /customer/orders resolves merchant commission inside the create transaction; Checkout preview does not. Empty commission table yields ORDER_FINANCIAL_CONFIGURATION_INVALID.",
+    "safeRerun": "INSERT … SELECT … WHERE NOT EXISTS (active GLOBAL_DEFAULT with effective_to IS NULL). Never updates, deactivates, or deletes unrelated commission rows. Does not change rate formulas in application code.",
+    "targetOnly": "speedygo_dev @ 127.0.0.1:5433"
+  },
+  "rerun": "apps/backend/scripts/dev-checkout-fixtures/apply-dev-checkout-fixtures.sh",
+  "creationPath": "Permissioned Admin API POST /admin/delivery/zones + activate, POST /admin/delivery/pricing-rules + activate (audited). Commission companion: idempotent SQL seed-commission-companion.sql",
+  "lastApplied": {
+    "zoneId": "01a086cd-b3b5-7392-9992-ba3708c20fb9",
+    "pricingRuleId": "01a086cd-b434-7331-8c30-f8ecc97cac05",
+    "commissionRuleId": "01a086cd-b5c0-7000-8000-00000000c001",
+    "report": ".cache/fixture-reports/dev-checkout-fixtures-last.json"
+  }
+}

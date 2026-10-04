@@ -1,0 +1,287 @@
+{
+  "actor": "+213550000072",
+  "checks": [
+    {
+      "name": "five_commerce_verticals",
+      "pass": true
+    },
+    {
+      "name": "storefront_list_includes_ten_review_shops",
+      "pass": true
+    },
+    {
+      "name": "vertical_filter_bakeries",
+      "pass": true
+    },
+    {
+      "name": "search_storefront_and_product",
+      "pass": true
+    },
+    {
+      "name": "menu_options_exact_prices",
+      "pass": true
+    },
+    {
+      "name": "product_imageUrl_is_customer_path",
+      "pass": true
+    },
+    {
+      "name": "closed_configured_case",
+      "pass": true
+    },
+    {
+      "name": "unconfigured_hours_case",
+      "pass": true
+    },
+    {
+      "name": "twenty_four_hour_open",
+      "pass": true
+    },
+    {
+      "name": "cover_bytes_are_jpeg",
+      "pass": true
+    },
+    {
+      "name": "product_image_bytes_are_jpeg",
+      "pass": true
+    }
+  ],
+  "verticals": {
+    "status": 200,
+    "slugs": [
+      "demo-restaurants:restaurant",
+      "demo-desserts:icecream",
+      "demo-groceries:local_mall",
+      "review-bakeries:bakery_dining",
+      "review-pharmacies:medical_services"
+    ],
+    "count": 5
+  },
+  "storefronts": {
+    "status": 200,
+    "total": 12,
+    "limit": 50,
+    "names": [
+      "Atelier Sucré",
+      "DEMO Cover Hydra",
+      "Dar El Bahja",
+      "Demo Cafe Hydra",
+      "Four de Didouche",
+      "Glaces du Palmier",
+      "Grillade des Oliviers",
+      "Le Jardin d’El Biar",
+      "Maison du Blé",
+      "Pharmacie Atlas",
+      "Souk El Khemis",
+      "Épicerie du Parc"
+    ],
+    "paginationNote": "total < default limit 50; this dataset does not exercise a full live page. Keep catalog_pagination_test.dart."
+  },
+  "filters": {
+    "restaurants": [
+      "DEMO Cover Hydra",
+      "Dar El Bahja",
+      "Grillade des Oliviers",
+      "Le Jardin d’El Biar"
+    ],
+    "bakeries": [
+      "Four de Didouche",
+      "Maison du Blé"
+    ]
+  },
+  "search": {
+    "bahjaTypes": [
+      "STOREFRONT"
+    ],
+    "couscousHits": [
+      {
+        "type": "PRODUCT",
+        "name": "Couscous légumes"
+      },
+      {
+        "type": "PRODUCT",
+        "name": "Couscous moyen 1 kg"
+      },
+      {
+        "type": "PRODUCT",
+        "name": "Couscous royal"
+      }
+    ]
+  },
+  "menu": {
+    "categories": [
+      "Plats",
+      "Entrées",
+      "Boissons"
+    ],
+    "productCount": 8,
+    "couscous": {
+      "status": 200,
+      "name": "Couscous royal",
+      "priceMinor": "120000",
+      "expectedPriceMinor": "120000",
+      "optionGroups": [
+        {
+          "name": "Taille",
+          "required": true,
+          "min": 1,
+          "max": 1,
+          "options": [
+            "Normale:0",
+            "Grande:20000"
+          ]
+        },
+        {
+          "name": "Suppléments",
+          "required": false,
+          "min": 0,
+          "max": 2,
+          "options": [
+            "Cuisse supplémentaire:25000",
+            "Harissa maison:0"
+          ]
+        }
+      ],
+      "hasImageField": true,
+      "imageUrl": "/customer/branches/0d00c071-d000-7000-8000-000000011001/products/0d00c071-d000-7000-8000-000000030101/image"
+    }
+  },
+  "hours": {
+    "epicerieDuParc": {
+      "hoursConfigured": true,
+      "isOpenNow": false
+    },
+    "atelierSucre": {
+      "hoursConfigured": false,
+      "isOpenNow": false
+    },
+    "soukElKhemis": {
+      "hoursConfigured": true,
+      "isOpenNow": true
+    }
+  },
+  "covers": [
+    {
+      "store": 1,
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 593745,
+      "jpeg": true,
+      "saved": "/Users/mac/Downloads/speedygo_project/apps/backend/scripts/dev-review-catalog/verification/cover-store-1.jpg"
+    },
+    {
+      "store": 2,
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 563931,
+      "jpeg": true,
+      "saved": "/Users/mac/Downloads/speedygo_project/apps/backend/scripts/dev-review-catalog/verification/cover-store-2.jpg"
+    },
+    {
+      "store": 3,
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 442870,
+      "jpeg": true,
+      "saved": "/Users/mac/Downloads/speedygo_project/apps/backend/scripts/dev-review-catalog/verification/cover-store-3.jpg"
+    },
+    {
+      "store": 6,
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 309841,
+      "jpeg": true,
+      "saved": "/Users/mac/Downloads/speedygo_project/apps/backend/scripts/dev-review-catalog/verification/cover-store-6.jpg"
+    },
+    {
+      "store": 8,
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 448971,
+      "jpeg": true,
+      "saved": "/Users/mac/Downloads/speedygo_project/apps/backend/scripts/dev-review-catalog/verification/cover-store-8.jpg"
+    },
+    {
+      "store": 9,
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 186967,
+      "jpeg": true,
+      "saved": "/Users/mac/Downloads/speedygo_project/apps/backend/scripts/dev-review-catalog/verification/cover-store-9.jpg"
+    }
+  ],
+  "productImages": [
+    {
+      "name": "Couscous royal",
+      "productId": "0d00c071-d000-7000-8000-000000030101",
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 593745,
+      "jpeg": true,
+      "saved": "/Users/mac/Downloads/speedygo_project/apps/backend/scripts/dev-review-catalog/verification/product-1-1.jpg"
+    },
+    {
+      "name": "Salade du jardin",
+      "productId": "0d00c071-d000-7000-8000-000000030201",
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 563931,
+      "jpeg": true,
+      "saved": "/Users/mac/Downloads/speedygo_project/apps/backend/scripts/dev-review-catalog/verification/product-2-1.jpg"
+    },
+    {
+      "name": "Brochettes d’agneau",
+      "productId": "0d00c071-d000-7000-8000-000000030301",
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 442870,
+      "jpeg": true,
+      "saved": "/Users/mac/Downloads/speedygo_project/apps/backend/scripts/dev-review-catalog/verification/product-3-1.jpg"
+    },
+    {
+      "name": "Croissant au beurre",
+      "productId": "0d00c071-d000-7000-8000-000000030421",
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 440637,
+      "jpeg": true,
+      "saved": "/Users/mac/Downloads/speedygo_project/apps/backend/scripts/dev-review-catalog/verification/product-4-21.jpg"
+    },
+    {
+      "name": "Pain au chocolat",
+      "productId": "0d00c071-d000-7000-8000-000000030422",
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 582341,
+      "jpeg": true,
+      "saved": "/Users/mac/Downloads/speedygo_project/apps/backend/scripts/dev-review-catalog/verification/product-4-22.jpg"
+    },
+    {
+      "name": "Tomates 1 kg",
+      "productId": "0d00c071-d000-7000-8000-000000030601",
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 250267,
+      "jpeg": true,
+      "saved": "/Users/mac/Downloads/speedygo_project/apps/backend/scripts/dev-review-catalog/verification/product-6-1.jpg"
+    },
+    {
+      "name": "Cornet 2 boules",
+      "productId": "0d00c071-d000-7000-8000-000000030901",
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 186967,
+      "jpeg": true,
+      "saved": "/Users/mac/Downloads/speedygo_project/apps/backend/scripts/dev-review-catalog/verification/product-9-1.jpg"
+    },
+    {
+      "name": "Baklava",
+      "productId": "0d00c071-d000-7000-8000-000000031007",
+      "status": 200,
+      "contentType": "image/jpeg",
+      "bytes": 934789,
+      "jpeg": true,
+      "saved": "/Users/mac/Downloads/speedygo_project/apps/backend/scripts/dev-review-catalog/verification/product-10-7.jpg"
+    }
+  ]
+}

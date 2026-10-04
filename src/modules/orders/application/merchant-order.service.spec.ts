@@ -70,6 +70,18 @@ function detail(
       },
     ],
     cancellation: null,
+    preparationMinutes: null,
+    originalPreparationMinutes: null,
+    estimatedReadyAt: null,
+    originalEstimatedReadyAt: null,
+    preparationEstimateVersion: 0,
+    isPreparationLate: false,
+    delayMinutes: null,
+    latestPreparationRevision: null,
+    deliveryImpact: {
+      state: 'DELIVERY_TIMING_UNAVAILABLE',
+      deliveryStatus: null,
+    },
     ...overrides,
   };
 }
@@ -87,6 +99,7 @@ describe('MerchantOrderService', () => {
     findPaymentByOrderId: jest.Mock;
     lockOrder: jest.Mock;
     applyMerchantAccept: jest.Mock;
+    applyPreparationEstimateAdd: jest.Mock;
     applyMerchantReject: jest.Mock;
     applyStartPreparation: jest.Mock;
     applyMarkReady: jest.Mock;
@@ -145,24 +158,82 @@ describe('MerchantOrderService', () => {
         confirmedAt: null,
         updatedAt: 'lock-1',
       }),
-      applyMerchantAccept: jest.fn().mockImplementation(() => {
-        current = detail({
-          status: 'CONFIRMED',
-          fulfillmentStatus: 'ACCEPTED',
-          confirmedAt: '2026-01-15T10:01:00.000Z',
-          statusHistory: [
-            ...current.statusHistory,
-            {
-              eventType: 'MERCHANT_ACCEPTED',
-              actorType: 'MERCHANT',
-              fromStatus: 'CREATED',
-              toStatus: 'CONFIRMED',
-              occurredAt: '2026-01-15T10:01:00.000Z',
-            },
-          ],
-        });
-        return true;
-      }),
+      applyMerchantAccept: jest
+        .fn()
+        .mockImplementation(
+          (
+            _orderId: string,
+            _accountId: string,
+            _updatedAt: string,
+            _tx: unknown,
+            preparationMinutes?: number,
+          ) => {
+            const confirmedAt = '2026-01-15T10:01:00.000Z';
+            const readyAt =
+              preparationMinutes != null
+                ? new Date(
+                    new Date(confirmedAt).getTime() +
+                      preparationMinutes * 60_000,
+                  ).toISOString()
+                : null;
+            current = detail({
+              status: 'CONFIRMED',
+              fulfillmentStatus: 'ACCEPTED',
+              confirmedAt,
+              preparationMinutes: preparationMinutes ?? null,
+              originalPreparationMinutes: preparationMinutes ?? null,
+              estimatedReadyAt: readyAt,
+              originalEstimatedReadyAt: readyAt,
+              preparationEstimateVersion: preparationMinutes != null ? 1 : 0,
+              isPreparationLate: false,
+              statusHistory: [
+                ...current.statusHistory,
+                {
+                  eventType: 'MERCHANT_ACCEPTED',
+                  actorType: 'MERCHANT',
+                  fromStatus: 'CREATED',
+                  toStatus: 'CONFIRMED',
+                  occurredAt: confirmedAt,
+                },
+              ],
+            });
+            return true;
+          },
+        ),
+      applyPreparationEstimateAdd: jest
+        .fn()
+        .mockImplementation(
+          (
+            _orderId: string,
+            _accountId: string,
+            _updatedAt: string,
+            expectedVersion: number,
+            addMinutes: number,
+            _reason: string | null,
+            _tx: unknown,
+          ) => {
+            if (current.preparationEstimateVersion !== expectedVersion) {
+              return { ok: false, reason: 'CONFLICT' };
+            }
+            if (
+              current.preparationEstimateVersion < 1 ||
+              !current.estimatedReadyAt
+            ) {
+              return { ok: false, reason: 'NO_ESTIMATE' };
+            }
+            const nextReady = new Date(
+              new Date(current.estimatedReadyAt).getTime() +
+                addMinutes * 60_000,
+            ).toISOString();
+            current = detail({
+              ...current,
+              estimatedReadyAt: nextReady,
+              preparationEstimateVersion: expectedVersion + 1,
+              isPreparationLate: false,
+            });
+            return { ok: true };
+          },
+        ),
       applyMerchantReject: jest.fn().mockImplementation(() => {
         current = detail({
           status: 'CANCELLED',
@@ -170,6 +241,7 @@ describe('MerchantOrderService', () => {
           payment: { method: 'COD', status: 'CANCELLED' },
           cancellation: {
             reason: 'Out of stock',
+            reasonCode: null,
             cancelledAt: '2026-01-15T10:02:00.000Z',
           },
           statusHistory: [
@@ -245,6 +317,80 @@ describe('MerchantOrderService', () => {
     expect(orders.applyMerchantAccept).not.toHaveBeenCalled();
   });
 
+  describe('financial visibility by role', () => {
+    const RESTRICTED_KEYS = [
+      'merchantDiscountMinor',
+      'merchantCommissionRateBps',
+      'merchantCommissionAmountMinor',
+      'merchantNetAmountMinor',
+    ];
+    const asRole = (role: string) =>
+      access.requireCapability.mockResolvedValue({
+        member: { role },
+        merchant: {
+          id: MERCHANT,
+          status: 'ACTIVE',
+          verifiedAt: '2026-01-01T00:00:00.000Z',
+        },
+      });
+
+    it.each(['OWNER', 'MANAGER'])(
+      'keeps every financial field for %s on list and detail',
+      async (role) => {
+        asRole(role);
+        const listed = await service.listOrders(ACCOUNT, MERCHANT, {});
+        const got = await service.getOrder(ACCOUNT, MERCHANT, ORDER_ID);
+        for (const view of [listed.items[0], got]) {
+          expect(view.financialAccess).toBe('GRANTED');
+          expect(view.financial).toEqual(current.financial);
+        }
+      },
+    );
+
+    it('omits restricted keys for STAFF on list and detail', async () => {
+      asRole('STAFF');
+      const listed = await service.listOrders(ACCOUNT, MERCHANT, {});
+      const got = await service.getOrder(ACCOUNT, MERCHANT, ORDER_ID);
+      for (const view of [listed.items[0], got]) {
+        expect(view.financialAccess).toBe('ROLE_RESTRICTED');
+        expect(Object.keys(view.financial).sort()).toEqual([
+          'currency',
+          'deliveryFeeMinor',
+          'grossMerchandiseSubtotalMinor',
+        ]);
+        for (const key of RESTRICTED_KEYS) {
+          expect(view.financial).not.toHaveProperty(key);
+        }
+        expect(view.financial.grossMerchandiseSubtotalMinor).toBe('1200');
+      }
+      expect(got.items[0].unitPriceMinor).toBe('1200');
+      expect(got.items[0].lineTotalMinor).toBe('1200');
+      expect(JSON.stringify(got)).not.toMatch(
+        /commission|merchantNet|discount|settlement|refund/i,
+      );
+    });
+
+    it('does not mutate the repository snapshot while projecting', async () => {
+      asRole('STAFF');
+      await service.getOrder(ACCOUNT, MERCHANT, ORDER_ID);
+      expect(current.financial.merchantNetAmountMinor).toBe('1116');
+    });
+
+    it('projects mutation responses with the same policy', async () => {
+      asRole('MANAGER');
+      const accepted = await service.acceptOrder(ACCOUNT, MERCHANT, ORDER_ID);
+      expect(accepted.financialAccess).toBe('GRANTED');
+      expect(accepted.financial.merchantCommissionRateBps).toBe(700);
+    });
+
+    it('treats an unknown stored role as restricted', async () => {
+      asRole('AUDITOR');
+      const got = await service.getOrder(ACCOUNT, MERCHANT, ORDER_ID);
+      expect(got.financialAccess).toBe('ROLE_RESTRICTED');
+      expect(got.financial).not.toHaveProperty('merchantNetAmountMinor');
+    });
+  });
+
   it('hides foreign Merchant Orders as not found', async () => {
     orders.findMerchantOrderDetail.mockResolvedValue(null);
     try {
@@ -265,6 +411,95 @@ describe('MerchantOrderService', () => {
         (row) => row.eventType === 'MERCHANT_ACCEPTED',
       ),
     ).toHaveLength(1);
+  });
+
+  it('accepts with preparationMinutes and exposes estimatedReadyAt', async () => {
+    const accepted = await service.acceptOrder(ACCOUNT, MERCHANT, ORDER_ID, 25);
+    expect(accepted.preparationMinutes).toBe(25);
+    expect(accepted.originalPreparationMinutes).toBe(25);
+    expect(accepted.estimatedReadyAt).toBeTruthy();
+    expect(accepted.originalEstimatedReadyAt).toBe(accepted.estimatedReadyAt);
+    expect(accepted.preparationEstimateVersion).toBe(1);
+    expect(orders.applyMerchantAccept).toHaveBeenCalledWith(
+      ORDER_ID,
+      ACCOUNT,
+      'lock-1',
+      expect.anything(),
+      25,
+    );
+  });
+
+  it('rejects invalid preparationMinutes on accept', async () => {
+    try {
+      await service.acceptOrder(ACCOUNT, MERCHANT, ORDER_ID, 3);
+      throw new Error('expected invalid');
+    } catch (error) {
+      expectCode(error, ORDER_ERROR_CODES.MERCHANT_ORDER_PREP_ESTIMATE_INVALID);
+    }
+    expect(orders.applyMerchantAccept).not.toHaveBeenCalled();
+  });
+
+  it('updates preparation estimate while ACCEPTED', async () => {
+    await service.acceptOrder(ACCOUNT, MERCHANT, ORDER_ID, 20);
+    orders.lockOrder.mockResolvedValue({
+      id: ORDER_ID,
+      customerId: 'cust-1',
+      merchantBranchId: BRANCH,
+      status: 'CONFIRMED',
+      fulfillmentStatus: 'ACCEPTED',
+      publicReference: 'sgo_abc',
+      createdAt: '2026-01-15T10:00:00.000Z',
+      confirmedAt: '2026-01-15T10:01:00.000Z',
+      updatedAt: 'lock-prep',
+    });
+    const original = current.estimatedReadyAt;
+    const updated = await service.updatePreparationEstimate(
+      ACCOUNT,
+      MERCHANT,
+      ORDER_ID,
+      { addMinutes: 10, expectedEstimateVersion: 1, reason: 'affluence' },
+    );
+    expect(updated.preparationMinutes).toBe(20);
+    expect(updated.preparationEstimateVersion).toBe(2);
+    expect(updated.originalEstimatedReadyAt).toBe(original);
+    expect(updated.estimatedReadyAt).not.toBe(original);
+    expect(orders.applyPreparationEstimateAdd).toHaveBeenCalled();
+  });
+
+  it('rejects prep estimate update when READY', async () => {
+    current = detail({
+      status: 'ACTIVE',
+      fulfillmentStatus: 'READY',
+      preparationMinutes: 25,
+      originalPreparationMinutes: 25,
+      estimatedReadyAt: '2026-01-15T10:26:00.000Z',
+      originalEstimatedReadyAt: '2026-01-15T10:26:00.000Z',
+      preparationEstimateVersion: 1,
+    });
+    orders.lockOrder.mockResolvedValue({
+      id: ORDER_ID,
+      customerId: 'cust-1',
+      merchantBranchId: BRANCH,
+      status: 'ACTIVE',
+      fulfillmentStatus: 'READY',
+      publicReference: 'sgo_abc',
+      createdAt: '2026-01-15T10:00:00.000Z',
+      confirmedAt: '2026-01-15T10:01:00.000Z',
+      updatedAt: 'lock-ready',
+    });
+    try {
+      await service.updatePreparationEstimate(ACCOUNT, MERCHANT, ORDER_ID, {
+        addMinutes: 5,
+        expectedEstimateVersion: 1,
+      });
+      throw new Error('expected not allowed');
+    } catch (error) {
+      expectCode(
+        error,
+        ORDER_ERROR_CODES.MERCHANT_ORDER_PREP_ESTIMATE_NOT_ALLOWED,
+      );
+    }
+    expect(orders.applyPreparationEstimateAdd).not.toHaveBeenCalled();
   });
 
   it('rejects STAFF mutation', async () => {
@@ -495,6 +730,40 @@ describe('MerchantOrderService', () => {
         (row) => row.eventType === 'MERCHANT_REJECTED',
       ),
     ).toHaveLength(1);
+  });
+
+  it('passes the structured reasonCode through to the cancellation write', async () => {
+    await service.rejectOrder(ACCOUNT, MERCHANT, ORDER_ID, 'Busy', 'TOO_BUSY');
+    expect(orders.applyMerchantReject).toHaveBeenCalledWith(
+      ORDER_ID,
+      ACCOUNT,
+      'Busy',
+      expect.anything(),
+      expect.anything(),
+      'TOO_BUSY',
+    );
+  });
+
+  it('stores a null reasonCode for legacy reject calls', async () => {
+    await service.rejectOrder(ACCOUNT, MERCHANT, ORDER_ID, 'Busy');
+    expect(orders.applyMerchantReject).toHaveBeenCalledWith(
+      ORDER_ID,
+      ACCOUNT,
+      'Busy',
+      expect.anything(),
+      expect.anything(),
+      null,
+    );
+  });
+
+  it('rejects an unknown reasonCode before any write', async () => {
+    try {
+      await service.rejectOrder(ACCOUNT, MERCHANT, ORDER_ID, 'Busy', 'BORED');
+      throw new Error('expected not rejectable');
+    } catch (error) {
+      expectCode(error, ORDER_ERROR_CODES.MERCHANT_ORDER_NOT_REJECTABLE);
+    }
+    expect(orders.applyMerchantReject).not.toHaveBeenCalled();
   });
 
   it('does not reject an already accepted Order', async () => {

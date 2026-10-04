@@ -14,6 +14,19 @@ import { OTP_SENDER } from '../src/modules/auth/domain/ports/otp-sender.port';
 import { TestOtpSender } from '../src/modules/auth/infrastructure/otp/test-otp.sender';
 import { MerchantReviewService } from '../src/modules/merchants/application/merchant-review.service';
 
+const LEGAL_ACCEPTANCES = [
+  { kind: 'MERCHANT_TERMS', version: '2026-10-03' },
+  { kind: 'DOSSIER_ACCURACY_DECLARATION', version: '2026-10-03' },
+];
+
+const REJECT_ISSUES = [
+  {
+    scope: 'APPLICATION',
+    code: 'PROFILE_INCOMPLETE',
+    messageFr: 'Le profil est incomplet.',
+  },
+];
+
 type TokenBody = { accessToken: string };
 type ErrorBody = { error: { code: string; message: string } };
 type MembershipBody = {
@@ -93,6 +106,22 @@ describe('Merchant verification foundation (e2e)', () => {
       .orm.public.MerchantMember.where({ accountId: account.id })
       .all();
     for (const member of members) {
+      const mdb = prisma.getDb().orm.public;
+      for (const row of await mdb.MerchantVerificationIssue.where({
+        merchantId: member.merchantId,
+      }).all()) {
+        await mdb.MerchantVerificationIssue.where({ id: row.id }).delete();
+      }
+      for (const row of await mdb.MerchantLegalAcceptance.where({
+        merchantId: member.merchantId,
+      }).all()) {
+        await mdb.MerchantLegalAcceptance.where({ id: row.id }).delete();
+      }
+      for (const row of await mdb.MerchantVerificationSubmission.where({
+        merchantId: member.merchantId,
+      }).all()) {
+        await mdb.MerchantVerificationSubmission.where({ id: row.id }).delete();
+      }
       const docs = await prisma
         .getDb()
         .orm.public.MerchantDocument.where({ merchantId: member.merchantId })
@@ -288,7 +317,7 @@ describe('Merchant verification foundation (e2e)', () => {
       const submitted = await request(server)
         .post(`/api/v1/merchant/${merchantId}/verification/submit`)
         .set('Authorization', `Bearer ${ownerToken}`)
-        .send({});
+        .send({ acceptances: LEGAL_ACCEPTANCES });
       expect(submitted.status).toBe(200);
       const submittedBody = submitted.body as MembershipBody;
       expect(submittedBody.verificationSubmitted).toBe(true);
@@ -359,10 +388,11 @@ describe('Merchant verification foundation (e2e)', () => {
       await request(server)
         .post(`/api/v1/merchant/${merchantBId}/verification/submit`)
         .set('Authorization', `Bearer ${ownerToken}`)
-        .send({});
+        .send({ acceptances: LEGAL_ACCEPTANCES });
       await review.reject({
         merchantId: merchantBId,
         adminId,
+        issues: REJECT_ISSUES,
       });
       const meMulti = await request(server)
         .get('/api/v1/merchant/me')
@@ -409,10 +439,14 @@ describe('Merchant verification foundation (e2e)', () => {
       await request(server)
         .post(`/api/v1/merchant/${raceId}/verification/submit`)
         .set('Authorization', `Bearer ${otherToken}`)
-        .send({});
+        .send({ acceptances: LEGAL_ACCEPTANCES });
       const race = await Promise.allSettled([
         review.approve({ merchantId: raceId, adminId }),
-        review.reject({ merchantId: raceId, adminId }),
+        review.reject({
+          merchantId: raceId,
+          adminId,
+          issues: REJECT_ISSUES,
+        }),
       ]);
       expect(race.filter((row) => row.status === 'fulfilled').length).toBe(1);
       expect(race.filter((row) => row.status === 'rejected').length).toBe(1);

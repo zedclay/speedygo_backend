@@ -1,0 +1,55 @@
+{
+  "name": "speedygo-dev-cod-lifecycle-driver",
+  "fictionalIdentity": true,
+  "purpose": "One synthetic development driver + verifier admin so COD matching/delivery can be exercised on speedygo_dev. Not production. Does not grant roles to real accounts.",
+  "target": {
+    "host": "127.0.0.1",
+    "port": 5433,
+    "database": "speedygo_dev",
+    "api": "http://127.0.0.1:3000/api/v1",
+    "never": ["speedygo_test", "production", "Bousbaa", "+213549445167"]
+  },
+  "namespace": {
+    "idPrefix": "0d00c073-d000-7000-8000-",
+    "idempotency": "Admin seed INSERT … ON CONFLICT DO NOTHING. Driver account/profile created via supported HTTP OTP + driver APIs; admin approve via POST /admin/drivers/:id/verification/approve."
+  },
+  "syntheticActors": {
+    "verifierAdmin": {
+      "phone": "+213550000098",
+      "accountId": "0d00c073-d000-7000-8000-000000000001",
+      "adminProfileId": "0d00c073-d000-7000-8000-000000000003",
+      "roleId": "0d00c073-d000-7000-8000-000000000002",
+      "roleName": "speedygo-dev-cod-lifecycle-driver",
+      "permissions": ["drivers.read", "drivers.verify"],
+      "seed": "seed-admin.sql"
+    },
+    "driver": {
+      "phone": "+213550000073",
+      "fullName": "SpeedyGo Dev COD Driver",
+      "accountId": "01a0a2cd-d1a6-7e88-b537-9de178b0d472",
+      "driverProfileId": "01a0a2cd-d28d-7b9a-bb9c-6bc5f9f7260b",
+      "verificationStatus": "APPROVED",
+      "vehiclePlate": "SG-COD-073",
+      "note": "Created via apply-dev-cod-lifecycle-driver.sh (HTTP onboard + admin approve)."
+    },
+    "rematchDriver": {
+      "phone": "+213550000074",
+      "fullName": "SpeedyGo Dev COD Driver 2",
+      "accountId": "01a0a2da-6de3-78fc-8ad8-e3536f2cc1f5",
+      "driverProfileId": "01a0a2da-6e55-7ce2-9be5-6efbfe0c55c7",
+      "verificationStatus": "APPROVED",
+      "vehiclePlate": "SG-COD-074",
+      "note": "Second synthetic driver for rematch after 073 offer expiry exclusion. Reuse on COD acceptance reruns; do not create additional drivers unless both are unusable."
+    }
+  },
+  "documents": {
+    "note": "Metadata-only IDENTITY + DRIVING_LICENSE via PUT /driver/documents/:type (supported without fabricating scanned PII bytes). No personal documents of real people."
+  },
+  "vehicle": {
+    "type": "MOTORCYCLE",
+    "plateNumber": "SG-COD-073",
+    "model": "Synth NMAX",
+    "color": "White"
+  },
+  "rerun": "bash apps/backend/scripts/dev-cod-lifecycle-driver/apply-dev-cod-lifecycle-driver.sh"
+}

@@ -9,6 +9,8 @@ export const CATALOG_ERROR_CODES = {
   CATALOG_CATEGORY_IN_USE: 'CATALOG_CATEGORY_IN_USE',
   CATALOG_PRODUCT_IN_USE: 'CATALOG_PRODUCT_IN_USE',
   CATALOG_OPTION_GROUP_INVALID: 'CATALOG_OPTION_GROUP_INVALID',
+  CATALOG_DUPLICATE_REQUEST_CONFLICT: 'CATALOG_DUPLICATE_REQUEST_CONFLICT',
+  CATALOG_SELLING_UNIT_INVALID: 'CATALOG_SELLING_UNIT_INVALID',
 } as const;
 
 export type CatalogErrorCode =
@@ -78,6 +80,24 @@ export function catalogProductInUse(): CatalogError {
     CATALOG_ERROR_CODES.CATALOG_PRODUCT_IN_USE,
     'Product cannot be deleted after historical order use. Set available=false instead.',
     409,
+  );
+}
+
+export function catalogDuplicateRequestConflict(): CatalogError {
+  return new CatalogError(
+    CATALOG_ERROR_CODES.CATALOG_DUPLICATE_REQUEST_CONFLICT,
+    'This duplication requestId was already used for another product',
+    409,
+  );
+}
+
+export function catalogSellingUnitInvalid(
+  message = 'Selling unit is invalid',
+): CatalogError {
+  return new CatalogError(
+    CATALOG_ERROR_CODES.CATALOG_SELLING_UNIT_INVALID,
+    message,
+    400,
   );
 }
 

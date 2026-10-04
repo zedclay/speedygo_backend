@@ -4,7 +4,8 @@
  * Persistent IN_APP history on Account via Notification.
  * No NotificationPreference table → no preference feature.
  * No sourceId column → idempotency key encoded in category: `{TYPE}:{sourceId}`.
- * PUSH provider not integrated → never fake Push success.
+ * PUSH: provider acceptance is recorded as PROVIDER_ACCEPTED, never as
+ * device receipt/display (the server cannot observe either).
  */
 
 export const NOTIFICATION_CHANNEL_IN_APP = 'IN_APP';
@@ -23,12 +24,27 @@ export const NOTIFICATION_DELIVERY_SENT = 'SENT';
 export const NOTIFICATION_DELIVERY_FAILED = 'FAILED';
 export const NOTIFICATION_DELIVERY_SKIPPED_NOT_CONFIGURED =
   'SKIPPED_NOT_CONFIGURED';
+/** PUSH only: provider accepted the message for ≥1 device token. Not device receipt. */
+export const NOTIFICATION_DELIVERY_PROVIDER_ACCEPTED = 'PROVIDER_ACCEPTED';
+/** PUSH only: recipient had no active DeviceToken at send time. */
+export const NOTIFICATION_DELIVERY_SKIPPED_NO_ACTIVE_TOKEN =
+  'SKIPPED_NO_ACTIVE_TOKEN';
+/** PUSH only: source no longer actionable (e.g. order handled/cancelled). */
+export const NOTIFICATION_DELIVERY_SKIPPED_STALE_SOURCE =
+  'SKIPPED_STALE_SOURCE';
+/** PUSH only: recipient no longer authorized (membership/account status). */
+export const NOTIFICATION_DELIVERY_SKIPPED_RECIPIENT_INELIGIBLE =
+  'SKIPPED_RECIPIENT_INELIGIBLE';
 
 export const NOTIFICATION_DELIVERY_STATUSES_V1 = [
   NOTIFICATION_DELIVERY_PENDING,
   NOTIFICATION_DELIVERY_SENT,
   NOTIFICATION_DELIVERY_FAILED,
   NOTIFICATION_DELIVERY_SKIPPED_NOT_CONFIGURED,
+  NOTIFICATION_DELIVERY_PROVIDER_ACCEPTED,
+  NOTIFICATION_DELIVERY_SKIPPED_NO_ACTIVE_TOKEN,
+  NOTIFICATION_DELIVERY_SKIPPED_STALE_SOURCE,
+  NOTIFICATION_DELIVERY_SKIPPED_RECIPIENT_INELIGIBLE,
 ] as const;
 
 export type NotificationDeliveryStatusV1 =
@@ -69,6 +85,11 @@ export const NOTIFICATION_TYPES_V1 = [
 ] as const;
 
 export type NotificationTypeV1 = (typeof NOTIFICATION_TYPES_V1)[number];
+
+/** Types that attempt native Push when a provider is configured. */
+export const NOTIFICATION_PUSH_ENABLED_TYPES: readonly NotificationTypeV1[] = [
+  NOTIFICATION_TYPE_MERCHANT_ORDER_CREATED,
+];
 
 export const NOTIFICATION_LIST_DEFAULT_LIMIT = 20;
 export const NOTIFICATION_LIST_MAX_LIMIT = 50;

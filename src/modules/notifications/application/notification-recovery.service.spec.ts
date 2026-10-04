@@ -18,7 +18,9 @@ describe('NotificationRecoveryService', () => {
     listRecentFinalizedSettlements: jest.Mock;
     listMissingDriverEarnings: jest.Mock;
     listOpenMatchOffers: jest.Mock;
+    listPendingPushNotificationIds: jest.Mock;
   };
+  let jobs: { ensureRecoverySchedule: jest.Mock; enqueuePushSend: jest.Mock };
   let notifications: {
     notifyMerchantOrderCreated: jest.Mock;
     notifyOrderAccepted: jest.Mock;
@@ -44,6 +46,11 @@ describe('NotificationRecoveryService', () => {
       listRecentFinalizedSettlements: jest.fn().mockResolvedValue([]),
       listMissingDriverEarnings: jest.fn().mockResolvedValue([]),
       listOpenMatchOffers: jest.fn().mockResolvedValue([]),
+      listPendingPushNotificationIds: jest.fn().mockResolvedValue([]),
+    };
+    jobs = {
+      ensureRecoverySchedule: jest.fn(),
+      enqueuePushSend: jest.fn().mockResolvedValue(undefined),
     };
     notifications = {
       notifyMerchantOrderCreated: jest.fn().mockResolvedValue(undefined),
@@ -69,7 +76,21 @@ describe('NotificationRecoveryService', () => {
           return fallback;
         },
       } as never,
+      jobs as never,
     );
+  });
+
+  it('re-enqueues PENDING push logs and tolerates enqueue failures', async () => {
+    recoveryRows.listPendingPushNotificationIds.mockResolvedValue([
+      { notificationId: 'n-1' },
+      { notificationId: 'n-2' },
+    ]);
+    jobs.enqueuePushSend
+      .mockResolvedValueOnce(undefined)
+      .mockRejectedValueOnce(new Error('redis down'));
+    const result = await service.recover();
+    expect(jobs.enqueuePushSend).toHaveBeenCalledTimes(2);
+    expect(result.pushRequeued).toBe(1);
   });
 
   it('repairs missing payment notifications via the same notify path', async () => {

@@ -1,4 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import {
   IsInt,
   IsOptional,
@@ -32,4 +33,14 @@ export class CreateRatingDto {
   @MinLength(0)
   @MaxLength(RATING_COMMENT_MAX)
   comment?: string | null;
+}
+
+export class MerchantRatingSummariesQueryDto {
+  @ApiProperty({
+    description:
+      'Comma-separated Merchant UUIDs. Max 50 unique ids. Unknown merchants are omitted.',
+  })
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  merchantIds!: string;
 }

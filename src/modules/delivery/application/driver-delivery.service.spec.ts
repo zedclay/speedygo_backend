@@ -44,6 +44,10 @@ describe('DriverDeliveryService', () => {
   let remuneration: { createForCompletedDelivery: jest.Mock };
   let locations: { get: jest.Mock };
   let config: { get: jest.Mock };
+  let pickupHandoffs: {
+    isAlreadyConfirmed: jest.Mock;
+    verifyForConfirmPickup: jest.Mock;
+  };
   let service: DriverDeliveryService;
 
   beforeEach(() => {
@@ -109,6 +113,7 @@ describe('DriverDeliveryService', () => {
         id: ASSIGNMENT_ID,
         deliveryId: DELIVERY_ID,
         status: 'ACCEPTED',
+        version: 1,
       }),
       findAvailability: jest.fn().mockResolvedValue({ status: 'ONLINE' }),
       setAvailabilityStatus: jest.fn().mockResolvedValue({ status: 'OFFLINE' }),
@@ -146,6 +151,10 @@ describe('DriverDeliveryService', () => {
       notifyDeliveryCompleted: jest.fn().mockResolvedValue(undefined),
       notifyDriverEarningCreated: jest.fn().mockResolvedValue(undefined),
     };
+    pickupHandoffs = {
+      isAlreadyConfirmed: jest.fn().mockResolvedValue(false),
+      verifyForConfirmPickup: jest.fn().mockResolvedValue('legacy'),
+    };
     service = new DriverDeliveryService(
       deliveries as never,
       drivers as never,
@@ -154,6 +163,7 @@ describe('DriverDeliveryService', () => {
       codCollections as never,
       remuneration as never,
       notifications as never,
+      pickupHandoffs as never,
     );
   });
 
@@ -291,6 +301,58 @@ describe('DriverDeliveryService', () => {
     ).rejects.toMatchObject({
       code: DRIVER_DELIVERY_ERROR_CODES.DRIVER_DELIVERY_NOT_NEAR_DROPOFF,
     });
+  });
+
+  it('requires pickup code when a pending handoff exists', async () => {
+    deliveryStatus = 'AT_PICKUP';
+    pickupHandoffs.verifyForConfirmPickup.mockResolvedValue('verified');
+    deliveries.findDeliveryDetail.mockResolvedValue({
+      id: DELIVERY_ID,
+      status: 'PICKED_UP',
+      orderStatus: 'ACTIVE',
+      fulfillmentStatus: 'READY',
+      pickedUpAt: 't',
+      arrivedCustomerAt: null,
+      deliveredAt: null,
+    });
+    await service.confirmPickup(ACCOUNT, {
+      pickupCode: '1234',
+      assignmentId: ASSIGNMENT_ID,
+      assignmentVersion: 1,
+    });
+    expect(pickupHandoffs.verifyForConfirmPickup).toHaveBeenCalledWith({
+      deliveryId: DELIVERY_ID,
+      driverId: DRIVER_ID,
+      assignmentId: ASSIGNMENT_ID,
+      assignmentVersion: 1,
+      body: {
+        pickupCode: '1234',
+        assignmentId: ASSIGNMENT_ID,
+        assignmentVersion: 1,
+      },
+    });
+    expect(deliveries.transitionIfStatus).not.toHaveBeenCalled();
+  });
+
+  it('returns idempotently when pickup was already confirmed with handoff', async () => {
+    deliveryStatus = 'PICKED_UP';
+    pickupHandoffs.isAlreadyConfirmed.mockResolvedValue(true);
+    deliveries.findDeliveryDetail.mockResolvedValue({
+      id: DELIVERY_ID,
+      status: 'PICKED_UP',
+      orderStatus: 'ACTIVE',
+      fulfillmentStatus: 'READY',
+      pickedUpAt: 't',
+      arrivedCustomerAt: null,
+      deliveredAt: null,
+    });
+    await service.confirmPickup(ACCOUNT, {
+      pickupCode: '1234',
+      assignmentId: ASSIGNMENT_ID,
+      assignmentVersion: 1,
+    });
+    expect(pickupHandoffs.verifyForConfirmPickup).not.toHaveBeenCalled();
+    expect(deliveries.transitionIfStatus).not.toHaveBeenCalled();
   });
 
   it('does not require GPS for confirm-pickup or start-delivery', async () => {

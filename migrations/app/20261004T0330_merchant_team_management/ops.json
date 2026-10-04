@@ -1,0 +1,485 @@
+[
+  {
+    "id": "table.merchant_member_invitations",
+    "label": "Create table \"merchant_member_invitations\"",
+    "summary": "Creates table \"merchant_member_invitations\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "merchant_member_invitations"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"merchant_member_invitations\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_member_invitations\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"merchant_member_invitations\"",
+        "sql": "CREATE TABLE \"public\".\"merchant_member_invitations\" (\n  \"accepted_at\" timestamptz(6),\n  \"accepted_by_account_id\" uuid,\n  \"cancelled_at\" timestamptz(6),\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"created_by_account_id\" uuid NOT NULL,\n  \"expires_at\" timestamptz(6) NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"merchant_id\" uuid NOT NULL,\n  \"phone\" character varying(32) NOT NULL,\n  \"role\" character varying(64) NOT NULL,\n  \"status\" character varying(64) NOT NULL,\n  \"token_hash\" character varying(128) NOT NULL,\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"version\" int4 DEFAULT 1 NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"mmi_role_values_75886224\" CHECK (role IN ('MANAGER', 'STAFF')),\n  CONSTRAINT \"mmi_status_values_3b81a0af\" CHECK (status IN ('PENDING', 'ACCEPTED', 'CANCELLED', 'EXPIRED')),\n  CONSTRAINT \"mmi_version_positive_c2490804\" CHECK (version >= 1)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"merchant_member_invitations\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_member_invitations\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.merchant_members.updated_at",
+    "label": "Add column \"updated_at\" to \"merchant_members\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "updated_at",
+        "table": "merchant_members"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"updated_at\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "merchant_members",
+          "updated_at"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"updated_at\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_members\" ADD COLUMN \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"updated_at\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "merchant_members",
+          "updated_at"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.merchant_members.version",
+    "label": "Add column \"version\" to \"merchant_members\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "version",
+        "table": "merchant_members"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"version\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "merchant_members",
+          "version"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"version\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_members\" ADD COLUMN \"version\" int4 DEFAULT 1 NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"version\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "merchant_members",
+          "version"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_member_invitations.merchant_member_invitations_accepted_by_account_id_idx_c81886a8",
+    "label": "Create index \"merchant_member_invitations_accepted_by_account_id_idx_c81886a8\" on \"merchant_member_invitations\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "merchant_member_invitations_accepted_by_account_id_idx_c81886a8",
+        "table": "merchant_member_invitations"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"merchant_member_invitations_accepted_by_account_id_idx_c81886a8\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_member_invitations_accepted_by_account_id_idx_c81886a8\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"merchant_member_invitations_accepted_by_account_id_idx_c81886a8\"",
+        "sql": "CREATE INDEX \"merchant_member_invitations_accepted_by_account_id_idx_c81886a8\" ON \"public\".\"merchant_member_invitations\" (\"accepted_by_account_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"merchant_member_invitations_accepted_by_account_id_idx_c81886a8\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_member_invitations_accepted_by_account_id_idx_c81886a8\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_member_invitations.merchant_member_invitations_created_by_account_id_idx_01ca7524",
+    "label": "Create index \"merchant_member_invitations_created_by_account_id_idx_01ca7524\" on \"merchant_member_invitations\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "merchant_member_invitations_created_by_account_id_idx_01ca7524",
+        "table": "merchant_member_invitations"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"merchant_member_invitations_created_by_account_id_idx_01ca7524\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_member_invitations_created_by_account_id_idx_01ca7524\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"merchant_member_invitations_created_by_account_id_idx_01ca7524\"",
+        "sql": "CREATE INDEX \"merchant_member_invitations_created_by_account_id_idx_01ca7524\" ON \"public\".\"merchant_member_invitations\" (\"created_by_account_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"merchant_member_invitations_created_by_account_id_idx_01ca7524\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_member_invitations_created_by_account_id_idx_01ca7524\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_member_invitations.merchant_member_invitations_merchant_id_idx_92be5ce7",
+    "label": "Create index \"merchant_member_invitations_merchant_id_idx_92be5ce7\" on \"merchant_member_invitations\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "merchant_member_invitations_merchant_id_idx_92be5ce7",
+        "table": "merchant_member_invitations"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"merchant_member_invitations_merchant_id_idx_92be5ce7\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_member_invitations_merchant_id_idx_92be5ce7\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"merchant_member_invitations_merchant_id_idx_92be5ce7\"",
+        "sql": "CREATE INDEX \"merchant_member_invitations_merchant_id_idx_92be5ce7\" ON \"public\".\"merchant_member_invitations\" (\"merchant_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"merchant_member_invitations_merchant_id_idx_92be5ce7\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_member_invitations_merchant_id_idx_92be5ce7\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_member_invitations.mmi_merchant_phone_pending_uq_23aa45d2",
+    "label": "Create index \"mmi_merchant_phone_pending_uq_23aa45d2\" on \"merchant_member_invitations\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "mmi_merchant_phone_pending_uq_23aa45d2",
+        "table": "merchant_member_invitations"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"mmi_merchant_phone_pending_uq_23aa45d2\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mmi_merchant_phone_pending_uq_23aa45d2\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"mmi_merchant_phone_pending_uq_23aa45d2\"",
+        "sql": "CREATE UNIQUE INDEX \"mmi_merchant_phone_pending_uq_23aa45d2\" ON \"public\".\"merchant_member_invitations\" (\"merchant_id\", \"phone\") WHERE ((status = 'PENDING'))",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"mmi_merchant_phone_pending_uq_23aa45d2\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mmi_merchant_phone_pending_uq_23aa45d2\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_member_invitations.mmi_merchant_status_06a43d97",
+    "label": "Create index \"mmi_merchant_status_06a43d97\" on \"merchant_member_invitations\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "mmi_merchant_status_06a43d97",
+        "table": "merchant_member_invitations"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"mmi_merchant_status_06a43d97\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mmi_merchant_status_06a43d97\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"mmi_merchant_status_06a43d97\"",
+        "sql": "CREATE INDEX \"mmi_merchant_status_06a43d97\" ON \"public\".\"merchant_member_invitations\" (\"merchant_id\", \"status\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"mmi_merchant_status_06a43d97\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mmi_merchant_status_06a43d97\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_member_invitations.mmi_phone_status_a9012a96",
+    "label": "Create index \"mmi_phone_status_a9012a96\" on \"merchant_member_invitations\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "mmi_phone_status_a9012a96",
+        "table": "merchant_member_invitations"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"mmi_phone_status_a9012a96\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mmi_phone_status_a9012a96\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"mmi_phone_status_a9012a96\"",
+        "sql": "CREATE INDEX \"mmi_phone_status_a9012a96\" ON \"public\".\"merchant_member_invitations\" (\"phone\", \"status\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"mmi_phone_status_a9012a96\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mmi_phone_status_a9012a96\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_member_invitations.merchant_member_invitations_merchant_id_fkey",
+    "label": "Add foreign key \"merchant_member_invitations_merchant_id_fkey\" on \"merchant_member_invitations\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_member_invitations_merchant_id_fkey",
+        "table": "merchant_member_invitations"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_member_invitations_merchant_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_member_invitations_merchant_id_fkey",
+          "public",
+          "\"public\".\"merchant_member_invitations\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_member_invitations_merchant_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_member_invitations\"\nADD CONSTRAINT \"merchant_member_invitations_merchant_id_fkey\"\nFOREIGN KEY (\"merchant_id\")\nREFERENCES \"public\".\"merchants\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_member_invitations_merchant_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_member_invitations_merchant_id_fkey",
+          "public",
+          "\"public\".\"merchant_member_invitations\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_member_invitations.merchant_member_invitations_created_by_account_id_fkey",
+    "label": "Add foreign key \"merchant_member_invitations_created_by_account_id_fkey\" on \"merchant_member_invitations\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_member_invitations_created_by_account_id_fkey",
+        "table": "merchant_member_invitations"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_member_invitations_created_by_account_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_member_invitations_created_by_account_id_fkey",
+          "public",
+          "\"public\".\"merchant_member_invitations\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_member_invitations_created_by_account_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_member_invitations\"\nADD CONSTRAINT \"merchant_member_invitations_created_by_account_id_fkey\"\nFOREIGN KEY (\"created_by_account_id\")\nREFERENCES \"public\".\"accounts\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_member_invitations_created_by_account_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_member_invitations_created_by_account_id_fkey",
+          "public",
+          "\"public\".\"merchant_member_invitations\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_member_invitations.merchant_member_invitations_accepted_by_account_id_fkey",
+    "label": "Add foreign key \"merchant_member_invitations_accepted_by_account_id_fkey\" on \"merchant_member_invitations\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_member_invitations_accepted_by_account_id_fkey",
+        "table": "merchant_member_invitations"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_member_invitations_accepted_by_account_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_member_invitations_accepted_by_account_id_fkey",
+          "public",
+          "\"public\".\"merchant_member_invitations\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_member_invitations_accepted_by_account_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_member_invitations\"\nADD CONSTRAINT \"merchant_member_invitations_accepted_by_account_id_fkey\"\nFOREIGN KEY (\"accepted_by_account_id\")\nREFERENCES \"public\".\"accounts\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_member_invitations_accepted_by_account_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_member_invitations_accepted_by_account_id_fkey",
+          "public",
+          "\"public\".\"merchant_member_invitations\""
+        ]
+      }
+    ]
+  }
+]

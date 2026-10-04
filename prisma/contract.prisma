@@ -151,6 +151,10 @@ model Account {
   updatedAt TimestamptzString(6) @default(now()) @map("updated_at")
 
   merchantBranchOpeningSchedulesUpdated MerchantBranchOpeningSchedule[]
+  merchantBranchAvailabilityOverridesUpdated MerchantBranchAvailabilityOverride[]
+  merchantBranchHoursExceptionsUpdated MerchantBranchHoursException[]
+  merchantMemberInvitationsCreated MerchantMemberInvitation[] @relation("MerchantMemberInvitationCreatedBy")
+  merchantMemberInvitationsAccepted MerchantMemberInvitation[] @relation("MerchantMemberInvitationAcceptedBy")
 
   @@index([phone], unique: true, where: "(phone IS NOT NULL)", name: "accounts_phone_uq")
   @@index([email], unique: true, where: "(email IS NOT NULL)", name: "accounts_email_uq")
@@ -347,6 +351,35 @@ model Merchant {
   @@map("merchants")
 }
 
+model Wilaya {
+  code      VarChar(2)           @id
+  nameFr    VarChar(255)         @map("name_fr")
+  nameAr    VarChar(255)         @map("name_ar")
+  createdAt TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt TimestamptzString(6) @default(now()) @map("updated_at")
+
+  communes Commune[]
+  branches MerchantBranch[]
+
+  @@map("wilayas")
+}
+
+model Commune {
+  id         Int                  @id
+  wilayaCode VarChar(2)           @map("wilaya_code")
+  nameFr     VarChar(255)         @map("name_fr")
+  nameAr     VarChar(255)         @map("name_ar")
+  aliasesFr  Jsonb?               @map("aliases_fr")
+  createdAt  TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt  TimestamptzString(6) @default(now()) @map("updated_at")
+
+  wilaya   Wilaya           @relation(fields: [wilayaCode], references: [code], onDelete: Restrict)
+  branches MerchantBranch[]
+
+  @@index([wilayaCode], name: "communes_wilaya")
+  @@map("communes")
+}
+
 model MerchantBranch {
   id                 Uuid                 @id
   merchantId         Uuid                 @map("merchant_id")
@@ -355,15 +388,104 @@ model MerchantBranch {
   addressText        String               @map("address_text")
   latitude           Numeric(9, 6)
   longitude          Numeric(9, 6)
+  wilayaCode         VarChar(2)?          @map("wilaya_code")
+  communeId          Int?                 @map("commune_id")
   operationalStatus  VarChar(64)          @map("operational_status")
+  /// Optional public storefront description. Null = unset (never fabricate).
+  description        String?
+  /// Optional Arabic display name. Null = unset.
+  nameAr             VarChar(255)?        @map("name_ar")
+  /// Optional public contact email. Null = unset.
+  publicEmail        VarChar(255)?        @map("public_email")
   createdAt          TimestamptzString(6) @default(now()) @map("created_at")
   updatedAt          TimestamptzString(6) @default(now()) @map("updated_at")
 
   merchant         Merchant                        @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  wilaya           Wilaya?                         @relation(fields: [wilayaCode], references: [code], onDelete: Restrict)
+  commune          Commune?                        @relation(fields: [communeId], references: [id], onDelete: Restrict)
   openingSchedule  MerchantBranchOpeningSchedule?
+  availabilityOverride MerchantBranchAvailabilityOverride?
+  classification   MerchantBranchClassification?
+  cover            MerchantBranchCover?
+  logo             MerchantBranchLogo?
+  hoursExceptions  MerchantBranchHoursException[]
 
+  @@check(
+    expression: "(wilaya_code IS NULL AND commune_id IS NULL) OR (wilaya_code IS NOT NULL AND commune_id IS NOT NULL)",
+    name: "merchant_branches_wilaya_commune_pair"
+  )
   @@index([merchantId], name: "merchant_branches_merchant")
+  @@index([wilayaCode], name: "merchant_branches_wilaya")
+  @@index([communeId], name: "merchant_branches_commune")
   @@map("merchant_branches")
+}
+
+model CommerceVertical {
+  id        Uuid                 @id
+  slug      VarChar(64)          @unique
+  name      VarChar(255)
+  iconKey   VarChar(64)          @map("icon_key")
+  sortOrder Int                  @map("sort_order")
+  active    Boolean
+  createdAt TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt TimestamptzString(6) @default(now()) @map("updated_at")
+
+  classifications MerchantBranchClassification[]
+
+  @@check(expression: "sort_order >= 0", name: "commerce_verticals_sort_nonneg")
+  @@map("commerce_verticals")
+}
+
+model MerchantBranchClassification {
+  id         Uuid                 @id
+  branchId   Uuid                 @unique @map("branch_id")
+  verticalId Uuid                 @map("vertical_id")
+  createdAt  TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt  TimestamptzString(6) @default(now()) @map("updated_at")
+
+  branch   MerchantBranch   @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  vertical CommerceVertical @relation(fields: [verticalId], references: [id], onDelete: Restrict)
+
+  @@index([verticalId], name: "merchant_branch_classifications_vertical")
+  @@map("merchant_branch_classifications")
+}
+
+model MerchantBranchCover {
+  id          Uuid                 @id
+  branchId    Uuid                 @unique @map("branch_id")
+  objectId    VarChar(64)          @map("object_id")
+  contentType VarChar(64)          @map("content_type")
+  byteSize    Int                  @map("byte_size")
+  widthPx     Int                  @map("width_px")
+  heightPx    Int                  @map("height_px")
+  createdAt   TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt   TimestamptzString(6) @default(now()) @map("updated_at")
+
+  branch MerchantBranch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@check(expression: "byte_size > 0", name: "merchant_branch_covers_byte_size_pos")
+  @@check(expression: "width_px > 0", name: "merchant_branch_covers_width_pos")
+  @@check(expression: "height_px > 0", name: "merchant_branch_covers_height_pos")
+  @@map("merchant_branch_covers")
+}
+
+model MerchantBranchLogo {
+  id          Uuid                 @id
+  branchId    Uuid                 @unique @map("branch_id")
+  objectId    VarChar(64)          @map("object_id")
+  contentType VarChar(64)          @map("content_type")
+  byteSize    Int                  @map("byte_size")
+  widthPx     Int                  @map("width_px")
+  heightPx    Int                  @map("height_px")
+  createdAt   TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt   TimestamptzString(6) @default(now()) @map("updated_at")
+
+  branch MerchantBranch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@check(expression: "byte_size > 0", name: "merchant_branch_logos_byte_size_pos")
+  @@check(expression: "width_px > 0", name: "merchant_branch_logos_width_pos")
+  @@check(expression: "height_px > 0", name: "merchant_branch_logos_height_pos")
+  @@map("merchant_branch_logos")
 }
 
 model MerchantBranchOpeningSchedule {
@@ -406,12 +528,91 @@ model MerchantBranchOpeningInterval {
   @@map("merchant_branch_opening_intervals")
 }
 
+// Per-date replacement of the weekly schedule. local_date is an Africa/Algiers civil date.
+model MerchantBranchHoursException {
+  id                 Uuid                  @id
+  branchId           Uuid                  @map("branch_id")
+  localDate          DateString            @map("local_date")
+  closed             Boolean
+  label              VarChar(80)
+  customerMessage    VarChar(500)?         @map("customer_message")
+  version            Int
+  updatedByAccountId Uuid                  @map("updated_by_account_id")
+  createdAt          TimestamptzString(6)  @default(now()) @map("created_at")
+  updatedAt          TimestamptzString(6)  @default(now()) @map("updated_at")
+
+  branch    MerchantBranch                        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  updatedBy Account                               @relation(fields: [updatedByAccountId], references: [id], onDelete: Restrict)
+  intervals MerchantBranchHoursExceptionInterval[]
+
+  @@index([branchId, localDate], unique: true, name: "mbhe_branch_local_date_uq")
+  @@check(expression: "version >= 1", name: "mbhe_version_positive")
+  @@check(expression: "length(btrim(label)) > 0", name: "mbhe_label_not_blank")
+  @@map("merchant_branch_hours_exceptions")
+}
+
+// Same-day only: an interval may end exactly at midnight (closes_next_day, closes_minute = 0) but never continues past it.
+model MerchantBranchHoursExceptionInterval {
+  id            Uuid                 @id
+  exceptionId   Uuid                 @map("exception_id")
+  opensMinute   Int                  @map("opens_minute")
+  closesMinute  Int                  @map("closes_minute")
+  closesNextDay Boolean              @map("closes_next_day")
+  sortOrder     Int                  @map("sort_order")
+  createdAt     TimestamptzString(6) @default(now()) @map("created_at")
+
+  exception MerchantBranchHoursException @relation(fields: [exceptionId], references: [id], onDelete: Cascade)
+
+  @@index([exceptionId, sortOrder], name: "mbhei_exception_sort")
+  @@check(expression: "opens_minute >= 0 AND opens_minute <= 1439", name: "mbhei_opens_minute_range")
+  @@check(expression: "closes_minute >= 0 AND closes_minute <= 1439", name: "mbhei_closes_minute_range")
+  @@check(expression: "sort_order >= 0", name: "mbhei_sort_order_nonneg")
+  @@check(
+    expression: "(closes_next_day = false AND closes_minute > opens_minute) OR (closes_next_day = true AND closes_minute = 0)",
+    name: "mbhei_same_day"
+  )
+  @@map("merchant_branch_hours_exception_intervals")
+}
+
+model MerchantBranchAvailabilityOverride {
+  id                 Uuid                  @id
+  branchId           Uuid                  @unique @map("branch_id")
+  mode               VarChar(32)
+  reasonCode         VarChar(64)?          @map("reason_code")
+  customerMessage    VarChar(500)?         @map("customer_message")
+  closedUntil        TimestamptzString(6)? @map("closed_until")
+  version            Int
+  updatedByAccountId Uuid                  @map("updated_by_account_id")
+  createdAt          TimestamptzString(6)  @default(now()) @map("created_at")
+  updatedAt          TimestamptzString(6)  @default(now()) @map("updated_at")
+
+  branch    MerchantBranch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  updatedBy Account        @relation(fields: [updatedByAccountId], references: [id], onDelete: Restrict)
+
+  @@check(expression: "version >= 1", name: "mbao_version_positive")
+  @@check(
+    expression: "mode IN ('FOLLOW_SCHEDULE', 'FORCE_CLOSED', 'TEMPORARY_CLOSED')",
+    name: "mbao_mode_values"
+  )
+  @@check(
+    expression: "(mode = 'TEMPORARY_CLOSED' AND closed_until IS NOT NULL) OR (mode <> 'TEMPORARY_CLOSED' AND closed_until IS NULL)",
+    name: "mbao_closed_until_mode"
+  )
+  @@check(
+    expression: "reason_code IS NULL OR reason_code IN ('PEAK_KITCHEN', 'TECHNICAL', 'OUT_OF_STOCK', 'LUNCH_BREAK', 'OTHER')",
+    name: "mbao_reason_code_values"
+  )
+  @@map("merchant_branch_availability_overrides")
+}
+
 model MerchantMember {
   id         Uuid                 @id
   merchantId Uuid                 @map("merchant_id")
   accountId  Uuid                 @map("account_id")
   role       VarChar(64)
+  version    Int                  @default(1)
   createdAt  TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt  TimestamptzString(6) @default(now()) @map("updated_at")
 
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
   account  Account  @relation(fields: [accountId], references: [id], onDelete: Restrict)
@@ -419,6 +620,36 @@ model MerchantMember {
   @@index([merchantId, accountId], unique: true, name: "merchant_members_merchant_account")
   @@index([accountId], name: "merchant_members_account")
   @@map("merchant_members")
+}
+
+/// Merchant Team Management: manual-share invitation (no SMS/email). Only the SHA-256 of the accept code is stored.
+model MerchantMemberInvitation {
+  id                  Uuid                  @id
+  merchantId          Uuid                  @map("merchant_id")
+  phone               VarChar(32)
+  role                VarChar(64)
+  status              VarChar(64)
+  tokenHash           VarChar(128)          @map("token_hash")
+  expiresAt           TimestamptzString(6)  @map("expires_at")
+  createdByAccountId  Uuid                  @map("created_by_account_id")
+  acceptedByAccountId Uuid?                 @map("accepted_by_account_id")
+  acceptedAt          TimestamptzString(6)? @map("accepted_at")
+  cancelledAt         TimestamptzString(6)? @map("cancelled_at")
+  version             Int                   @default(1)
+  createdAt           TimestamptzString(6)  @default(now()) @map("created_at")
+  updatedAt           TimestamptzString(6)  @default(now()) @map("updated_at")
+
+  merchant   Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  createdBy  Account  @relation("MerchantMemberInvitationCreatedBy", fields: [createdByAccountId], references: [id], onDelete: Restrict)
+  acceptedBy Account? @relation("MerchantMemberInvitationAcceptedBy", fields: [acceptedByAccountId], references: [id], onDelete: Restrict)
+
+  @@index([merchantId, phone], unique: true, where: "(status = 'PENDING')", name: "mmi_merchant_phone_pending_uq")
+  @@index([phone, status], name: "mmi_phone_status")
+  @@index([merchantId, status], name: "mmi_merchant_status")
+  @@check(expression: "version >= 1", name: "mmi_version_positive")
+  @@check(expression: "status IN ('PENDING', 'ACCEPTED', 'CANCELLED', 'EXPIRED')", name: "mmi_status_values")
+  @@check(expression: "role IN ('MANAGER', 'STAFF')", name: "mmi_role_values")
+  @@map("merchant_member_invitations")
 }
 
 model MerchantDocument {
@@ -434,6 +665,87 @@ model MerchantDocument {
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Restrict)
 
   @@map("merchant_documents")
+}
+
+/// Platform-published legal document versions accepted on verification submit.
+model LegalDocumentVersion {
+  id             Uuid                 @id
+  kind           VarChar(64)
+  version        VarChar(32)
+  contentUrl     VarChar(512)?        @map("content_url")
+  contentSha256  VarChar(64)?         @map("content_sha256")
+  effectiveFrom  TimestamptzString(6) @map("effective_from")
+  active         Boolean
+  createdAt      TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt      TimestamptzString(6) @default(now()) @map("updated_at")
+
+  @@index([kind, version], unique: true, name: "legal_document_versions_kind_version_uq")
+  @@map("legal_document_versions")
+}
+
+/// One formal verification submit attempt for a Merchant.
+model MerchantVerificationSubmission {
+  id                   Uuid                  @id
+  merchantId           Uuid                  @map("merchant_id")
+  attemptNumber        Int                   @map("attempt_number")
+  submittedAt          TimestamptzString(6)  @map("submitted_at")
+  submittedByAccountId Uuid                  @map("submitted_by_account_id")
+  outcome              VarChar(64)
+  reviewedAt           TimestamptzString(6)? @map("reviewed_at")
+  reviewedByAdminId    Uuid?                 @map("reviewed_by_admin_id")
+  createdAt            TimestamptzString(6)  @default(now()) @map("created_at")
+  updatedAt            TimestamptzString(6)  @default(now()) @map("updated_at")
+
+  merchant    Merchant                   @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  acceptances MerchantLegalAcceptance[]
+  issues      MerchantVerificationIssue[]
+
+  @@check(expression: "attempt_number >= 1", name: "mvs_attempt_positive")
+  @@index([merchantId, attemptNumber], unique: true, name: "mvs_merchant_attempt_uq")
+  @@index([merchantId, submittedAt], name: "mvs_merchant_submitted")
+  @@map("merchant_verification_submissions")
+}
+
+/// Append-only legal acceptance bound to a verification submission.
+model MerchantLegalAcceptance {
+  id           Uuid                 @id
+  merchantId   Uuid                 @map("merchant_id")
+  submissionId Uuid                 @map("submission_id")
+  accountId    Uuid                 @map("account_id")
+  memberRole   VarChar(64)          @map("member_role")
+  kind         VarChar(64)
+  version      VarChar(32)
+  acceptedAt   TimestamptzString(6) @map("accepted_at")
+  createdAt    TimestamptzString(6) @default(now()) @map("created_at")
+
+  merchant   Merchant                       @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  submission MerchantVerificationSubmission @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+
+  @@index([submissionId, kind], unique: true, name: "mla_submission_kind_uq")
+  @@index([merchantId], name: "mla_merchant")
+  @@map("merchant_legal_acceptances")
+}
+
+/// Structured rejection issue; never deleted. resolvedAt set by explicit rules.
+model MerchantVerificationIssue {
+  id           Uuid                  @id
+  submissionId Uuid                  @map("submission_id")
+  merchantId   Uuid                  @map("merchant_id")
+  scope        VarChar(64)
+  documentType VarChar(64)?          @map("document_type")
+  documentId   Uuid?                 @map("document_id")
+  code         VarChar(64)
+  messageFr    VarChar(500)          @map("message_fr")
+  resolvedAt   TimestamptzString(6)? @map("resolved_at")
+  createdAt    TimestamptzString(6)  @default(now()) @map("created_at")
+
+  merchant   Merchant                       @relation(fields: [merchantId], references: [id], onDelete: Restrict)
+  submission MerchantVerificationSubmission @relation(fields: [submissionId], references: [id], onDelete: Restrict)
+
+  @@check(expression: "length(btrim(message_fr)) > 0", name: "mvi_message_not_blank")
+  @@index([merchantId], name: "mvi_merchant")
+  @@index([submissionId], name: "mvi_submission")
+  @@map("merchant_verification_issues")
 }
 
 // ---------------------------------------------------------------------------
@@ -465,14 +777,41 @@ model Product {
   available        Boolean              @default(true)
   createdAt        TimestamptzString(6) @default(now()) @map("created_at")
   updatedAt        TimestamptzString(6) @default(now()) @map("updated_at")
+  // SHA-256 hex of source product id + client requestId; only on copies made by duplication.
+  duplicateRequestKey VarChar(64)?      @unique @map("duplicate_request_key")
+  /// Integer-compatible selling unit display code. Null = legacy / no suffix.
+  /// Allowlist: PLAT|PIECE|PORTION|BOITE|PACK|PLATEAU|CUSTOM. Not weight/fractional.
+  sellingUnitCode     VarChar(32)?      @map("selling_unit_code")
+  /// Required when sellingUnitCode is CUSTOM; otherwise null.
+  sellingUnitLabelFr  VarChar(64)?      @map("selling_unit_label_fr")
 
   merchantBranch MerchantBranch @relation(fields: [merchantBranchId], references: [id], onDelete: Restrict)
   category       Category       @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  image          ProductImage?
 
   @@index([merchantBranchId, available], name: "products_branch_available")
   @@index([categoryId], name: "products_category")
   @@check(expression: "price_minor >= 0", name: "products_price_nonneg")
   @@map("products")
+}
+
+model ProductImage {
+  id          Uuid                 @id
+  productId   Uuid                 @unique @map("product_id")
+  objectId    VarChar(64)          @map("object_id")
+  contentType VarChar(64)          @map("content_type")
+  byteSize    Int                  @map("byte_size")
+  widthPx     Int                  @map("width_px")
+  heightPx    Int                  @map("height_px")
+  createdAt   TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt   TimestamptzString(6) @default(now()) @map("updated_at")
+
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@check(expression: "byte_size > 0", name: "product_images_byte_size_pos")
+  @@check(expression: "width_px > 0", name: "product_images_width_pos")
+  @@check(expression: "height_px > 0", name: "product_images_height_pos")
+  @@map("product_images")
 }
 
 model ProductOptionGroup {
@@ -632,17 +971,22 @@ model MerchantCommissionRule {
 // ---------------------------------------------------------------------------
 
 model Order {
-  id                 Uuid                  @id
-  publicReference    VarChar(64)           @unique @map("public_reference")
-  customerId         Uuid                  @map("customer_id")
-  merchantBranchId   Uuid                  @map("merchant_branch_id")
-  deliveryZoneId     Uuid                  @map("delivery_zone_id")
-  status             OrderStatus
-  fulfillmentStatus  FulfillmentStatus     @map("fulfillment_status")
-  createdAt          TimestamptzString(6)  @default(now()) @map("created_at")
-  confirmedAt        TimestamptzString(6)? @map("confirmed_at")
-  completedAt        TimestamptzString(6)? @map("completed_at")
-  updatedAt          TimestamptzString(6)  @default(now()) @map("updated_at")
+  id                           Uuid                  @id
+  publicReference              VarChar(64)           @unique @map("public_reference")
+  customerId                   Uuid                  @map("customer_id")
+  merchantBranchId             Uuid                  @map("merchant_branch_id")
+  deliveryZoneId               Uuid                  @map("delivery_zone_id")
+  status                       OrderStatus
+  fulfillmentStatus            FulfillmentStatus     @map("fulfillment_status")
+  createdAt                    TimestamptzString(6)  @default(now()) @map("created_at")
+  confirmedAt                  TimestamptzString(6)? @map("confirmed_at")
+  completedAt                  TimestamptzString(6)? @map("completed_at")
+  updatedAt                    TimestamptzString(6)  @default(now()) @map("updated_at")
+  preparationMinutes           Int?                  @map("preparation_minutes")
+  originalPreparationMinutes   Int?                  @map("original_preparation_minutes")
+  estimatedReadyAt             TimestamptzString(6)? @map("estimated_ready_at")
+  originalEstimatedReadyAt     TimestamptzString(6)? @map("original_estimated_ready_at")
+  preparationEstimateVersion   Int                   @default(0) @map("preparation_estimate_version")
 
   customer       CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
   merchantBranch MerchantBranch  @relation(fields: [merchantBranchId], references: [id], onDelete: Restrict)
@@ -653,6 +997,26 @@ model Order {
   @@index([status, createdAt], name: "orders_status_created")
   @@index([fulfillmentStatus], name: "orders_fulfillment")
   @@map("orders")
+}
+
+model OrderPreparationEstimateRevision {
+  id                       Uuid                 @id
+  orderId                  Uuid                 @map("order_id")
+  revisionNumber           Int                  @map("revision_number")
+  previousEstimatedReadyAt TimestamptzString(6)? @map("previous_estimated_ready_at")
+  newEstimatedReadyAt      TimestamptzString(6) @map("new_estimated_ready_at")
+  addMinutes               Int                  @map("add_minutes")
+  reason                   VarChar(255)?
+  actorAccountId           Uuid                 @map("actor_account_id")
+  createdAt                TimestamptzString(6) @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
+
+  @@unique([orderId, revisionNumber])
+  @@index([orderId, createdAt], name: "order_prep_estimate_revisions_order_created")
+  @@check(expression: "revision_number > 0", name: "order_prep_estimate_revisions_rev_positive")
+  @@check(expression: "add_minutes > 0", name: "order_prep_estimate_revisions_add_positive")
+  @@map("order_preparation_estimate_revisions")
 }
 
 model OrderItem {
@@ -719,6 +1083,8 @@ model OrderCancellation {
   id                    Uuid                 @id
   orderId               Uuid                 @unique @map("order_id")
   reason                VarChar(255)
+  /// Structured Merchant reject code; null for legacy / non-Merchant cancellations.
+  reasonCode            VarChar(64)?         @map("reason_code")
   internalNote          String?              @map("internal_note")
   cancelledByAccountId  Uuid?                @map("cancelled_by_account_id")
   cancelledAt           TimestamptzString(6) @map("cancelled_at")
@@ -726,6 +1092,10 @@ model OrderCancellation {
   order               Order    @relation(fields: [orderId], references: [id], onDelete: Restrict)
   cancelledByAccount  Account? @relation(fields: [cancelledByAccountId], references: [id], onDelete: SetNull)
 
+  @@check(
+    expression: "reason_code IS NULL OR reason_code IN ('PRODUCT_UNAVAILABLE', 'TOO_BUSY', 'CLOSING_SOON', 'OTHER')",
+    name: "order_cancellations_reason_code_values"
+  )
   @@map("order_cancellations")
 }
 
@@ -799,6 +1169,7 @@ model DriverAssignment {
   assignedAt TimestamptzString(6)  @map("assigned_at")
   acceptedAt TimestamptzString(6)? @map("accepted_at")
   releasedAt TimestamptzString(6)? @map("released_at")
+  version    Int                   @default(1)
 
   delivery Delivery      @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
   driver   DriverProfile @relation(fields: [driverId], references: [id], onDelete: Restrict)
@@ -807,6 +1178,7 @@ model DriverAssignment {
   @@index([deliveryId], name: "driver_assignments_delivery")
   @@index([deliveryId], unique: true, where: "(released_at IS NULL)", name: "driver_assignments_one_open_per_delivery")
   @@index([driverId], unique: true, where: "(released_at IS NULL)", name: "driver_assignments_one_open_per_driver")
+  @@check(expression: "version >= 1", name: "driver_assignments_version_positive")
   @@map("driver_assignments")
 }
 
@@ -836,6 +1208,44 @@ model DeliveryProof {
   delivery Delivery @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
 
   @@map("delivery_proofs")
+}
+
+/// Merchant→Driver pickup handoff proof. Distinct from DeliveryProof (customer delivery PIN).
+model DeliveryPickupHandoff {
+  id                 Uuid                  @id
+  deliveryId         Uuid                  @map("delivery_id")
+  assignmentId       Uuid                  @map("assignment_id")
+  assignmentVersion  Int                   @map("assignment_version")
+  codeHash           VarChar(128)          @map("code_hash")
+  codeSealed         String                @map("code_sealed")
+  status             VarChar(64)
+  attemptCount       Int                   @default(0) @map("attempt_count")
+  maxAttempts        Int                   @default(5) @map("max_attempts")
+  expiresAt          TimestamptzString(6)  @map("expires_at")
+  lockedUntil        TimestamptzString(6)? @map("locked_until")
+  consumedAt         TimestamptzString(6)? @map("consumed_at")
+  consumedByDriverId Uuid?                 @map("consumed_by_driver_id")
+  createdByAccountId Uuid?                 @map("created_by_account_id")
+  invalidatedAt      TimestamptzString(6)? @map("invalidated_at")
+  invalidatedReason  VarChar(64)?          @map("invalidated_reason")
+  version            Int                   @default(1)
+  createdAt          TimestamptzString(6)  @default(now()) @map("created_at")
+  updatedAt          TimestamptzString(6)  @default(now()) @map("updated_at")
+
+  delivery Delivery @relation(fields: [deliveryId], references: [id], onDelete: Restrict)
+
+  @@index([deliveryId], name: "delivery_pickup_handoffs_delivery")
+  @@index([assignmentId], name: "delivery_pickup_handoffs_assignment")
+  @@index([deliveryId], unique: true, where: "(status = 'PENDING')", name: "delivery_pickup_handoffs_one_pending_per_delivery")
+  @@check(expression: "version >= 1", name: "dph_version_positive")
+  @@check(expression: "assignment_version >= 1", name: "dph_assignment_version_positive")
+  @@check(expression: "attempt_count >= 0", name: "dph_attempt_count_nonneg")
+  @@check(expression: "max_attempts >= 1", name: "dph_max_attempts_positive")
+  @@check(
+    expression: "status IN ('PENDING', 'CONSUMED', 'INVALIDATED', 'EXPIRED', 'LOCKED')",
+    name: "dph_status_values"
+  )
+  @@map("delivery_pickup_handoffs")
 }
 
 model DriverEarning {
@@ -1095,16 +1505,19 @@ model FinancialLedgerEntry {
 // ---------------------------------------------------------------------------
 
 model Promotion {
-  id        Uuid                 @id
-  code      VarChar(64)          @unique
-  type      VarChar(64)
-  value     Int
-  startsAt  TimestamptzString(6) @map("starts_at")
-  endsAt    TimestamptzString(6) @map("ends_at")
-  active    Boolean
-  createdAt TimestamptzString(6) @default(now()) @map("created_at")
-  updatedAt TimestamptzString(6) @default(now()) @map("updated_at")
+  id                    Uuid                 @id
+  code                  VarChar(64)          @unique
+  type                  VarChar(64)
+  value                 Int
+  startsAt              TimestamptzString(6) @map("starts_at")
+  endsAt                TimestamptzString(6) @map("ends_at")
+  active                Boolean
+  customerDiscoverable  Boolean              @default(false) @map("customer_discoverable")
+  customerLabel         VarChar(64)?         @map("customer_label")
+  createdAt             TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt             TimestamptzString(6) @default(now()) @map("updated_at")
 
+  @@index([customerDiscoverable, active, endsAt], name: "promotions_customer_discovery")
   @@check(expression: "ends_at > starts_at", name: "promotions_window")
   @@map("promotions")
 }
@@ -1250,6 +1663,10 @@ model SupportTicket {
   status             VarChar(64)
   priority           VarChar(32)
   assignedAdminId    Uuid?                @map("assigned_admin_id")
+  /// Optional topic allowlist code (Merchant create). Null for legacy tickets.
+  topicCode          VarChar(64)?         @map("topic_code")
+  /// Optional short subject. Null for legacy tickets.
+  subject            VarChar(255)?
   createdAt          TimestamptzString(6) @default(now()) @map("created_at")
   updatedAt          TimestamptzString(6) @default(now()) @map("updated_at")
 
@@ -1262,6 +1679,42 @@ model SupportTicket {
   @@index([status, createdAt], name: "support_tickets_status_created")
   @@index([assignedAdminId, status], name: "support_tickets_admin_status")
   @@map("support_tickets")
+}
+
+/// Server-provided support topic catalogue (Merchant/Customer/Driver audiences).
+model SupportTopic {
+  id        Uuid                 @id
+  code      VarChar(64)          @unique
+  labelFr   VarChar(255)         @map("label_fr")
+  audience  VarChar(32)
+  sortOrder Int                  @map("sort_order")
+  active    Boolean
+  createdAt TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt TimestamptzString(6) @default(now()) @map("updated_at")
+
+  @@check(expression: "sort_order >= 0", name: "support_topics_sort_nonneg")
+  @@index([audience, active, sortOrder], name: "support_topics_audience_active_sort")
+  @@map("support_topics")
+}
+
+/// Versioned FAQ articles. No SLA / live-chat promises in body copy.
+model SupportFaqArticle {
+  id          Uuid                 @id
+  audience    VarChar(32)
+  slug        VarChar(64)
+  titleFr     VarChar(255)         @map("title_fr")
+  bodyFr      String               @map("body_fr")
+  version     VarChar(32)
+  sortOrder   Int                  @map("sort_order")
+  active      Boolean
+  publishedAt TimestamptzString(6) @map("published_at")
+  createdAt   TimestamptzString(6) @default(now()) @map("created_at")
+  updatedAt   TimestamptzString(6) @default(now()) @map("updated_at")
+
+  @@unique([audience, slug, version])
+  @@check(expression: "sort_order >= 0", name: "support_faq_sort_nonneg")
+  @@index([audience, active, sortOrder], name: "support_faq_audience_active_sort")
+  @@map("support_faq_articles")
 }
 
 model SupportMessage {

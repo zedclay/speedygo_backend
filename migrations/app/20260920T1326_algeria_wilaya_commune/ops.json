@@ -1,0 +1,449 @@
+[
+  {
+    "id": "table.communes",
+    "label": "Create table \"communes\"",
+    "summary": "Creates table \"communes\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "communes"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"communes\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"communes\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"communes\"",
+        "sql": "CREATE TABLE \"public\".\"communes\" (\n  \"aliases_fr\" jsonb,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" int4 NOT NULL,\n  \"name_ar\" character varying(255) NOT NULL,\n  \"name_fr\" character varying(255) NOT NULL,\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"wilaya_code\" character varying(2) NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"communes\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"communes\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.wilayas",
+    "label": "Create table \"wilayas\"",
+    "summary": "Creates table \"wilayas\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "wilayas"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"wilayas\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"wilayas\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"wilayas\"",
+        "sql": "CREATE TABLE \"public\".\"wilayas\" (\n  \"code\" character varying(2) NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"name_ar\" character varying(255) NOT NULL,\n  \"name_fr\" character varying(255) NOT NULL,\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  PRIMARY KEY (\"code\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"wilayas\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"wilayas\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.merchant_branches.commune_id",
+    "label": "Add column \"commune_id\" to \"merchant_branches\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "commune_id",
+        "table": "merchant_branches"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"commune_id\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "merchant_branches",
+          "commune_id"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"commune_id\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branches\" ADD COLUMN \"commune_id\" int4"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"commune_id\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "merchant_branches",
+          "commune_id"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.merchant_branches.wilaya_code",
+    "label": "Add column \"wilaya_code\" to \"merchant_branches\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "wilaya_code",
+        "table": "merchant_branches"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"wilaya_code\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "merchant_branches",
+          "wilaya_code"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"wilaya_code\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branches\" ADD COLUMN \"wilaya_code\" character varying(2)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"wilaya_code\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "merchant_branches",
+          "wilaya_code"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.merchant_branches.merchant_branches_wilaya_commune_pair_b891da29",
+    "label": "Add check constraint \"merchant_branches_wilaya_commune_pair_b891da29\" on \"merchant_branches\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "merchant_branches_wilaya_commune_pair_b891da29",
+        "table": "merchant_branches"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"merchant_branches_wilaya_commune_pair_b891da29\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branches_wilaya_commune_pair_b891da29",
+          "public",
+          "\"public\".\"merchant_branches\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"merchant_branches_wilaya_commune_pair_b891da29\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branches\" ADD CONSTRAINT \"merchant_branches_wilaya_commune_pair_b891da29\" CHECK ((wilaya_code IS NULL AND commune_id IS NULL) OR (wilaya_code IS NOT NULL AND commune_id IS NOT NULL))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"merchant_branches_wilaya_commune_pair_b891da29\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branches_wilaya_commune_pair_b891da29",
+          "public",
+          "\"public\".\"merchant_branches\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.communes.communes_wilaya_426d9809",
+    "label": "Create index \"communes_wilaya_426d9809\" on \"communes\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "communes_wilaya_426d9809",
+        "table": "communes"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"communes_wilaya_426d9809\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"communes_wilaya_426d9809\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"communes_wilaya_426d9809\"",
+        "sql": "CREATE INDEX \"communes_wilaya_426d9809\" ON \"public\".\"communes\" (\"wilaya_code\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"communes_wilaya_426d9809\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"communes_wilaya_426d9809\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_branches.merchant_branches_commune_dd20fc21",
+    "label": "Create index \"merchant_branches_commune_dd20fc21\" on \"merchant_branches\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "merchant_branches_commune_dd20fc21",
+        "table": "merchant_branches"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"merchant_branches_commune_dd20fc21\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branches_commune_dd20fc21\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"merchant_branches_commune_dd20fc21\"",
+        "sql": "CREATE INDEX \"merchant_branches_commune_dd20fc21\" ON \"public\".\"merchant_branches\" (\"commune_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"merchant_branches_commune_dd20fc21\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branches_commune_dd20fc21\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_branches.merchant_branches_wilaya_426d9809",
+    "label": "Create index \"merchant_branches_wilaya_426d9809\" on \"merchant_branches\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "merchant_branches_wilaya_426d9809",
+        "table": "merchant_branches"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"merchant_branches_wilaya_426d9809\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branches_wilaya_426d9809\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"merchant_branches_wilaya_426d9809\"",
+        "sql": "CREATE INDEX \"merchant_branches_wilaya_426d9809\" ON \"public\".\"merchant_branches\" (\"wilaya_code\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"merchant_branches_wilaya_426d9809\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branches_wilaya_426d9809\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.communes.communes_wilaya_code_fkey",
+    "label": "Add foreign key \"communes_wilaya_code_fkey\" on \"communes\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "communes_wilaya_code_fkey",
+        "table": "communes"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"communes_wilaya_code_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "communes_wilaya_code_fkey",
+          "public",
+          "\"public\".\"communes\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"communes_wilaya_code_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"communes\"\nADD CONSTRAINT \"communes_wilaya_code_fkey\"\nFOREIGN KEY (\"wilaya_code\")\nREFERENCES \"public\".\"wilayas\" (\"code\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"communes_wilaya_code_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "communes_wilaya_code_fkey",
+          "public",
+          "\"public\".\"communes\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_branches.merchant_branches_commune_id_fkey",
+    "label": "Add foreign key \"merchant_branches_commune_id_fkey\" on \"merchant_branches\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_branches_commune_id_fkey",
+        "table": "merchant_branches"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_branches_commune_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branches_commune_id_fkey",
+          "public",
+          "\"public\".\"merchant_branches\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_branches_commune_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branches\"\nADD CONSTRAINT \"merchant_branches_commune_id_fkey\"\nFOREIGN KEY (\"commune_id\")\nREFERENCES \"public\".\"communes\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_branches_commune_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branches_commune_id_fkey",
+          "public",
+          "\"public\".\"merchant_branches\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_branches.merchant_branches_wilaya_code_fkey",
+    "label": "Add foreign key \"merchant_branches_wilaya_code_fkey\" on \"merchant_branches\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_branches_wilaya_code_fkey",
+        "table": "merchant_branches"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_branches_wilaya_code_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branches_wilaya_code_fkey",
+          "public",
+          "\"public\".\"merchant_branches\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_branches_wilaya_code_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branches\"\nADD CONSTRAINT \"merchant_branches_wilaya_code_fkey\"\nFOREIGN KEY (\"wilaya_code\")\nREFERENCES \"public\".\"wilayas\" (\"code\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_branches_wilaya_code_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branches_wilaya_code_fkey",
+          "public",
+          "\"public\".\"merchant_branches\""
+        ]
+      }
+    ]
+  }
+]

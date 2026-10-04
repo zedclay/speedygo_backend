@@ -1,6 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { SecureDocumentStorageService } from '../../../infrastructure/storage/application/secure-document-storage.service';
 import {
+  legalAcceptanceRequired,
+  legalVersionOutdated,
   merchantDocumentInvalid,
   merchantNotFound,
   merchantVerificationIntegrity,
@@ -23,10 +25,18 @@ import {
   parseMerchantMemberRole,
 } from '../domain/merchant.policy';
 import {
+  buildVerificationReviewView,
+  emptyVerificationReviewView,
+  evaluateLegalAcceptances,
+  redactReviewViewForRole,
+  toLegalVersionView,
   toMembershipView,
   toVerificationPackageView,
+  type LegalAcceptanceInput,
+  type MerchantCurrentLegalView,
   type MerchantMembershipView,
   type MerchantVerificationPackageView,
+  type MerchantVerificationReviewView,
   type UpsertMerchantDocumentInput,
 } from '../domain/merchant.types';
 import { MerchantRepository } from '../infrastructure/merchant.repository';
@@ -52,9 +62,14 @@ export class MerchantVerificationService {
     const role = parseMerchantMemberRole(context.member.role);
     const documents =
       await this.merchants.listDocumentSummariesBounded(merchantId);
+    const review = redactReviewViewForRole(
+      await this.loadReviewView(merchantId),
+      context.member.role,
+    );
     const packageView = toVerificationPackageView({
       merchant: context.merchant,
       documents,
+      review,
     });
     if (role !== MERCHANT_MEMBER_ROLE_OWNER) {
       // MANAGER: status / readiness / attention only — no sensitive metadata.
@@ -80,7 +95,20 @@ export class MerchantVerificationService {
     }
     const documents =
       await this.merchants.listDocumentSummariesBounded(merchantId);
-    return toVerificationPackageView({ merchant, documents });
+    return toVerificationPackageView({
+      merchant,
+      documents,
+      review: await this.loadReviewView(merchantId),
+    });
+  }
+
+  /**
+   * Active legal document versions. Seeds the default version row for any
+   * kind that has none yet.
+   */
+  async getCurrentLegalVersions(): Promise<MerchantCurrentLegalView> {
+    const versions = await this.merchants.ensureActiveLegalVersions();
+    return { versions: versions.map(toLegalVersionView) };
   }
 
   async uploadDocumentContent(
@@ -179,12 +207,20 @@ export class MerchantVerificationService {
           'Verification evidence cannot be changed in the current review state',
         );
       }
-      return this.merchants.upsertDocument(
+      const upserted = await this.merchants.upsertDocument(
         merchantId,
         input.type,
         input.expiryDate ?? null,
         tx,
       );
+      if (locked.status === MERCHANT_STATUS_REJECTED) {
+        await this.merchants.resolveDocumentIssuesForType(
+          merchantId,
+          input.type,
+          tx,
+        );
+      }
+      return upserted;
     });
 
     if (input.uploadReference) {
@@ -214,12 +250,16 @@ export class MerchantVerificationService {
   async submitVerification(
     accountId: string,
     merchantId: string,
+    acceptances: readonly LegalAcceptanceInput[] = [],
   ): Promise<MerchantMembershipView> {
-    await this.access.requireCapability(
+    const context = await this.access.requireCapability(
       accountId,
       merchantId,
       MERCHANT_CAPABILITIES.MERCHANT_VERIFICATION_MUTATE,
     );
+    // Seeding may race on a unique index, so it must not run inside the
+    // submit transaction.
+    await this.merchants.ensureActiveLegalVersions();
 
     await this.merchants.runInTransaction(async (tx) => {
       const locked = await this.merchants.lockMerchant(merchantId, tx);
@@ -254,6 +294,32 @@ export class MerchantVerificationService {
       ) {
         throw merchantVerificationNotReady();
       }
+      const currentVersions = new Map(
+        (await this.merchants.listActiveLegalVersions(tx)).map((row) => [
+          row.kind,
+          row.version,
+        ]),
+      );
+      const evaluation = evaluateLegalAcceptances(acceptances, currentVersions);
+      if (!evaluation.ok) {
+        throw evaluation.reason === 'OUTDATED'
+          ? legalVersionOutdated(evaluation.message)
+          : legalAcceptanceRequired(evaluation.message);
+      }
+      const submission = await this.merchants.createVerificationSubmission(
+        { merchantId, submittedByAccountId: accountId },
+        tx,
+      );
+      await this.merchants.createLegalAcceptances(
+        {
+          merchantId,
+          submissionId: submission.id,
+          accountId,
+          memberRole: context.member.role,
+          acceptances: evaluation.acceptances,
+        },
+        tx,
+      );
       if (locked.status === MERCHANT_STATUS_REJECTED) {
         await this.merchants.setMerchantStatus(
           merchantId,
@@ -273,9 +339,10 @@ export class MerchantVerificationService {
     merchantId: string,
   ): Promise<MerchantMembershipView> {
     const context = await this.access.requireMembership(accountId, merchantId);
-    const [branches, documents] = await Promise.all([
+    const [branches, documents, review] = await Promise.all([
       this.merchants.listBranches(merchantId),
       this.merchants.listDocumentSummaries(merchantId),
+      this.loadReviewView(merchantId),
     ]);
     return toMembershipView({
       member: context.member,
@@ -284,6 +351,17 @@ export class MerchantVerificationService {
       documents,
       includeDocuments: true,
       includeChecklist: true,
+      review,
     });
+  }
+
+  private async loadReviewView(
+    merchantId: string,
+  ): Promise<MerchantVerificationReviewView> {
+    const records = await this.merchants.loadVerificationRecords([merchantId]);
+    const entry = records.get(merchantId);
+    return entry
+      ? buildVerificationReviewView(entry)
+      : emptyVerificationReviewView();
   }
 }

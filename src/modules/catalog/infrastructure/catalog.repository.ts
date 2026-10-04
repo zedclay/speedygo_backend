@@ -20,7 +20,11 @@ import {
   catalogOptionGroupInvalid,
   catalogProductInUse,
 } from '../domain/catalog.errors';
-import { escapeLikeContains, parseMinorUnits } from '../domain/catalog.policy';
+import {
+  escapeLikeContains,
+  isSellingUnitCode,
+  parseMinorUnits,
+} from '../domain/catalog.policy';
 import type {
   CatalogStats,
   CategoryRecord,
@@ -193,6 +197,12 @@ export class CatalogRepository {
         description: input.description ?? null,
         priceMinor: pgBigInt(input.priceMinor),
         available: input.available ?? true,
+        sellingUnitCode: input.sellingUnitCode
+          ? pgVarchar<32>(input.sellingUnitCode)
+          : null,
+        sellingUnitLabelFr: input.sellingUnitLabelFr
+          ? pgVarchar<64>(input.sellingUnitLabelFr)
+          : null,
         createdAt: now,
         updatedAt: now,
       });
@@ -222,6 +232,8 @@ export class CatalogRepository {
       description?: string | null;
       priceMinor?: bigint;
       available?: boolean;
+      sellingUnitCode?: ReturnType<typeof pgVarchar<32>> | null;
+      sellingUnitLabelFr?: ReturnType<typeof pgVarchar<64>> | null;
       updatedAt: ReturnType<typeof pgNow>;
     } = { updatedAt: pgNow() };
     if (input.categoryId !== undefined) {
@@ -238,6 +250,14 @@ export class CatalogRepository {
     }
     if (input.available !== undefined) {
       patch.available = input.available;
+    }
+    if (input.sellingUnitCode !== undefined) {
+      patch.sellingUnitCode = input.sellingUnitCode
+        ? pgVarchar<32>(input.sellingUnitCode)
+        : null;
+      patch.sellingUnitLabelFr = input.sellingUnitLabelFr
+        ? pgVarchar<64>(input.sellingUnitLabelFr)
+        : null;
     }
     try {
       await orm(this.db()).Product.where({ id: productId }).update(patch);
@@ -530,6 +550,8 @@ export class CatalogRepository {
     description: string | null;
     priceMinor: unknown;
     available: boolean;
+    sellingUnitCode: string | null;
+    sellingUnitLabelFr: string | null;
     createdAt: string;
     updatedAt: string;
   }): ProductRecord {
@@ -541,6 +563,10 @@ export class CatalogRepository {
       description: row.description,
       priceMinor: parseMinorUnits(row.priceMinor),
       available: row.available,
+      sellingUnitCode: isSellingUnitCode(row.sellingUnitCode)
+        ? row.sellingUnitCode
+        : null,
+      sellingUnitLabelFr: row.sellingUnitLabelFr,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

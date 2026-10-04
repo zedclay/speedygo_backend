@@ -1,0 +1,32 @@
+{
+  "name": "speedygo-dev-merchant-lifecycle-acceptance",
+  "fictionalIdentity": true,
+  "purpose": "One synthetic development Admin with merchants.read + merchants.verify so merchant registration acceptance can reject/approve TEST FIXTURE merchants on speedygo_dev. Not production. Not attached to Nest startup.",
+  "target": {
+    "host": "127.0.0.1",
+    "port": 5433,
+    "database": "speedygo_dev",
+    "api": "http://127.0.0.1:3000/api/v1",
+    "never": ["speedygo_test", "production", "Bousbaa", "Finjan"]
+  },
+  "namespace": {
+    "idPrefix": "0d00c074-d000-7000-8000-",
+    "idempotency": "Admin seed INSERT … ON CONFLICT DO NOTHING / DO UPDATE phone only."
+  },
+  "syntheticActors": {
+    "verifierAdmin": {
+      "phone": "+213550000099",
+      "accountId": "0d00c074-d000-7000-8000-000000000001",
+      "adminProfileId": "0d00c074-d000-7000-8000-000000000003",
+      "roleId": "0d00c074-d000-7000-8000-000000000002",
+      "roleName": "speedygo-dev-merchant-lifecycle-acceptance",
+      "permissions": ["merchants.read", "merchants.verify"],
+      "seed": "seed-admin.sql"
+    }
+  },
+  "authorizedReviewScope": {
+    "merchantId": "01a0b4e7-83a0-7742-8ac0-03fcb5e9b056",
+    "note": "Acceptance journey authorizes review mutations only on this synthetic fixture."
+  },
+  "rerun": "bash apps/backend/scripts/dev-merchant-lifecycle-acceptance/apply-seed-admin.sh"
+}

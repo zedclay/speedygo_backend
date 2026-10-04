@@ -2,10 +2,13 @@ import { BullModule } from '@nestjs/bullmq';
 import { Module } from '@nestjs/common';
 import { NotificationRecoveryService } from './application/notification-recovery.service';
 import { NotificationService } from './application/notification.service';
+import { PushDispatchService } from './application/push-dispatch.service';
 import {
   NOTIFICATION_JOBS,
   NOTIFICATION_QUEUE_NAME,
 } from './domain/notification.jobs';
+import { PUSH_GATEWAY } from './domain/push.types';
+import { FcmPushGateway } from './infrastructure/fcm-push.gateway';
 import { NotificationQueueService } from './infrastructure/notification-queue.service';
 import { NotificationRecoveryRepository } from './infrastructure/notification-recovery.repository';
 import { NotificationRepository } from './infrastructure/notification.repository';
@@ -22,6 +25,9 @@ import { NotificationController } from './presentation/http/notification.control
     NotificationRecoveryService,
     NotificationQueueService,
     { provide: NOTIFICATION_JOBS, useExisting: NotificationQueueService },
+    FcmPushGateway,
+    { provide: PUSH_GATEWAY, useExisting: FcmPushGateway },
+    PushDispatchService,
     NotificationProcessor,
   ],
   exports: [NotificationService, NotificationRecoveryService],

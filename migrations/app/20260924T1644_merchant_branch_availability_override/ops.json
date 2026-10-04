@@ -1,0 +1,206 @@
+[
+  {
+    "id": "table.merchant_branch_availability_overrides",
+    "label": "Create table \"merchant_branch_availability_overrides\"",
+    "summary": "Creates table \"merchant_branch_availability_overrides\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "merchant_branch_availability_overrides"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"merchant_branch_availability_overrides\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_availability_overrides\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"merchant_branch_availability_overrides\"",
+        "sql": "CREATE TABLE \"public\".\"merchant_branch_availability_overrides\" (\n  \"branch_id\" uuid NOT NULL,\n  \"closed_until\" timestamptz(6),\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"customer_message\" character varying(500),\n  \"id\" uuid NOT NULL,\n  \"mode\" character varying(32) NOT NULL,\n  \"reason_code\" character varying(64),\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"updated_by_account_id\" uuid NOT NULL,\n  \"version\" int4 NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"mbao_closed_until_mode_079d398c\" CHECK ((mode = 'TEMPORARY_CLOSED' AND closed_until IS NOT NULL) OR (mode <> 'TEMPORARY_CLOSED' AND closed_until IS NULL)),\n  CONSTRAINT \"mbao_mode_values_59a9f76d\" CHECK (mode IN ('FOLLOW_SCHEDULE', 'FORCE_CLOSED', 'TEMPORARY_CLOSED')),\n  CONSTRAINT \"mbao_reason_code_values_b7b54cfc\" CHECK (reason_code IS NULL OR reason_code IN ('PEAK_KITCHEN', 'TECHNICAL', 'OUT_OF_STOCK', 'LUNCH_BREAK', 'OTHER')),\n  CONSTRAINT \"mbao_version_positive_c2490804\" CHECK (version >= 1)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"merchant_branch_availability_overrides\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_availability_overrides\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.merchant_branch_availability_overrides.merchant_branch_availability_overrides_branch_id_key",
+    "label": "Add unique constraint on \"merchant_branch_availability_overrides\" (branch_id)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "merchant_branch_availability_overrides_branch_id_key",
+        "table": "merchant_branch_availability_overrides"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"merchant_branch_availability_overrides_branch_id_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_availability_overrides_branch_id_key",
+          "public",
+          "\"public\".\"merchant_branch_availability_overrides\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"merchant_branch_availability_overrides_branch_id_key\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_availability_overrides\" ADD CONSTRAINT \"merchant_branch_availability_overrides_branch_id_key\" UNIQUE (\"branch_id\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"merchant_branch_availability_overrides_branch_id_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_availability_overrides_branch_id_key",
+          "public",
+          "\"public\".\"merchant_branch_availability_overrides\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_branch_availability_overrides.merchant_branch_availability_overrides_updated_by_acco_8a198d5b",
+    "label": "Create index \"merchant_branch_availability_overrides_updated_by_acco_8a198d5b\" on \"merchant_branch_availability_overrides\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "merchant_branch_availability_overrides_updated_by_acco_8a198d5b",
+        "table": "merchant_branch_availability_overrides"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"merchant_branch_availability_overrides_updated_by_acco_8a198d5b\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_availability_overrides_updated_by_acco_8a198d5b\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"merchant_branch_availability_overrides_updated_by_acco_8a198d5b\"",
+        "sql": "CREATE INDEX \"merchant_branch_availability_overrides_updated_by_acco_8a198d5b\" ON \"public\".\"merchant_branch_availability_overrides\" (\"updated_by_account_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"merchant_branch_availability_overrides_updated_by_acco_8a198d5b\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_availability_overrides_updated_by_acco_8a198d5b\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_branch_availability_overrides.merchant_branch_availability_overrides_branch_id_fkey",
+    "label": "Add foreign key \"merchant_branch_availability_overrides_branch_id_fkey\" on \"merchant_branch_availability_overrides\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_branch_availability_overrides_branch_id_fkey",
+        "table": "merchant_branch_availability_overrides"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_branch_availability_overrides_branch_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_availability_overrides_branch_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_availability_overrides\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_branch_availability_overrides_branch_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_availability_overrides\"\nADD CONSTRAINT \"merchant_branch_availability_overrides_branch_id_fkey\"\nFOREIGN KEY (\"branch_id\")\nREFERENCES \"public\".\"merchant_branches\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_branch_availability_overrides_branch_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_availability_overrides_branch_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_availability_overrides\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_branch_availability_overrides.merchant_branch_availability_overrides_updated_by_account_id_fkey",
+    "label": "Add foreign key \"merchant_branch_availability_overrides_updated_by_account_id_fkey\" on \"merchant_branch_availability_overrides\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_branch_availability_overrides_updated_by_account_id_fkey",
+        "table": "merchant_branch_availability_overrides"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_branch_availability_overrides_updated_by_account_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_availability_overrides_updated_by_account_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_availability_overrides\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_branch_availability_overrides_updated_by_account_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_availability_overrides\"\nADD CONSTRAINT \"merchant_branch_availability_overrides_updated_by_account_id_fkey\"\nFOREIGN KEY (\"updated_by_account_id\")\nREFERENCES \"public\".\"accounts\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_branch_availability_overrides_updated_by_account_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_availability_overrides_updated_by_account_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_availability_overrides\""
+        ]
+      }
+    ]
+  }
+]

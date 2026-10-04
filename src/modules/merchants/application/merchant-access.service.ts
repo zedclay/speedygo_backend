@@ -70,7 +70,8 @@ export class MerchantAccessService {
       capability === MERCHANT_CAPABILITIES.ORDER_READ ||
       capability === MERCHANT_CAPABILITIES.COMMISSION_READ ||
       capability === MERCHANT_CAPABILITIES.SETTLEMENT_READ ||
-      capability === MERCHANT_CAPABILITIES.MERCHANT_VERIFICATION_READ
+      capability === MERCHANT_CAPABILITIES.MERCHANT_VERIFICATION_READ ||
+      capability === MERCHANT_CAPABILITIES.TEAM_READ
     ) {
       return context;
     }

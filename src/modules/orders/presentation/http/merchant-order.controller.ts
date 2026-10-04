@@ -26,8 +26,10 @@ import {
 } from './dto/merchant-order-response.dto';
 import {
   ListMerchantOrdersQueryDto,
+  AcceptMerchantOrderDto,
   MerchantOrderActionDto,
   RejectMerchantOrderDto,
+  UpdatePreparationEstimateDto,
 } from './dto/merchant-order-write.dto';
 
 @ApiTags('merchant-orders')
@@ -118,12 +120,54 @@ export class MerchantOrderController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('merchantId', ParseUUIDPipe) merchantId: string,
     @Param('orderId', ParseUUIDPipe) orderId: string,
-    @Body() _body: MerchantOrderActionDto,
+    @Body() body: AcceptMerchantOrderDto,
   ) {
     return this.merchantOrders.acceptOrder(
       principal.accountId,
       merchantId,
       orderId,
+      body.preparationMinutes,
+    );
+  }
+
+  @Post(':orderId/preparation-estimate')
+  @HttpCode(200)
+  @ApiOperation({
+    summary: 'Add minutes to the preparation estimate',
+    description: [
+      'OWNER and MANAGER. Eligible while ACCEPTED or PREPARING with an existing estimate.',
+      'Requires expectedEstimateVersion. Conflict returns 409 with current estimate projection.',
+      'Preserves originalEstimatedReadyAt. Does not auto READY. Distinct from Delivery ETA.',
+      'Does not claim Customer/Driver push delivery in this foundation.',
+    ].join(' '),
+  })
+  @ApiOkResponse({ type: MerchantOrderDetailResponseDto })
+  @ApiResponse({
+    status: 400,
+    description: ORDER_ERROR_CODES.MERCHANT_ORDER_PREP_ESTIMATE_INVALID,
+  })
+  @ApiResponse({
+    status: 409,
+    description: [
+      ORDER_ERROR_CODES.MERCHANT_ORDER_PREP_ESTIMATE_CONFLICT,
+      ORDER_ERROR_CODES.MERCHANT_ORDER_PREP_ESTIMATE_NOT_ALLOWED,
+    ].join(' or '),
+  })
+  updatePreparationEstimate(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', ParseUUIDPipe) merchantId: string,
+    @Param('orderId', ParseUUIDPipe) orderId: string,
+    @Body() body: UpdatePreparationEstimateDto,
+  ) {
+    return this.merchantOrders.updatePreparationEstimate(
+      principal.accountId,
+      merchantId,
+      orderId,
+      {
+        addMinutes: body.addMinutes,
+        expectedEstimateVersion: body.expectedEstimateVersion,
+        reason: body.reason,
+      },
     );
   }
 
@@ -164,6 +208,7 @@ export class MerchantOrderController {
       merchantId,
       orderId,
       body.reason,
+      body.reasonCode,
     );
   }
 

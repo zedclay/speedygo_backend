@@ -1,0 +1,536 @@
+[
+  {
+    "id": "table.support_faq_articles",
+    "label": "Create table \"support_faq_articles\"",
+    "summary": "Creates table \"support_faq_articles\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "support_faq_articles"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"support_faq_articles\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"support_faq_articles\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"support_faq_articles\"",
+        "sql": "CREATE TABLE \"public\".\"support_faq_articles\" (\n  \"active\" bool NOT NULL,\n  \"audience\" character varying(32) NOT NULL,\n  \"body_fr\" text NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"published_at\" timestamptz(6) NOT NULL,\n  \"slug\" character varying(64) NOT NULL,\n  \"sort_order\" int4 NOT NULL,\n  \"title_fr\" character varying(255) NOT NULL,\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"version\" character varying(32) NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"support_faq_sort_nonneg_eb4b5508\" CHECK (sort_order >= 0)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"support_faq_articles\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"support_faq_articles\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.support_topics",
+    "label": "Create table \"support_topics\"",
+    "summary": "Creates table \"support_topics\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "support_topics"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"support_topics\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"support_topics\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"support_topics\"",
+        "sql": "CREATE TABLE \"public\".\"support_topics\" (\n  \"active\" bool NOT NULL,\n  \"audience\" character varying(32) NOT NULL,\n  \"code\" character varying(64) NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"label_fr\" character varying(255) NOT NULL,\n  \"sort_order\" int4 NOT NULL,\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"support_topics_sort_nonneg_eb4b5508\" CHECK (sort_order >= 0)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"support_topics\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"support_topics\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.merchant_branches.description",
+    "label": "Add column \"description\" to \"merchant_branches\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "description",
+        "table": "merchant_branches"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"description\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "merchant_branches",
+          "description"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"description\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branches\" ADD COLUMN \"description\" text"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"description\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "merchant_branches",
+          "description"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.merchant_branches.name_ar",
+    "label": "Add column \"name_ar\" to \"merchant_branches\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "name_ar",
+        "table": "merchant_branches"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"name_ar\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "merchant_branches",
+          "name_ar"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"name_ar\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branches\" ADD COLUMN \"name_ar\" character varying(255)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"name_ar\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "merchant_branches",
+          "name_ar"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.merchant_branches.public_email",
+    "label": "Add column \"public_email\" to \"merchant_branches\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "public_email",
+        "table": "merchant_branches"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"public_email\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "merchant_branches",
+          "public_email"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"public_email\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branches\" ADD COLUMN \"public_email\" character varying(255)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"public_email\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "merchant_branches",
+          "public_email"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.products.selling_unit_code",
+    "label": "Add column \"selling_unit_code\" to \"products\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "selling_unit_code",
+        "table": "products"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"selling_unit_code\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "products",
+          "selling_unit_code"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"selling_unit_code\"",
+        "sql": "ALTER TABLE \"public\".\"products\" ADD COLUMN \"selling_unit_code\" character varying(32)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"selling_unit_code\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "products",
+          "selling_unit_code"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.products.selling_unit_label_fr",
+    "label": "Add column \"selling_unit_label_fr\" to \"products\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "selling_unit_label_fr",
+        "table": "products"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"selling_unit_label_fr\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "products",
+          "selling_unit_label_fr"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"selling_unit_label_fr\"",
+        "sql": "ALTER TABLE \"public\".\"products\" ADD COLUMN \"selling_unit_label_fr\" character varying(64)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"selling_unit_label_fr\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "products",
+          "selling_unit_label_fr"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.support_tickets.subject",
+    "label": "Add column \"subject\" to \"support_tickets\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "subject",
+        "table": "support_tickets"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"subject\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "support_tickets",
+          "subject"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"subject\"",
+        "sql": "ALTER TABLE \"public\".\"support_tickets\" ADD COLUMN \"subject\" character varying(255)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"subject\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "support_tickets",
+          "subject"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.support_tickets.topic_code",
+    "label": "Add column \"topic_code\" to \"support_tickets\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "topic_code",
+        "table": "support_tickets"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"topic_code\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "support_tickets",
+          "topic_code"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"topic_code\"",
+        "sql": "ALTER TABLE \"public\".\"support_tickets\" ADD COLUMN \"topic_code\" character varying(64)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"topic_code\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "support_tickets",
+          "topic_code"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.support_faq_articles.support_faq_articles_audience_slug_version_key",
+    "label": "Add unique constraint on \"support_faq_articles\" (audience, slug, version)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "support_faq_articles_audience_slug_version_key",
+        "table": "support_faq_articles"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"support_faq_articles_audience_slug_version_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "support_faq_articles_audience_slug_version_key",
+          "public",
+          "\"public\".\"support_faq_articles\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"support_faq_articles_audience_slug_version_key\"",
+        "sql": "ALTER TABLE \"public\".\"support_faq_articles\" ADD CONSTRAINT \"support_faq_articles_audience_slug_version_key\" UNIQUE (\"audience\", \"slug\", \"version\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"support_faq_articles_audience_slug_version_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "support_faq_articles_audience_slug_version_key",
+          "public",
+          "\"public\".\"support_faq_articles\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.support_topics.support_topics_code_key",
+    "label": "Add unique constraint on \"support_topics\" (code)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "support_topics_code_key",
+        "table": "support_topics"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"support_topics_code_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "support_topics_code_key",
+          "public",
+          "\"public\".\"support_topics\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"support_topics_code_key\"",
+        "sql": "ALTER TABLE \"public\".\"support_topics\" ADD CONSTRAINT \"support_topics_code_key\" UNIQUE (\"code\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"support_topics_code_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "support_topics_code_key",
+          "public",
+          "\"public\".\"support_topics\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.support_faq_articles.support_faq_audience_active_sort_cf8cd612",
+    "label": "Create index \"support_faq_audience_active_sort_cf8cd612\" on \"support_faq_articles\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "support_faq_audience_active_sort_cf8cd612",
+        "table": "support_faq_articles"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"support_faq_audience_active_sort_cf8cd612\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"support_faq_audience_active_sort_cf8cd612\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"support_faq_audience_active_sort_cf8cd612\"",
+        "sql": "CREATE INDEX \"support_faq_audience_active_sort_cf8cd612\" ON \"public\".\"support_faq_articles\" (\"audience\", \"active\", \"sort_order\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"support_faq_audience_active_sort_cf8cd612\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"support_faq_audience_active_sort_cf8cd612\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.support_topics.support_topics_audience_active_sort_cf8cd612",
+    "label": "Create index \"support_topics_audience_active_sort_cf8cd612\" on \"support_topics\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "support_topics_audience_active_sort_cf8cd612",
+        "table": "support_topics"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"support_topics_audience_active_sort_cf8cd612\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"support_topics_audience_active_sort_cf8cd612\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"support_topics_audience_active_sort_cf8cd612\"",
+        "sql": "CREATE INDEX \"support_topics_audience_active_sort_cf8cd612\" ON \"public\".\"support_topics\" (\"audience\", \"active\", \"sort_order\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"support_topics_audience_active_sort_cf8cd612\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"support_topics_audience_active_sort_cf8cd612\""
+        ]
+      }
+    ]
+  }
+]

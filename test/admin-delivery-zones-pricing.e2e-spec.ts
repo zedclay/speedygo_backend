@@ -848,6 +848,8 @@ describe('Admin Delivery Zones + Pricing (e2e)', () => {
           addressText: 'Street A',
           latitude: INSIDE[0],
           longitude: INSIDE[1],
+          wilayaCode: '16',
+          communeId: 556,
         });
       expect(branchRes.status).toBe(201);
       branchId = (branchRes.body as BranchBody).id;
@@ -1058,6 +1060,8 @@ describe('Admin Delivery Zones + Pricing (e2e)', () => {
           addressText: 'Main St',
           latitude: INSIDE[0],
           longitude: INSIDE[1],
+          wilayaCode: '16',
+          communeId: 556,
         });
       branchId = (bRes.body as BranchBody).id;
       await ensureBranchOpeningHours(prisma, branchId, merchantAcct.id);

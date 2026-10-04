@@ -1,0 +1,719 @@
+[
+  {
+    "id": "table.legal_document_versions",
+    "label": "Create table \"legal_document_versions\"",
+    "summary": "Creates table \"legal_document_versions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "legal_document_versions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"legal_document_versions\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"legal_document_versions\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"legal_document_versions\"",
+        "sql": "CREATE TABLE \"public\".\"legal_document_versions\" (\n  \"active\" bool NOT NULL,\n  \"content_sha256\" character varying(64),\n  \"content_url\" character varying(512),\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"effective_from\" timestamptz(6) NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"kind\" character varying(64) NOT NULL,\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"version\" character varying(32) NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"legal_document_versions\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"legal_document_versions\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.merchant_legal_acceptances",
+    "label": "Create table \"merchant_legal_acceptances\"",
+    "summary": "Creates table \"merchant_legal_acceptances\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "merchant_legal_acceptances"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"merchant_legal_acceptances\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_legal_acceptances\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"merchant_legal_acceptances\"",
+        "sql": "CREATE TABLE \"public\".\"merchant_legal_acceptances\" (\n  \"accepted_at\" timestamptz(6) NOT NULL,\n  \"account_id\" uuid NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"kind\" character varying(64) NOT NULL,\n  \"member_role\" character varying(64) NOT NULL,\n  \"merchant_id\" uuid NOT NULL,\n  \"submission_id\" uuid NOT NULL,\n  \"version\" character varying(32) NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"merchant_legal_acceptances\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_legal_acceptances\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.merchant_verification_issues",
+    "label": "Create table \"merchant_verification_issues\"",
+    "summary": "Creates table \"merchant_verification_issues\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "merchant_verification_issues"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"merchant_verification_issues\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_verification_issues\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"merchant_verification_issues\"",
+        "sql": "CREATE TABLE \"public\".\"merchant_verification_issues\" (\n  \"code\" character varying(64) NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"document_id\" uuid,\n  \"document_type\" character varying(64),\n  \"id\" uuid NOT NULL,\n  \"merchant_id\" uuid NOT NULL,\n  \"message_fr\" character varying(500) NOT NULL,\n  \"resolved_at\" timestamptz(6),\n  \"scope\" character varying(64) NOT NULL,\n  \"submission_id\" uuid NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"mvi_message_not_blank_3b0d62f9\" CHECK (length(btrim(message_fr)) > 0)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"merchant_verification_issues\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_verification_issues\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.merchant_verification_submissions",
+    "label": "Create table \"merchant_verification_submissions\"",
+    "summary": "Creates table \"merchant_verification_submissions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "merchant_verification_submissions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"merchant_verification_submissions\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_verification_submissions\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"merchant_verification_submissions\"",
+        "sql": "CREATE TABLE \"public\".\"merchant_verification_submissions\" (\n  \"attempt_number\" int4 NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"merchant_id\" uuid NOT NULL,\n  \"outcome\" character varying(64) NOT NULL,\n  \"reviewed_at\" timestamptz(6),\n  \"reviewed_by_admin_id\" uuid,\n  \"submitted_at\" timestamptz(6) NOT NULL,\n  \"submitted_by_account_id\" uuid NOT NULL,\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"mvs_attempt_positive_931febaa\" CHECK (attempt_number >= 1)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"merchant_verification_submissions\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_verification_submissions\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.legal_document_versions.legal_document_versions_kind_version_uq_725d8c30",
+    "label": "Create index \"legal_document_versions_kind_version_uq_725d8c30\" on \"legal_document_versions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "legal_document_versions_kind_version_uq_725d8c30",
+        "table": "legal_document_versions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"legal_document_versions_kind_version_uq_725d8c30\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"legal_document_versions_kind_version_uq_725d8c30\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"legal_document_versions_kind_version_uq_725d8c30\"",
+        "sql": "CREATE UNIQUE INDEX \"legal_document_versions_kind_version_uq_725d8c30\" ON \"public\".\"legal_document_versions\" (\"kind\", \"version\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"legal_document_versions_kind_version_uq_725d8c30\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"legal_document_versions_kind_version_uq_725d8c30\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_legal_acceptances.merchant_legal_acceptances_submission_id_idx_82020796",
+    "label": "Create index \"merchant_legal_acceptances_submission_id_idx_82020796\" on \"merchant_legal_acceptances\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "merchant_legal_acceptances_submission_id_idx_82020796",
+        "table": "merchant_legal_acceptances"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"merchant_legal_acceptances_submission_id_idx_82020796\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_legal_acceptances_submission_id_idx_82020796\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"merchant_legal_acceptances_submission_id_idx_82020796\"",
+        "sql": "CREATE INDEX \"merchant_legal_acceptances_submission_id_idx_82020796\" ON \"public\".\"merchant_legal_acceptances\" (\"submission_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"merchant_legal_acceptances_submission_id_idx_82020796\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_legal_acceptances_submission_id_idx_82020796\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_legal_acceptances.mla_merchant_92be5ce7",
+    "label": "Create index \"mla_merchant_92be5ce7\" on \"merchant_legal_acceptances\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "mla_merchant_92be5ce7",
+        "table": "merchant_legal_acceptances"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"mla_merchant_92be5ce7\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mla_merchant_92be5ce7\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"mla_merchant_92be5ce7\"",
+        "sql": "CREATE INDEX \"mla_merchant_92be5ce7\" ON \"public\".\"merchant_legal_acceptances\" (\"merchant_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"mla_merchant_92be5ce7\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mla_merchant_92be5ce7\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_legal_acceptances.mla_submission_kind_uq_fc9908f9",
+    "label": "Create index \"mla_submission_kind_uq_fc9908f9\" on \"merchant_legal_acceptances\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "mla_submission_kind_uq_fc9908f9",
+        "table": "merchant_legal_acceptances"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"mla_submission_kind_uq_fc9908f9\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mla_submission_kind_uq_fc9908f9\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"mla_submission_kind_uq_fc9908f9\"",
+        "sql": "CREATE UNIQUE INDEX \"mla_submission_kind_uq_fc9908f9\" ON \"public\".\"merchant_legal_acceptances\" (\"submission_id\", \"kind\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"mla_submission_kind_uq_fc9908f9\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mla_submission_kind_uq_fc9908f9\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_verification_issues.mvi_merchant_92be5ce7",
+    "label": "Create index \"mvi_merchant_92be5ce7\" on \"merchant_verification_issues\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "mvi_merchant_92be5ce7",
+        "table": "merchant_verification_issues"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"mvi_merchant_92be5ce7\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mvi_merchant_92be5ce7\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"mvi_merchant_92be5ce7\"",
+        "sql": "CREATE INDEX \"mvi_merchant_92be5ce7\" ON \"public\".\"merchant_verification_issues\" (\"merchant_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"mvi_merchant_92be5ce7\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mvi_merchant_92be5ce7\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_verification_issues.mvi_submission_82020796",
+    "label": "Create index \"mvi_submission_82020796\" on \"merchant_verification_issues\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "mvi_submission_82020796",
+        "table": "merchant_verification_issues"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"mvi_submission_82020796\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mvi_submission_82020796\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"mvi_submission_82020796\"",
+        "sql": "CREATE INDEX \"mvi_submission_82020796\" ON \"public\".\"merchant_verification_issues\" (\"submission_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"mvi_submission_82020796\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mvi_submission_82020796\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_verification_submissions.merchant_verification_submissions_merchant_id_idx_92be5ce7",
+    "label": "Create index \"merchant_verification_submissions_merchant_id_idx_92be5ce7\" on \"merchant_verification_submissions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "merchant_verification_submissions_merchant_id_idx_92be5ce7",
+        "table": "merchant_verification_submissions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"merchant_verification_submissions_merchant_id_idx_92be5ce7\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_verification_submissions_merchant_id_idx_92be5ce7\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"merchant_verification_submissions_merchant_id_idx_92be5ce7\"",
+        "sql": "CREATE INDEX \"merchant_verification_submissions_merchant_id_idx_92be5ce7\" ON \"public\".\"merchant_verification_submissions\" (\"merchant_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"merchant_verification_submissions_merchant_id_idx_92be5ce7\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_verification_submissions_merchant_id_idx_92be5ce7\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_verification_submissions.mvs_merchant_attempt_uq_05312195",
+    "label": "Create index \"mvs_merchant_attempt_uq_05312195\" on \"merchant_verification_submissions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "mvs_merchant_attempt_uq_05312195",
+        "table": "merchant_verification_submissions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"mvs_merchant_attempt_uq_05312195\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mvs_merchant_attempt_uq_05312195\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"mvs_merchant_attempt_uq_05312195\"",
+        "sql": "CREATE UNIQUE INDEX \"mvs_merchant_attempt_uq_05312195\" ON \"public\".\"merchant_verification_submissions\" (\"merchant_id\", \"attempt_number\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"mvs_merchant_attempt_uq_05312195\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mvs_merchant_attempt_uq_05312195\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_verification_submissions.mvs_merchant_submitted_c1358413",
+    "label": "Create index \"mvs_merchant_submitted_c1358413\" on \"merchant_verification_submissions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "mvs_merchant_submitted_c1358413",
+        "table": "merchant_verification_submissions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"mvs_merchant_submitted_c1358413\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mvs_merchant_submitted_c1358413\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"mvs_merchant_submitted_c1358413\"",
+        "sql": "CREATE INDEX \"mvs_merchant_submitted_c1358413\" ON \"public\".\"merchant_verification_submissions\" (\"merchant_id\", \"submitted_at\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"mvs_merchant_submitted_c1358413\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mvs_merchant_submitted_c1358413\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_legal_acceptances.merchant_legal_acceptances_merchant_id_fkey",
+    "label": "Add foreign key \"merchant_legal_acceptances_merchant_id_fkey\" on \"merchant_legal_acceptances\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_legal_acceptances_merchant_id_fkey",
+        "table": "merchant_legal_acceptances"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_legal_acceptances_merchant_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_legal_acceptances_merchant_id_fkey",
+          "public",
+          "\"public\".\"merchant_legal_acceptances\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_legal_acceptances_merchant_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_legal_acceptances\"\nADD CONSTRAINT \"merchant_legal_acceptances_merchant_id_fkey\"\nFOREIGN KEY (\"merchant_id\")\nREFERENCES \"public\".\"merchants\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_legal_acceptances_merchant_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_legal_acceptances_merchant_id_fkey",
+          "public",
+          "\"public\".\"merchant_legal_acceptances\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_legal_acceptances.merchant_legal_acceptances_submission_id_fkey",
+    "label": "Add foreign key \"merchant_legal_acceptances_submission_id_fkey\" on \"merchant_legal_acceptances\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_legal_acceptances_submission_id_fkey",
+        "table": "merchant_legal_acceptances"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_legal_acceptances_submission_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_legal_acceptances_submission_id_fkey",
+          "public",
+          "\"public\".\"merchant_legal_acceptances\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_legal_acceptances_submission_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_legal_acceptances\"\nADD CONSTRAINT \"merchant_legal_acceptances_submission_id_fkey\"\nFOREIGN KEY (\"submission_id\")\nREFERENCES \"public\".\"merchant_verification_submissions\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_legal_acceptances_submission_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_legal_acceptances_submission_id_fkey",
+          "public",
+          "\"public\".\"merchant_legal_acceptances\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_verification_issues.merchant_verification_issues_merchant_id_fkey",
+    "label": "Add foreign key \"merchant_verification_issues_merchant_id_fkey\" on \"merchant_verification_issues\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_verification_issues_merchant_id_fkey",
+        "table": "merchant_verification_issues"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_verification_issues_merchant_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_verification_issues_merchant_id_fkey",
+          "public",
+          "\"public\".\"merchant_verification_issues\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_verification_issues_merchant_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_verification_issues\"\nADD CONSTRAINT \"merchant_verification_issues_merchant_id_fkey\"\nFOREIGN KEY (\"merchant_id\")\nREFERENCES \"public\".\"merchants\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_verification_issues_merchant_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_verification_issues_merchant_id_fkey",
+          "public",
+          "\"public\".\"merchant_verification_issues\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_verification_issues.merchant_verification_issues_submission_id_fkey",
+    "label": "Add foreign key \"merchant_verification_issues_submission_id_fkey\" on \"merchant_verification_issues\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_verification_issues_submission_id_fkey",
+        "table": "merchant_verification_issues"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_verification_issues_submission_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_verification_issues_submission_id_fkey",
+          "public",
+          "\"public\".\"merchant_verification_issues\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_verification_issues_submission_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_verification_issues\"\nADD CONSTRAINT \"merchant_verification_issues_submission_id_fkey\"\nFOREIGN KEY (\"submission_id\")\nREFERENCES \"public\".\"merchant_verification_submissions\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_verification_issues_submission_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_verification_issues_submission_id_fkey",
+          "public",
+          "\"public\".\"merchant_verification_issues\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_verification_submissions.merchant_verification_submissions_merchant_id_fkey",
+    "label": "Add foreign key \"merchant_verification_submissions_merchant_id_fkey\" on \"merchant_verification_submissions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_verification_submissions_merchant_id_fkey",
+        "table": "merchant_verification_submissions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_verification_submissions_merchant_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_verification_submissions_merchant_id_fkey",
+          "public",
+          "\"public\".\"merchant_verification_submissions\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_verification_submissions_merchant_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_verification_submissions\"\nADD CONSTRAINT \"merchant_verification_submissions_merchant_id_fkey\"\nFOREIGN KEY (\"merchant_id\")\nREFERENCES \"public\".\"merchants\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_verification_submissions_merchant_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_verification_submissions_merchant_id_fkey",
+          "public",
+          "\"public\".\"merchant_verification_submissions\""
+        ]
+      }
+    ]
+  }
+]

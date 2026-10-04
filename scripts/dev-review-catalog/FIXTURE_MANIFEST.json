@@ -1,0 +1,75 @@
+{
+  "name": "speedygo-dev-review-catalog",
+  "fictionalIdentity": true,
+  "purpose": "Synthetic development catalog for Customer app visual review through the real API. Not production. Does not impersonate real businesses or use real logos.",
+  "target": {
+    "host": "127.0.0.1",
+    "port": 5433,
+    "database": "speedygo_dev",
+    "never": ["speedygo_test", 5432, 6379, "Redis DB15"]
+  },
+  "namespace": {
+    "idPrefix": "0d00c071-d000-7000-8000-",
+    "publicReferencePrefix": "sgm_review_",
+    "idempotency": "INSERT … ON CONFLICT (id) DO NOTHING. Re-run does not duplicate or UPDATE/DELETE rows outside this namespace.",
+    "doesNotOwn": [
+      "0d00c070-d000-7000-8000-* (existing demo catalog SQL fixture)",
+      "DEMO SpeedyGo Cover Cafe / DEMO Cover Hydra",
+      "live accounts +213549445167, +213550667788 and other pre-existing users",
+      "orders, payments, refunds, redemptions, ratings",
+      "promotion DEMOHOME150"
+    ]
+  },
+  "syntheticActors": {
+    "owner": {
+      "phone": "+213550000071",
+      "accountId": "0d00c071-d000-7000-8000-000000000001",
+      "roles": "OWNER of the 10 review merchants only",
+      "customerProfile": false
+    },
+    "apiReviewer": {
+      "phone": "+213550000072",
+      "accountId": "0d00c071-d000-7000-8000-0000000000c1",
+      "customerProfile": true,
+      "merchantRoles": "none",
+      "purpose": "Optional Customer API reads. Never used to automate the live Simulator session."
+    }
+  },
+  "commerceVerticals": {
+    "preservedExisting": [
+      { "slug": "demo-restaurants", "name": "Restaurants", "iconKey": "restaurant" },
+      { "slug": "demo-desserts", "name": "Desserts", "iconKey": "icecream" },
+      { "slug": "demo-groceries", "name": "Épiceries", "iconKey": "local_mall" }
+    ],
+    "addedByThisFixture": [
+      { "id": "0d00c071-d000-7000-8000-00000000a001", "slug": "review-bakeries", "name": "Boulangeries", "iconKey": "bakery_dining" },
+      { "id": "0d00c071-d000-7000-8000-00000000a002", "slug": "review-pharmacies", "name": "Pharmacies", "iconKey": "medical_services" }
+    ]
+  },
+  "hoursCases": {
+    "timezone": "Africa/Algiers",
+    "runtimeChecks": "Checkout/order still enforce hoursConfigured and isOpenNow. This fixture does not bypass those checks.",
+    "documentedClosed": {
+      "storefront": "Épicerie du Parc",
+      "branchId": "0d00c071-d000-7000-8000-000000011007",
+      "behavior": "Schedule row exists, zero intervals → hoursConfigured=true, always closed"
+    },
+    "documentedUnconfigured": {
+      "storefront": "Atelier Sucré",
+      "branchId": "0d00c071-d000-7000-8000-00000001100a",
+      "behavior": "No schedule → hoursConfigured=false"
+    },
+    "alwaysOpenForTesting": ["Souk El Khemis", "Pharmacie Atlas"]
+  },
+  "productImages": {
+    "supported": true,
+    "table": "product_images",
+    "namespace": "product-images/",
+    "customerField": "imageUrl",
+    "bindApi": "POST/PUT /merchant/:merchantId/branches/:branchId/products/:productId/image[/content]",
+    "coverage": "Only products with a matching licensed photograph in ASSET_MANIFEST.json products[]. Remaining review-catalog SKUs stay without an image.",
+    "doNot": "A branch cover must not masquerade as a product photograph. Flutter must not hardcode product-to-image maps."
+  },
+  "paginationLimitation": "Ten new storefronts plus two existing demos is well under the default 50-item page. Live pagination of a full page is not claimed. Keep existing catalog_pagination_test.dart.",
+  "rerun": "bash apps/backend/scripts/dev-review-catalog/apply-dev-review-catalog.sh"
+}

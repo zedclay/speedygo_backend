@@ -1,0 +1,410 @@
+[
+  {
+    "id": "table.commerce_verticals",
+    "label": "Create table \"commerce_verticals\"",
+    "summary": "Creates table \"commerce_verticals\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "commerce_verticals"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"commerce_verticals\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"commerce_verticals\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"commerce_verticals\"",
+        "sql": "CREATE TABLE \"public\".\"commerce_verticals\" (\n  \"active\" bool NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"icon_key\" character varying(64) NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"name\" character varying(255) NOT NULL,\n  \"slug\" character varying(64) NOT NULL,\n  \"sort_order\" int4 NOT NULL,\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"commerce_verticals_sort_nonneg_eb4b5508\" CHECK (sort_order >= 0)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"commerce_verticals\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"commerce_verticals\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.merchant_branch_classifications",
+    "label": "Create table \"merchant_branch_classifications\"",
+    "summary": "Creates table \"merchant_branch_classifications\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "merchant_branch_classifications"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"merchant_branch_classifications\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_classifications\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"merchant_branch_classifications\"",
+        "sql": "CREATE TABLE \"public\".\"merchant_branch_classifications\" (\n  \"branch_id\" uuid NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"vertical_id\" uuid NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"merchant_branch_classifications\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_classifications\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.merchant_branch_covers",
+    "label": "Create table \"merchant_branch_covers\"",
+    "summary": "Creates table \"merchant_branch_covers\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "merchant_branch_covers"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"merchant_branch_covers\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_covers\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"merchant_branch_covers\"",
+        "sql": "CREATE TABLE \"public\".\"merchant_branch_covers\" (\n  \"branch_id\" uuid NOT NULL,\n  \"byte_size\" int4 NOT NULL,\n  \"content_type\" character varying(64) NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"height_px\" int4 NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"object_id\" character varying(64) NOT NULL,\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"width_px\" int4 NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"merchant_branch_covers_byte_size_pos_37df7c4a\" CHECK (byte_size > 0),\n  CONSTRAINT \"merchant_branch_covers_height_pos_194b6462\" CHECK (height_px > 0),\n  CONSTRAINT \"merchant_branch_covers_width_pos_9aff30b8\" CHECK (width_px > 0)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"merchant_branch_covers\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_covers\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.commerce_verticals.commerce_verticals_slug_key",
+    "label": "Add unique constraint on \"commerce_verticals\" (slug)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "commerce_verticals_slug_key",
+        "table": "commerce_verticals"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"commerce_verticals_slug_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "commerce_verticals_slug_key",
+          "public",
+          "\"public\".\"commerce_verticals\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"commerce_verticals_slug_key\"",
+        "sql": "ALTER TABLE \"public\".\"commerce_verticals\" ADD CONSTRAINT \"commerce_verticals_slug_key\" UNIQUE (\"slug\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"commerce_verticals_slug_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "commerce_verticals_slug_key",
+          "public",
+          "\"public\".\"commerce_verticals\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.merchant_branch_classifications.merchant_branch_classifications_branch_id_key",
+    "label": "Add unique constraint on \"merchant_branch_classifications\" (branch_id)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "merchant_branch_classifications_branch_id_key",
+        "table": "merchant_branch_classifications"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"merchant_branch_classifications_branch_id_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_classifications_branch_id_key",
+          "public",
+          "\"public\".\"merchant_branch_classifications\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"merchant_branch_classifications_branch_id_key\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_classifications\" ADD CONSTRAINT \"merchant_branch_classifications_branch_id_key\" UNIQUE (\"branch_id\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"merchant_branch_classifications_branch_id_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_classifications_branch_id_key",
+          "public",
+          "\"public\".\"merchant_branch_classifications\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.merchant_branch_covers.merchant_branch_covers_branch_id_key",
+    "label": "Add unique constraint on \"merchant_branch_covers\" (branch_id)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "merchant_branch_covers_branch_id_key",
+        "table": "merchant_branch_covers"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"merchant_branch_covers_branch_id_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_covers_branch_id_key",
+          "public",
+          "\"public\".\"merchant_branch_covers\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"merchant_branch_covers_branch_id_key\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_covers\" ADD CONSTRAINT \"merchant_branch_covers_branch_id_key\" UNIQUE (\"branch_id\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"merchant_branch_covers_branch_id_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_covers_branch_id_key",
+          "public",
+          "\"public\".\"merchant_branch_covers\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_branch_classifications.merchant_branch_classifications_vertical_02fccf59",
+    "label": "Create index \"merchant_branch_classifications_vertical_02fccf59\" on \"merchant_branch_classifications\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "merchant_branch_classifications_vertical_02fccf59",
+        "table": "merchant_branch_classifications"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"merchant_branch_classifications_vertical_02fccf59\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_classifications_vertical_02fccf59\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"merchant_branch_classifications_vertical_02fccf59\"",
+        "sql": "CREATE INDEX \"merchant_branch_classifications_vertical_02fccf59\" ON \"public\".\"merchant_branch_classifications\" (\"vertical_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"merchant_branch_classifications_vertical_02fccf59\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_classifications_vertical_02fccf59\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_branch_classifications.merchant_branch_classifications_branch_id_fkey",
+    "label": "Add foreign key \"merchant_branch_classifications_branch_id_fkey\" on \"merchant_branch_classifications\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_branch_classifications_branch_id_fkey",
+        "table": "merchant_branch_classifications"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_branch_classifications_branch_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_classifications_branch_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_classifications\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_branch_classifications_branch_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_classifications\"\nADD CONSTRAINT \"merchant_branch_classifications_branch_id_fkey\"\nFOREIGN KEY (\"branch_id\")\nREFERENCES \"public\".\"merchant_branches\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_branch_classifications_branch_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_classifications_branch_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_classifications\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_branch_classifications.merchant_branch_classifications_vertical_id_fkey",
+    "label": "Add foreign key \"merchant_branch_classifications_vertical_id_fkey\" on \"merchant_branch_classifications\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_branch_classifications_vertical_id_fkey",
+        "table": "merchant_branch_classifications"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_branch_classifications_vertical_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_classifications_vertical_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_classifications\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_branch_classifications_vertical_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_classifications\"\nADD CONSTRAINT \"merchant_branch_classifications_vertical_id_fkey\"\nFOREIGN KEY (\"vertical_id\")\nREFERENCES \"public\".\"commerce_verticals\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_branch_classifications_vertical_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_classifications_vertical_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_classifications\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_branch_covers.merchant_branch_covers_branch_id_fkey",
+    "label": "Add foreign key \"merchant_branch_covers_branch_id_fkey\" on \"merchant_branch_covers\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_branch_covers_branch_id_fkey",
+        "table": "merchant_branch_covers"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_branch_covers_branch_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_covers_branch_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_covers\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_branch_covers_branch_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_covers\"\nADD CONSTRAINT \"merchant_branch_covers_branch_id_fkey\"\nFOREIGN KEY (\"branch_id\")\nREFERENCES \"public\".\"merchant_branches\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_branch_covers_branch_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_covers_branch_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_covers\""
+        ]
+      }
+    ]
+  }
+]

@@ -275,7 +275,7 @@ export function copyMerchantOrderCreated(publicReference: string): {
   body: string;
 } {
   return {
-    title: 'New order',
-    body: `New order ${publicReference} requires attention.`,
+    title: 'Nouvelle commande',
+    body: `Une nouvelle commande ${publicReference} nécessite votre attention.`,
   };
 }

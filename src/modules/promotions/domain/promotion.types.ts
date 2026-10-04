@@ -47,6 +47,8 @@ export type PromotionRecord = {
   startsAt: string;
   endsAt: string;
   active: boolean;
+  customerDiscoverable: boolean;
+  customerLabel: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -81,7 +83,38 @@ export type CreatePromotionInput = {
   startsAt: string;
   endsAt: string;
   active?: boolean;
+  customerDiscoverable?: boolean;
+  customerLabel?: string | null;
 };
+
+/** Customer discovery kind — funding is stripped. Units match Promotion.value. */
+export const CUSTOMER_PROMOTION_DISCOUNT_KINDS = [
+  PROMOTION_KIND_FIXED_MINOR,
+  PROMOTION_KIND_RATE_BPS,
+] as const;
+
+export type CustomerPromotionDiscountKind =
+  (typeof CUSTOMER_PROMOTION_DISCOUNT_KINDS)[number];
+
+/**
+ * Discovery is not cart eligibility. Checkout preview remains authority.
+ */
+export const CUSTOMER_PROMOTION_ELIGIBILITY_DISCOVERABLE = 'DISCOVERABLE';
+
+export type CustomerDiscoverablePromotion = {
+  id: string;
+  code: string;
+  discountKind: CustomerPromotionDiscountKind;
+  value: number;
+  startsAt: string;
+  endsAt: string;
+  customerLabel: string | null;
+  eligibility: typeof CUSTOMER_PROMOTION_ELIGIBILITY_DISCOVERABLE;
+};
+
+export const CUSTOMER_PROMOTION_DISCOVERY_DEFAULT_LIMIT = 20;
+export const CUSTOMER_PROMOTION_DISCOVERY_MAX_LIMIT = 20;
+export const CUSTOMER_PROMOTION_DISCOVERY_FETCH_CAP = 100;
 
 export type EvaluatePromotionInput = {
   code: string;

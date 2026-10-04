@@ -2,7 +2,10 @@ import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../../../infrastructure/database/database.module';
 import { SessionService } from '../../auth/application/session.service';
 import { MerchantReviewService } from '../../merchants/application/merchant-review.service';
-import type { MerchantView } from '../../merchants/domain/merchant.types';
+import type {
+  MerchantView,
+  RejectionIssueInput,
+} from '../../merchants/domain/merchant.types';
 import { MerchantRepository } from '../../merchants/infrastructure/merchant.repository';
 import { TrackingGateway } from '../../tracking/infrastructure/tracking.gateway';
 import {
@@ -56,19 +59,27 @@ export class AdminMerchantCommandsService {
   async rejectVerification(
     admin: CurrentAdminContext,
     merchantId: string,
+    issues: readonly RejectionIssueInput[],
   ): Promise<MerchantView> {
-    // Rejection reason is intentionally not accepted or persisted in v1.0.
     return this.prisma.getDb().transaction(async (tx) => {
       const result = await this.merchantReview.rejectInTx(tx, {
         merchantId,
         adminId: admin.adminProfileId,
+        issues,
       });
       await this.audit.recordInTx(tx, {
         adminId: admin.adminProfileId,
         action: ADMIN_AUDIT_ACTIONS.MERCHANT_VERIFICATION_REJECT,
         targetType: ADMIN_AUDIT_TARGET_TYPES.MERCHANT,
         targetId: merchantId,
-        afterJson: result,
+        afterJson: {
+          ...result,
+          issues: issues.map((issue) => ({
+            scope: issue.scope,
+            code: issue.code,
+            documentType: issue.documentType ?? null,
+          })),
+        },
         sessionId: admin.sessionId,
       });
       return result;

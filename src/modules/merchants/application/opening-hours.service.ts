@@ -4,10 +4,6 @@ import { merchantBranchNotFound } from '../domain/merchant.errors';
 import { OPENING_HOURS_TIMEZONE } from '../domain/opening-hours.constants';
 import { openingHoursVersionConflict } from '../domain/opening-hours.errors';
 import {
-  evaluateOpeningHours,
-  type OpeningHoursEvaluation,
-} from '../domain/opening-hours.evaluator';
-import {
   flattenNormalizedDays,
   formatMinuteAsHhMm,
   groupIntervalsByDay,
@@ -19,7 +15,12 @@ import {
   OpeningHoursRepository,
   type OpeningScheduleRecord,
 } from '../infrastructure/opening-hours.repository';
+import { BranchAvailabilityRepository } from '../infrastructure/branch-availability.repository';
+import { OpeningHoursExceptionRepository } from '../infrastructure/opening-hours-exception.repository';
+import { localDateKeyPlusDays } from '../domain/opening-hours-exception.policy';
 import { MerchantAccessService } from './merchant-access.service';
+import { evaluateEffectiveAvailability } from '../domain/branch-availability.evaluator';
+import type { OpeningHoursEvaluation } from '../domain/opening-hours.evaluator';
 
 export type OpeningHoursPublicDay = {
   dayOfWeek: number;
@@ -49,7 +50,9 @@ export type OpeningHoursCustomerProjection = OpeningHoursEvaluation & {
 export class OpeningHoursService {
   constructor(
     private readonly openingHours: OpeningHoursRepository,
+    private readonly availability: BranchAvailabilityRepository,
     private readonly access: MerchantAccessService,
+    private readonly exceptions: OpeningHoursExceptionRepository,
   ) {}
 
   async getForMerchant(
@@ -124,17 +127,39 @@ export class OpeningHoursService {
     return this.toMerchantView(branchId, replaced);
   }
 
-  /** Load + evaluate for checkout/order gates. Missing schedule ⇒ not configured. */
+  /**
+   * Load + evaluate effective accepting-orders (override → date exception →
+   * weekly hours). Missing schedule ⇒ not configured.
+   */
   async evaluateBranch(
     branchId: string,
     now: Date,
   ): Promise<OpeningHoursEvaluation> {
     const schedule = await this.openingHours.findScheduleByBranchId(branchId);
-    return evaluateOpeningHours(schedule?.intervals ?? null, now);
+    const override = await this.availability.findByBranchId(branchId);
+    const exceptions = await this.exceptions.findFromDate(
+      branchId,
+      localDateKeyPlusDays(now, -1),
+    );
+    const effective = evaluateEffectiveAvailability(
+      schedule?.intervals ?? null,
+      override,
+      now,
+      OPENING_HOURS_TIMEZONE,
+      exceptions,
+    );
+    return {
+      hoursConfigured: effective.hoursConfigured,
+      isOpenNow: effective.acceptingOrders,
+      timezone: effective.timezone,
+      currentClosesAt: effective.currentClosesAt,
+      nextOpenAt: effective.nextOpenAt,
+    };
   }
 
   /**
    * Batch evaluate many branches (catalog list/search). No N+1.
+   * isOpenNow is effective (availability override + weekly hours).
    */
   async evaluateBranches(
     branchIds: string[],
@@ -142,10 +167,27 @@ export class OpeningHoursService {
   ): Promise<Map<string, OpeningHoursEvaluation>> {
     const schedules =
       await this.openingHours.findSchedulesByBranchIds(branchIds);
+    const overrides = await this.availability.findByBranchIds(branchIds);
+    const exceptions = await this.exceptions.findFromDateForBranches(
+      branchIds,
+      localDateKeyPlusDays(now, -1),
+    );
     const out = new Map<string, OpeningHoursEvaluation>();
     for (const branchId of branchIds) {
-      const schedule = schedules.get(branchId);
-      out.set(branchId, evaluateOpeningHours(schedule?.intervals ?? null, now));
+      const effective = evaluateEffectiveAvailability(
+        schedules.get(branchId)?.intervals ?? null,
+        overrides.get(branchId) ?? null,
+        now,
+        OPENING_HOURS_TIMEZONE,
+        exceptions.get(branchId) ?? [],
+      );
+      out.set(branchId, {
+        hoursConfigured: effective.hoursConfigured,
+        isOpenNow: effective.acceptingOrders,
+        timezone: effective.timezone,
+        currentClosesAt: effective.currentClosesAt,
+        nextOpenAt: effective.nextOpenAt,
+      });
     }
     return out;
   }
@@ -156,7 +198,25 @@ export class OpeningHoursService {
     options?: { includeDays?: boolean },
   ): Promise<OpeningHoursCustomerProjection> {
     const schedule = await this.openingHours.findScheduleByBranchId(branchId);
-    const evaluation = evaluateOpeningHours(schedule?.intervals ?? null, now);
+    const override = await this.availability.findByBranchId(branchId);
+    const exceptions = await this.exceptions.findFromDate(
+      branchId,
+      localDateKeyPlusDays(now, -1),
+    );
+    const effective = evaluateEffectiveAvailability(
+      schedule?.intervals ?? null,
+      override,
+      now,
+      OPENING_HOURS_TIMEZONE,
+      exceptions,
+    );
+    const evaluation: OpeningHoursEvaluation = {
+      hoursConfigured: effective.hoursConfigured,
+      isOpenNow: effective.acceptingOrders,
+      timezone: effective.timezone,
+      currentClosesAt: effective.currentClosesAt,
+      nextOpenAt: effective.nextOpenAt,
+    };
     if (!options?.includeDays) {
       return evaluation;
     }

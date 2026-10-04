@@ -27,19 +27,45 @@ export class MerchantSupportController {
   @ApiOperation({
     summary: 'Create Merchant Support ticket',
     description:
-      'OWNER or MANAGER only (STAFF forbidden). merchantId from path. Optional orderId must belong to this Merchant via MerchantBranch.',
+      'OWNER or MANAGER only (STAFF forbidden). topicCode (active Merchant topic) and subject (1–255) are required. merchantId from path. Optional orderId must belong to this Merchant via MerchantBranch.',
   })
   create(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('merchantId', ParseUUIDPipe) merchantId: string,
     @Body() body: CreateSupportTicketDto,
   ) {
-    return this.support.createMerchantTicket(
-      principal.accountId,
-      merchantId,
-      body.body,
-      body.orderId,
-    );
+    return this.support.createMerchantTicket(principal.accountId, merchantId, {
+      body: body.body,
+      orderId: body.orderId,
+      topicCode: body.topicCode,
+      subject: body.subject,
+    });
+  }
+
+  @Get('topics')
+  @ApiOperation({
+    summary: 'List active Merchant Support topics',
+    description:
+      'OWNER or MANAGER only. Server-provided topics with audience MERCHANT or ALL. Seeds the default Merchant topics when none exist yet.',
+  })
+  listTopics(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', ParseUUIDPipe) merchantId: string,
+  ) {
+    return this.support.listMerchantTopics(principal.accountId, merchantId);
+  }
+
+  @Get('faq')
+  @ApiOperation({
+    summary: 'List active Merchant FAQ articles',
+    description:
+      'OWNER or MANAGER only. Versioned French articles. Seeds the default articles when none exist yet.',
+  })
+  listFaq(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', ParseUUIDPipe) merchantId: string,
+  ) {
+    return this.support.listMerchantFaq(principal.accountId, merchantId);
   }
 
   @Get()

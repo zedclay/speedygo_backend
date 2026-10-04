@@ -7,6 +7,8 @@ export const SUPPORT_ERROR_CODES = {
   SUPPORT_INVALID_INPUT: 'SUPPORT_INVALID_INPUT',
   SUPPORT_RESOURCE_FORBIDDEN: 'SUPPORT_RESOURCE_FORBIDDEN',
   SUPPORT_INTEGRITY: 'SUPPORT_INTEGRITY',
+  SUPPORT_TOPIC_INVALID: 'SUPPORT_TOPIC_INVALID',
+  SUPPORT_SUBJECT_INVALID: 'SUPPORT_SUBJECT_INVALID',
 } as const;
 
 export type SupportErrorCode =
@@ -70,4 +72,24 @@ export function supportIntegrity(
   message = 'Support ticket has corrupt or unsupported vocabulary',
 ): SupportError {
   return new SupportError(SUPPORT_ERROR_CODES.SUPPORT_INTEGRITY, message, 409);
+}
+
+export function supportTopicInvalid(
+  message = 'topicCode must be an active Merchant Support topic',
+): SupportError {
+  return new SupportError(
+    SUPPORT_ERROR_CODES.SUPPORT_TOPIC_INVALID,
+    message,
+    400,
+  );
+}
+
+export function supportSubjectInvalid(
+  message = 'subject must be 1–255 characters',
+): SupportError {
+  return new SupportError(
+    SUPPORT_ERROR_CODES.SUPPORT_SUBJECT_INVALID,
+    message,
+    400,
+  );
 }

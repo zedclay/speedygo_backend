@@ -1,6 +1,9 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Type } from 'class-transformer';
 import {
+  ArrayMaxSize,
+  ArrayNotEmpty,
+  IsArray,
   IsBoolean,
   IsIn,
   IsInt,
@@ -12,12 +15,21 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateNested,
 } from 'class-validator';
 import {
   ADMIN_LIST_DEFAULT_LIMIT,
   ADMIN_LIST_MAX_LIMIT,
   ADMIN_LIST_MAX_OFFSET,
 } from '../../../domain/admin.types';
+import {
+  MERCHANT_DOCUMENT_TYPES,
+  VERIFICATION_APPLICATION_ISSUE_CODES,
+  VERIFICATION_DOCUMENT_ISSUE_CODES,
+  VERIFICATION_ISSUE_MESSAGE_MAX_LENGTH,
+  VERIFICATION_ISSUE_SCOPES,
+  VERIFICATION_ISSUES_MAX_COUNT,
+} from '../../../../merchants/domain/merchant.policy';
 import { PROMOTION_TYPES_V1 } from '../../../../promotions/domain/promotion.types';
 import {
   REFUND_METHOD_MANUAL_COD,
@@ -26,6 +38,49 @@ import {
 
 /** Empty body — forbidNonWhitelisted rejects spoofed adminId / reason fields. */
 export class AdminEmptyBodyDto {}
+
+export class AdminRejectMerchantIssueDto {
+  @ApiProperty({ enum: VERIFICATION_ISSUE_SCOPES })
+  @IsIn([...VERIFICATION_ISSUE_SCOPES])
+  scope!: string;
+
+  @ApiProperty({
+    description: `APPLICATION: ${VERIFICATION_APPLICATION_ISSUE_CODES.join(', ')}. DOCUMENT: ${VERIFICATION_DOCUMENT_ISSUE_CODES.join(', ')}.`,
+  })
+  @IsString()
+  @MaxLength(64)
+  code!: string;
+
+  @ApiProperty({
+    maxLength: VERIFICATION_ISSUE_MESSAGE_MAX_LENGTH,
+    description: 'Public French message shown to the Merchant OWNER.',
+  })
+  @IsString()
+  @MaxLength(VERIFICATION_ISSUE_MESSAGE_MAX_LENGTH * 2)
+  messageFr!: string;
+
+  @ApiPropertyOptional({
+    enum: MERCHANT_DOCUMENT_TYPES,
+    description: 'Required when scope is DOCUMENT; forbidden otherwise.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  documentType?: string;
+}
+
+export class AdminRejectMerchantVerificationDto {
+  @ApiProperty({
+    type: [AdminRejectMerchantIssueDto],
+    maxItems: VERIFICATION_ISSUES_MAX_COUNT,
+  })
+  @IsArray()
+  @ArrayNotEmpty()
+  @ArrayMaxSize(VERIFICATION_ISSUES_MAX_COUNT)
+  @ValidateNested({ each: true })
+  @Type(() => AdminRejectMerchantIssueDto)
+  issues!: AdminRejectMerchantIssueDto[];
+}
 
 export class AdminListQueryDto {
   @ApiPropertyOptional({
@@ -296,4 +351,36 @@ export class CreateAdminPromotionDto {
   @IsOptional()
   @IsBoolean()
   active?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'When true, the offer may appear on Customer discovery if it is also effective. Defaults to false.',
+  })
+  @IsOptional()
+  @IsBoolean()
+  customerDiscoverable?: boolean;
+
+  @ApiPropertyOptional({
+    maxLength: 64,
+    nullable: true,
+    description:
+      'Optional Customer-facing presentation label. Not a discount rule.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  customerLabel?: string | null;
+}
+
+export class UpdateAdminPromotionPresentationDto {
+  @ApiPropertyOptional({
+    maxLength: 64,
+    nullable: true,
+    description:
+      'Optional Customer-facing presentation label. Not a discount rule.',
+  })
+  @IsOptional()
+  @IsString()
+  @MaxLength(64)
+  customerLabel?: string | null;
 }

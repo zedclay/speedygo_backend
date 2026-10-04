@@ -330,7 +330,9 @@ export class NotificationRepository {
         .first();
       const now = pgNow();
       if (byToken) {
-        if (byToken.accountId !== input.accountId) {
+        // An inactive token was released (logout / provider invalidation) and
+        // may be claimed by the Account now signed in on that install.
+        if (byToken.accountId !== input.accountId && byToken.active) {
           throw notificationIntegrityConflict(
             'Push token is registered to another account',
           );
@@ -338,6 +340,7 @@ export class NotificationRepository {
         await orm(tx)
           .DeviceToken.where({ id: byToken.id })
           .update({
+            accountId: input.accountId,
             deviceId: input.deviceId,
             platform: pgVarchar<32>(input.platform),
             active: true,
@@ -387,6 +390,90 @@ export class NotificationRepository {
     await orm(this.db())
       .DeviceToken.where({ id: row.id })
       .update({ active: false, updatedAt: pgNow() });
+  }
+
+  async deactivateDeviceTokenById(id: string): Promise<void> {
+    await orm(this.db())
+      .DeviceToken.where({ id, active: true })
+      .update({ active: false, updatedAt: pgNow() });
+  }
+
+  async findNotificationById(id: string): Promise<NotificationRecord | null> {
+    const row = await orm(this.db()).Notification.where({ id }).first();
+    return row ? toNotification(row) : null;
+  }
+
+  async findDeliveryLog(
+    notificationId: string,
+    channel: string,
+  ): Promise<NotificationDeliveryLogRecord | null> {
+    const row = await orm(this.db())
+      .NotificationDeliveryLog.where({
+        notificationId,
+        channel: pgVarchar<32>(channel),
+      })
+      .first();
+    return row ? toDelivery(row) : null;
+  }
+
+  async updateDeliveryLog(
+    id: string,
+    input: {
+      status: string;
+      providerReference: string | null;
+      sentAt: Date | null;
+    },
+  ): Promise<void> {
+    await orm(this.db())
+      .NotificationDeliveryLog.where({ id })
+      .update({
+        status: pgVarchar<64>(input.status),
+        providerReference:
+          input.providerReference === null
+            ? null
+            : pgVarchar<255>(input.providerReference.slice(0, 255)),
+        sentAt:
+          input.sentAt === null
+            ? null
+            : pgTimestamptz(input.sentAt.toISOString()),
+      });
+  }
+
+  /**
+   * Send-time authorization + staleness snapshot for a merchant new-order Push.
+   * Reads current state only (membership, account status, order status).
+   */
+  async findMerchantOrderPushContext(
+    accountId: string,
+    orderId: string,
+  ): Promise<{
+    accountStatus: string | null;
+    merchantId: string | null;
+    branchId: string | null;
+    memberRole: string | null;
+    orderStatus: string | null;
+    fulfillmentStatus: string | null;
+  }> {
+    const account = await orm(this.db()).Account.where({ id: accountId }).first();
+    const order = await orm(this.db()).Order.where({ id: orderId }).first();
+    const branch = order
+      ? await orm(this.db())
+          .MerchantBranch.where({ id: order.merchantBranchId })
+          .first()
+      : null;
+    const member = branch
+      ? await orm(this.db())
+          .MerchantMember.where({ merchantId: branch.merchantId, accountId })
+          .first()
+      : null;
+    return {
+      accountStatus: account?.status ?? null,
+      merchantId: branch?.merchantId ?? null,
+      branchId: order?.merchantBranchId ?? null,
+      memberRole: member?.role ?? null,
+      orderStatus: order?.status ?? null,
+      fulfillmentStatus: order?.fulfillmentStatus ?? null,
+    };
   }
 
   /**

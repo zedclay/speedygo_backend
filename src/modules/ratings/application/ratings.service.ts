@@ -12,6 +12,7 @@ import {
   formatRatingAverage,
   isOrderEligibleForRating,
   normalizeRatingComment,
+  parseMerchantSummaryIds,
   parseRatingScore,
   RATING_TARGET_DRIVER,
   RATING_TARGET_MERCHANT,
@@ -226,6 +227,31 @@ export class RatingsService {
       throw ratingNotFound();
     }
     return toDriverRatingDto(rating);
+  }
+
+  async merchantSummaries(rawIds: unknown): Promise<{ items: RatingSummaryDto[] }> {
+    const merchantIds = parseMerchantSummaryIds(rawIds);
+    if (merchantIds === null) {
+      throw ratingInvalidInput(
+        'merchantIds must be a comma-separated list of at most 50 UUIDs',
+      );
+    }
+    const existing = await this.ratings.listExistingMerchantIds(merchantIds);
+    const existingSet = new Set(existing);
+    const totals = await this.ratings.aggregateMerchantRatingsMany(existing);
+    return {
+      items: merchantIds
+        .filter((id) => existingSet.has(id))
+        .map((id) => {
+          const { count, sum } = totals.get(id) ?? { count: 0, sum: 0 };
+          return {
+            targetType: RATING_TARGET_MERCHANT,
+            targetId: id,
+            count,
+            average: formatRatingAverage(sum, count),
+          };
+        }),
+    };
   }
 
   async merchantSummary(merchantId: string): Promise<RatingSummaryDto> {

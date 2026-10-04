@@ -25,8 +25,45 @@ export type SupportTicketRecord = {
   status: SupportStatus;
   priority: SupportPriority;
   assignedAdminId: string | null;
+  topicCode: string | null;
+  subject: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type SupportTopicRecord = {
+  id: string;
+  code: string;
+  labelFr: string;
+  audience: string;
+  sortOrder: number;
+  active: boolean;
+};
+
+export type SupportFaqArticleRecord = {
+  id: string;
+  audience: string;
+  slug: string;
+  titleFr: string;
+  bodyFr: string;
+  version: string;
+  sortOrder: number;
+  active: boolean;
+  publishedAt: string;
+};
+
+export type SupportTopicDto = {
+  code: string;
+  labelFr: string;
+  sortOrder: number;
+};
+
+export type SupportFaqArticleDto = {
+  slug: string;
+  titleFr: string;
+  bodyFr: string;
+  version: string;
+  publishedAt: string;
 };
 
 export type SupportMessageRecord = {
@@ -77,6 +114,8 @@ export type SupportTicketListItemDto = {
   merchantId: string | null;
   driverId: string | null;
   assignedAdminId: string | null;
+  topicCode: string | null;
+  subject: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -114,6 +153,8 @@ export type CreateSupportTicketInput = {
   orderId?: string | null;
   merchantId?: string | null;
   driverId?: string | null;
+  topicCode?: string | null;
+  subject?: string | null;
 };
 
 export function newSupportPublicReference(): string {
@@ -132,6 +173,8 @@ export function toTicketListItem(
     merchantId: ticket.merchantId,
     driverId: ticket.driverId,
     assignedAdminId: ticket.assignedAdminId,
+    topicCode: ticket.topicCode,
+    subject: ticket.subject,
     createdAt: ticket.createdAt,
     updatedAt: ticket.updatedAt,
   };

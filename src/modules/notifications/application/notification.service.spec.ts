@@ -1,5 +1,8 @@
 import { NotificationService } from './notification.service';
-import { NOTIFICATION_TYPE_PAYMENT_SUCCEEDED } from '../domain/notification.types';
+import {
+  NOTIFICATION_TYPE_MERCHANT_ORDER_CREATED,
+  NOTIFICATION_TYPE_PAYMENT_SUCCEEDED,
+} from '../domain/notification.types';
 
 const ACCOUNT = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa';
 const OTHER = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb';
@@ -23,6 +26,8 @@ describe('NotificationService', () => {
     listMerchantSettlementRecipientAccountIds: jest.Mock;
   };
   let service: NotificationService;
+  let push: { isConfigured: jest.Mock };
+  let jobs: { ensureRecoverySchedule: jest.Mock; enqueuePushSend: jest.Mock };
 
   beforeEach(() => {
     notifications = {
@@ -53,7 +58,89 @@ describe('NotificationService', () => {
         .fn()
         .mockResolvedValue([ACCOUNT]),
     };
-    service = new NotificationService(notifications as never);
+    push = { isConfigured: jest.fn().mockReturnValue(false) };
+    jobs = {
+      ensureRecoverySchedule: jest.fn(),
+      enqueuePushSend: jest.fn().mockResolvedValue(undefined),
+    };
+    service = new NotificationService(
+      notifications as never,
+      push as never,
+      jobs as never,
+    );
+  });
+
+  it('push-enabled type writes PENDING Push log and enqueues after commit when configured', async () => {
+    push.isConfigured.mockReturnValue(true);
+    await service.emitSafe({
+      type: NOTIFICATION_TYPE_MERCHANT_ORDER_CREATED,
+      sourceId: SOURCE,
+      accountId: ACCOUNT,
+      title: 'Nouvelle commande',
+      body: 'body',
+    });
+    const statuses = (
+      notifications.createDeliveryLog.mock.calls as Array<
+        [{ channel: string; status: string }]
+      >
+    ).map((c) => `${c[0].channel}:${c[0].status}`);
+    expect(statuses).toEqual(['IN_APP:SENT', 'PUSH:PENDING']);
+    expect(jobs.enqueuePushSend).toHaveBeenCalledWith(NOTIF_ID);
+  });
+
+  it('push-enabled type stays SKIPPED_NOT_CONFIGURED and is not enqueued without provider', async () => {
+    await service.emitSafe({
+      type: NOTIFICATION_TYPE_MERCHANT_ORDER_CREATED,
+      sourceId: SOURCE,
+      accountId: ACCOUNT,
+      title: 'Nouvelle commande',
+      body: 'body',
+    });
+    const calls = notifications.createDeliveryLog.mock.calls as Array<
+      [{ status: string }]
+    >;
+    expect(calls[1][0].status).toBe('SKIPPED_NOT_CONFIGURED');
+    expect(jobs.enqueuePushSend).not.toHaveBeenCalled();
+  });
+
+  it('non push-enabled types never enqueue even when provider is configured', async () => {
+    push.isConfigured.mockReturnValue(true);
+    await service.emitSafe({
+      type: NOTIFICATION_TYPE_PAYMENT_SUCCEEDED,
+      sourceId: SOURCE,
+      accountId: ACCOUNT,
+      title: 'Payment successful',
+      body: 'Your payment was confirmed.',
+    });
+    expect(jobs.enqueuePushSend).not.toHaveBeenCalled();
+  });
+
+  it('push enqueue failure does not throw and keeps the inbox row', async () => {
+    push.isConfigured.mockReturnValue(true);
+    jobs.enqueuePushSend.mockRejectedValue(new Error('redis down'));
+    await expect(
+      service.emitSafe({
+        type: NOTIFICATION_TYPE_MERCHANT_ORDER_CREATED,
+        sourceId: SOURCE,
+        accountId: ACCOUNT,
+        title: 'Nouvelle commande',
+        body: 'body',
+      }),
+    ).resolves.toBeUndefined();
+    expect(notifications.createNotification).toHaveBeenCalledTimes(1);
+  });
+
+  it('idempotent replay does not enqueue a second push', async () => {
+    push.isConfigured.mockReturnValue(true);
+    notifications.findByAccountCategory.mockResolvedValue([{ id: NOTIF_ID }]);
+    await service.emitSafe({
+      type: NOTIFICATION_TYPE_MERCHANT_ORDER_CREATED,
+      sourceId: SOURCE,
+      accountId: ACCOUNT,
+      title: 'Nouvelle commande',
+      body: 'body',
+    });
+    expect(jobs.enqueuePushSend).not.toHaveBeenCalled();
   });
 
   it('creates one logical notification and records IN_APP SENT plus PUSH skipped', async () => {

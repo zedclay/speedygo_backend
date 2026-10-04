@@ -20,6 +20,9 @@ export const ADMIN_AUDIT_ACTIONS = Object.freeze({
   PROMOTION_CREATE: 'promotion.create',
   PROMOTION_ACTIVATE: 'promotion.activate',
   PROMOTION_DEACTIVATE: 'promotion.deactivate',
+  PROMOTION_PUBLISH_DISCOVERY: 'promotion.publish_discovery',
+  PROMOTION_HIDE_DISCOVERY: 'promotion.hide_discovery',
+  PROMOTION_UPDATE_PRESENTATION: 'promotion.update_presentation',
   SUPPORT_ASSIGN: 'support.assign',
   SUPPORT_STATUS_CHANGE: 'support.status_change',
   SUPPORT_PRIORITY_CHANGE: 'support.priority_change',
@@ -36,6 +39,16 @@ export const ADMIN_AUDIT_ACTIONS = Object.freeze({
   DELIVERY_PRICING_RULE_CREATE: 'delivery.pricing-rule.create',
   DELIVERY_PRICING_RULE_ACTIVATE: 'delivery.pricing-rule.activate',
   DELIVERY_PRICING_RULE_DEACTIVATE: 'delivery.pricing-rule.deactivate',
+  COMMERCE_VERTICAL_CREATE: 'commerce.vertical.create',
+  COMMERCE_VERTICAL_UPDATE: 'commerce.vertical.update',
+  COMMERCE_VERTICAL_ACTIVATE: 'commerce.vertical.activate',
+  COMMERCE_VERTICAL_DEACTIVATE: 'commerce.vertical.deactivate',
+  COMMERCE_VERTICAL_ASSIGN_BRANCH: 'commerce.vertical.assign-branch',
+  COMMERCE_VERTICAL_UNASSIGN_BRANCH: 'commerce.vertical.unassign-branch',
+  STOREFRONT_COVER_BIND: 'storefront.cover.bind',
+  STOREFRONT_COVER_DELETE: 'storefront.cover.delete',
+  PRODUCT_IMAGE_BIND: 'product.image.bind',
+  PRODUCT_IMAGE_DELETE: 'product.image.delete',
 } as const);
 
 export type AdminAuditAction =
@@ -54,6 +67,9 @@ export const ADMIN_AUDIT_TARGET_TYPES = Object.freeze({
   /** Admin Delivery Zones + Pricing APIs v1.0. */
   DELIVERY_ZONE: 'DeliveryZone',
   DELIVERY_PRICING_RULE: 'DeliveryPricingRule',
+  COMMERCE_VERTICAL: 'CommerceVertical',
+  MERCHANT_BRANCH: 'MerchantBranch',
+  PRODUCT: 'Product',
 } as const);
 
 export type AdminAuditTargetType =

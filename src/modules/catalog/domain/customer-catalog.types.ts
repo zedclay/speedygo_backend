@@ -26,6 +26,8 @@ export type CustomerStorefrontSummary = {
   merchantId: string;
   merchantName: string;
   merchantPublicReference: string;
+  /** Authenticated Customer path, or null when no cover is bound. */
+  coverImageUrl: string | null;
   hoursConfigured: boolean;
   isOpenNow: boolean;
   timezone: string;
@@ -52,6 +54,8 @@ export type CustomerProductSummary = {
   description: string | null;
   /** Informational current catalog price; Checkout remains authoritative. */
   priceMinor: string;
+  /** Authenticated Customer path, or null when no product image is bound. */
+  imageUrl: string | null;
 };
 
 export type CustomerProductOption = {

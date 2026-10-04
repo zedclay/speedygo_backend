@@ -30,6 +30,7 @@ import { AdminGuard } from '../../guards/admin.guard';
 import {
   AdminEmptyBodyDto,
   AdminListQueryDto,
+  AdminRejectMerchantVerificationDto,
   AdminStatusListQueryDto,
 } from '../dto/admin.dto';
 
@@ -96,6 +97,12 @@ export class AdminMerchantController {
         status: doc.status,
         expiryDate: doc.expiryDate,
       })),
+      submittedAt: pkg.submittedAt,
+      reviewedAt: pkg.reviewedAt,
+      attemptNumber: pkg.attemptNumber,
+      legalAcceptance: pkg.legalAcceptance,
+      currentIssues: pkg.currentIssues,
+      unresolvedIssueCount: pkg.unresolvedIssueCount,
     };
   }
 
@@ -147,14 +154,15 @@ export class AdminMerchantController {
   @RequirePermissions(ADMIN_PERMISSIONS.MERCHANTS_VERIFY)
   @ApiOperation({
     summary: 'Reject merchant verification',
-    description: 'No rejection reason field is accepted or persisted in v1.0.',
+    description:
+      'Body: { issues: [{ scope: APPLICATION|DOCUMENT, code, messageFr, documentType? }] } (non-empty). DOCUMENT issues require a documentType the Merchant holds. Marks the open submission REJECTED with reviewer and timestamp and stores the issues.',
   })
   reject(
     @CurrentAdmin() admin: CurrentAdminContext,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body() _body: AdminEmptyBodyDto,
+    @Body() body: AdminRejectMerchantVerificationDto,
   ) {
-    return this.commands.rejectVerification(admin, id);
+    return this.commands.rejectVerification(admin, id, body.issues);
   }
 
   @Post(':id/suspend')

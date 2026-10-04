@@ -1,3 +1,5 @@
+import type { MerchantDeliveryImpactState } from './merchant-delivery-impact';
+
 export type OrderPaymentMethod = 'COD' | 'ELECTRONIC';
 
 export type OrderStatus = 'CREATED';
@@ -166,6 +168,12 @@ export type MerchantOrderSummaryView = {
   customerFullName: string | null;
   payment: MerchantOrderPaymentView;
   financial: MerchantOrderFinancialView;
+  preparationMinutes: number | null;
+  originalPreparationMinutes: number | null;
+  estimatedReadyAt: string | null;
+  originalEstimatedReadyAt: string | null;
+  preparationEstimateVersion: number;
+  isPreparationLate: boolean;
 };
 
 export type MerchantOrderDetailView = MerchantOrderSummaryView & {
@@ -174,12 +182,73 @@ export type MerchantOrderDetailView = MerchantOrderSummaryView & {
   statusHistory: MerchantOrderStatusEventView[];
   cancellation: {
     reason: string;
+    /** Structured Merchant reject code; null for legacy cancellations. */
+    reasonCode: string | null;
     cancelledAt: string;
   } | null;
+  /** Whole minutes past estimatedReadyAt when late; null otherwise. */
+  delayMinutes: number | null;
+  latestPreparationRevision: MerchantPreparationRevisionView | null;
+  deliveryImpact: MerchantDeliveryImpactView | null;
+};
+
+export type MerchantPreparationRevisionView = {
+  revisionNumber: number;
+  addMinutes: number;
+  reason: string | null;
+  createdAt: string;
+};
+
+export type MerchantDeliveryImpactView = {
+  state: MerchantDeliveryImpactState;
+  /** Persisted Delivery.status, or null when no Delivery row exists. */
+  deliveryStatus: string | null;
 };
 
 export type MerchantOrderListView = {
   items: MerchantOrderSummaryView[];
+  limit: number;
+  offset: number;
+  total: number;
+};
+
+/** Merchant Order money visible to every MerchantMember role. */
+export type MerchantOrderOperationalFinancialView = Pick<
+  MerchantOrderFinancialView,
+  'currency' | 'grossMerchandiseSubtotalMinor' | 'deliveryFeeMinor'
+>;
+
+/**
+ * Role-projected financial block. Restricted keys are absent (not zero, not
+ * null) when financialAccess is ROLE_RESTRICTED.
+ */
+export type MerchantOrderVisibleFinancialView =
+  MerchantOrderOperationalFinancialView &
+    Partial<
+      Omit<
+        MerchantOrderFinancialView,
+        keyof MerchantOrderOperationalFinancialView
+      >
+    >;
+
+export type MerchantOrderFinancialAccess = 'GRANTED' | 'ROLE_RESTRICTED';
+
+type RoleProjected<T extends { financial: MerchantOrderFinancialView }> = Omit<
+  T,
+  'financial'
+> & {
+  financialAccess: MerchantOrderFinancialAccess;
+  financial: MerchantOrderVisibleFinancialView;
+};
+
+export type MerchantOrderSummaryResponseView =
+  RoleProjected<MerchantOrderSummaryView>;
+
+export type MerchantOrderDetailResponseView =
+  RoleProjected<MerchantOrderDetailView>;
+
+export type MerchantOrderListResponseView = {
+  items: MerchantOrderSummaryResponseView[];
   limit: number;
   offset: number;
   total: number;

@@ -518,6 +518,8 @@ describe('Payments Chargily Pay V2 adapter (e2e)', () => {
           addressText: 'Street A',
           latitude: 36.75,
           longitude: 3.05,
+          wilayaCode: '16',
+          communeId: 556,
         });
       expect(branch.status).toBe(201);
       const branchId = (branch.body as BranchBody).id;

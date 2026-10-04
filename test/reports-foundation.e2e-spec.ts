@@ -477,6 +477,8 @@ describe('Reports Foundation (e2e)', () => {
         addressText: 'Pickup',
         latitude: 36.75,
         longitude: 3.05,
+        wilayaCode: '16',
+        communeId: 556,
       });
     expect(branchRes.status).toBe(201);
     const branchId = (branchRes.body as { id: string }).id;

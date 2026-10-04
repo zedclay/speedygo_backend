@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import { customerProfileNotFound } from '../../customers/domain/customer.errors';
 import {
   promotionConfigurationInvalid,
   promotionNotFound,
@@ -6,17 +7,24 @@ import {
 } from '../domain/promotion.errors';
 import {
   buildPromotionDecision,
+  compareDiscoverablePromotions,
+  isPromotionDiscoverable,
+  normalizeCustomerLabel,
   normalizePromotionCode,
   parsePromotionType,
   requireCreatePromotionWindow,
   requirePromotionValue,
+  toCustomerDiscoverablePromotion,
 } from '../domain/promotion.policy';
-import type {
-  CreatePromotionInput,
-  EvaluatePromotionInput,
-  PromotionDecision,
-  PromotionRecord,
-  PromotionRedemptionRecord,
+import {
+  CUSTOMER_PROMOTION_DISCOVERY_DEFAULT_LIMIT,
+  CUSTOMER_PROMOTION_DISCOVERY_MAX_LIMIT,
+  type CreatePromotionInput,
+  type CustomerDiscoverablePromotion,
+  type EvaluatePromotionInput,
+  type PromotionDecision,
+  type PromotionRecord,
+  type PromotionRedemptionRecord,
 } from '../domain/promotion.types';
 import {
   PromotionRepository,
@@ -57,6 +65,8 @@ export class PromotionService {
         startsAt: input.startsAt,
         endsAt: input.endsAt,
         active: input.active ?? true,
+        customerDiscoverable: input.customerDiscoverable ?? false,
+        customerLabel: normalizeCustomerLabel(input.customerLabel),
       },
       tx,
     );
@@ -81,6 +91,74 @@ export class PromotionService {
       throw promotionNotFound();
     }
     return this.promotions.setActive(promotionId, active, tx);
+  }
+
+  async setPromotionDiscoverableInTx(
+    tx: OrmClient,
+    promotionId: string,
+    customerDiscoverable: boolean,
+    customerLabel?: string | null,
+  ): Promise<PromotionRecord> {
+    const existing = await this.promotions.findById(promotionId, tx);
+    if (!existing) {
+      throw promotionNotFound();
+    }
+    return this.promotions.setCustomerDiscovery(
+      promotionId,
+      {
+        customerDiscoverable,
+        ...(customerLabel !== undefined
+          ? { customerLabel: normalizeCustomerLabel(customerLabel) }
+          : {}),
+      },
+      tx,
+    );
+  }
+
+  async setPromotionPresentationInTx(
+    tx: OrmClient,
+    promotionId: string,
+    customerLabel?: string | null,
+  ): Promise<PromotionRecord> {
+    const existing = await this.promotions.findById(promotionId, tx);
+    if (!existing) {
+      throw promotionNotFound();
+    }
+    return this.promotions.setCustomerDiscovery(
+      promotionId,
+      {
+        customerDiscoverable: existing.customerDiscoverable,
+        customerLabel: normalizeCustomerLabel(customerLabel),
+      },
+      tx,
+    );
+  }
+
+  /**
+   * Authenticated Customer discovery. Does not lock, redeem, or reserve usage.
+   * Discoverable ≠ cart-eligible; Checkout remains authority.
+   */
+  async listDiscoverableForCustomer(
+    accountId: string,
+    now: Date = new Date(),
+    limit = CUSTOMER_PROMOTION_DISCOVERY_DEFAULT_LIMIT,
+  ): Promise<{ items: CustomerDiscoverablePromotion[] }> {
+    const profileId =
+      await this.promotions.findCustomerProfileIdByAccountId(accountId);
+    if (!profileId) {
+      throw customerProfileNotFound();
+    }
+    const bounded =
+      !Number.isInteger(limit) || limit < 1
+        ? CUSTOMER_PROMOTION_DISCOVERY_DEFAULT_LIMIT
+        : Math.min(limit, CUSTOMER_PROMOTION_DISCOVERY_MAX_LIMIT);
+    const candidates = await this.promotions.listDiscoverableCandidates();
+    const items = candidates
+      .filter((promotion) => isPromotionDiscoverable(promotion, now))
+      .sort(compareDiscoverablePromotions)
+      .slice(0, bounded)
+      .map(toCustomerDiscoverablePromotion);
+    return { items };
   }
 
   /**

@@ -66,6 +66,24 @@ describe('Merchant Order write DTO validation', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
+  it('accepts an optional structured reasonCode and keeps reason required', async () => {
+    await expect(
+      parse(
+        { reason: 'No more fries', reasonCode: 'PRODUCT_UNAVAILABLE' },
+        RejectMerchantOrderDto,
+      ),
+    ).resolves.toEqual({
+      reason: 'No more fries',
+      reasonCode: 'PRODUCT_UNAVAILABLE',
+    });
+    await expect(
+      parse({ reason: 'x', reasonCode: 'BORED' }, RejectMerchantOrderDto),
+    ).rejects.toBeInstanceOf(BadRequestException);
+    await expect(
+      parse({ reasonCode: 'TOO_BUSY' }, RejectMerchantOrderDto),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
   it('requires a bounded rejection reason', async () => {
     await expect(
       parse({ reason: 'Out of stock' }, RejectMerchantOrderDto),

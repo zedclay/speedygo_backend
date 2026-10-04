@@ -33,6 +33,20 @@ export class MerchantProfileResponseDto {
   updatedAt!: string;
 }
 
+export class MerchantBranchClassificationResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  verticalId!: string;
+
+  @ApiProperty()
+  slug!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  iconKey!: string;
+}
+
 export class MerchantBranchResponseDto {
   @ApiProperty()
   id!: string;
@@ -52,11 +66,68 @@ export class MerchantBranchResponseDto {
   @ApiProperty()
   longitude!: number;
 
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    description: 'Official two-digit wilaya code. Null on legacy branches.',
+  })
+  wilayaCode!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: Number,
+    description: 'SpeedyGo commune catalogue id. Null on legacy branches.',
+  })
+  communeId!: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    description: 'French wilaya name from catalogue when wilayaCode is set.',
+  })
+  wilayaNameFr!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    description: 'French commune name from catalogue when communeId is set.',
+  })
+  communeNameFr!: string | null;
+
   @ApiProperty({
     description:
       'Application vocabulary: ACTIVE, INACTIVE, SUSPENDED. Created as ACTIVE. Server-managed in this foundation; not client-writable. This is not opening-hours state — ACTIVE does not mean the store is open at this moment.',
   })
   operationalStatus!: string;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    description: 'Public storefront description. Null when unset.',
+  })
+  description!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    description: 'Optional Arabic display name. Null when unset.',
+  })
+  nameAr!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    description: 'Optional public contact email. Null when unset.',
+  })
+  publicEmail!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: () => MerchantBranchClassificationResponseDto,
+    description:
+      'Store category (single CommerceVertical). Null when unclassified.',
+  })
+  classification!: MerchantBranchClassificationResponseDto | null;
 
   @ApiProperty()
   createdAt!: string;
@@ -102,6 +173,59 @@ export class MerchantEvidenceChecklistItemDto {
 
   @ApiPropertyOptional({ nullable: true, type: String })
   expiryDate!: string | null;
+}
+
+export class MerchantVerificationIssueResponseDto {
+  @ApiProperty()
+  id!: string;
+
+  @ApiProperty({ description: 'APPLICATION or DOCUMENT.' })
+  scope!: string;
+
+  @ApiProperty()
+  code!: string;
+
+  @ApiProperty({ description: 'Public French reason.' })
+  messageFr!: string;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  documentType!: string | null;
+
+  @ApiProperty()
+  createdAt!: string;
+}
+
+export class MerchantLegalAcceptanceResponseDto {
+  @ApiProperty()
+  termsVersion!: string;
+
+  @ApiProperty()
+  declarationVersion!: string;
+
+  @ApiProperty()
+  acceptedAt!: string;
+}
+
+export class MerchantLegalVersionResponseDto {
+  @ApiProperty({ example: 'MERCHANT_TERMS' })
+  kind!: string;
+
+  @ApiProperty({ example: '2026-10-03' })
+  version!: string;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  contentUrl!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  contentSha256!: string | null;
+
+  @ApiProperty()
+  effectiveFrom!: string;
+}
+
+export class MerchantCurrentLegalResponseDto {
+  @ApiProperty({ type: [MerchantLegalVersionResponseDto] })
+  versions!: MerchantLegalVersionResponseDto[];
 }
 
 export class MerchantMembershipResponseDto {
@@ -182,6 +306,37 @@ export class MerchantMembershipResponseDto {
       'OWNER full detail only. MANAGER and STAFF receive empty checklist (status/readiness flags only).',
   })
   evidenceChecklist!: MerchantEvidenceChecklistItemDto[];
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    description:
+      'Latest verification submission time. Null for legacy Merchants without submission rows.',
+  })
+  submittedAt!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  reviewedAt!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: Number })
+  attemptNumber!: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: MerchantLegalAcceptanceResponseDto,
+    description: 'OWNER only. Null for legacy Merchants.',
+  })
+  legalAcceptance!: MerchantLegalAcceptanceResponseDto | null;
+
+  @ApiProperty({
+    type: [MerchantVerificationIssueResponseDto],
+    description:
+      'OWNER only. Unresolved issues on the latest REJECTED submission.',
+  })
+  currentIssues!: MerchantVerificationIssueResponseDto[];
+
+  @ApiProperty()
+  unresolvedIssueCount!: number;
 }
 
 export class MerchantVerificationPackageResponseDto {
@@ -211,6 +366,37 @@ export class MerchantVerificationPackageResponseDto {
 
   @ApiProperty({ type: [MerchantDocumentResponseDto] })
   documents!: MerchantDocumentResponseDto[];
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    description:
+      'Latest verification submission time. Null for legacy Merchants without submission rows.',
+  })
+  submittedAt!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  reviewedAt!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: Number })
+  attemptNumber!: number | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: MerchantLegalAcceptanceResponseDto,
+    description: 'OWNER only. Null for legacy Merchants.',
+  })
+  legalAcceptance!: MerchantLegalAcceptanceResponseDto | null;
+
+  @ApiProperty({
+    type: [MerchantVerificationIssueResponseDto],
+    description:
+      'OWNER only. Unresolved issues on the latest REJECTED submission.',
+  })
+  currentIssues!: MerchantVerificationIssueResponseDto[];
+
+  @ApiProperty()
+  unresolvedIssueCount!: number;
 }
 
 export class MerchantMeResponseDto {
