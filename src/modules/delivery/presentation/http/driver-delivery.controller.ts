@@ -1,4 +1,4 @@
-import { Controller, Get, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
@@ -12,7 +12,6 @@ import {
   DRIVER_DELIVERY_ACTION_ARRIVE_CUSTOMER,
   DRIVER_DELIVERY_ACTION_ARRIVE_PICKUP,
   DRIVER_DELIVERY_ACTION_COMPLETE_DELIVERY,
-  DRIVER_DELIVERY_ACTION_CONFIRM_PICKUP,
   DRIVER_DELIVERY_ACTION_START_DELIVERY,
   DRIVER_DELIVERY_ACTION_START_TO_PICKUP,
 } from '../../domain/driver-delivery.policy';
@@ -20,6 +19,7 @@ import {
   CurrentDriverDeliveryResponseDto,
   DriverCurrentDeliveryResponseDto,
 } from './dto/driver-delivery-response.dto';
+import { ConfirmPickupDto } from './dto/confirm-pickup.dto';
 
 @ApiTags('driver-delivery')
 @ApiBearerAuth()
@@ -69,14 +69,14 @@ export class DriverDeliveryController {
   @ApiOperation({
     summary: 'AT_PICKUP → PICKED_UP',
     description:
-      'Driver-declared Merchant handoff. Merchant confirmation is not required. Sets pickedUpAt. No second GPS gate.',
+      'Driver-declared Merchant handoff. When a PENDING pickup handoff exists for the current assignment, pickupCode plus assignmentId and assignmentVersion are required. Legacy deliveries without a handoff row remain body-optional. Sets pickedUpAt. No second GPS gate.',
   })
   @ApiOkResponse({ type: DriverCurrentDeliveryResponseDto })
-  confirmPickup(@CurrentPrincipal() principal: AuthenticatedPrincipal) {
-    return this.workflow.performAction(
-      principal.accountId,
-      DRIVER_DELIVERY_ACTION_CONFIRM_PICKUP,
-    );
+  confirmPickup(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Body() body?: ConfirmPickupDto,
+  ) {
+    return this.workflow.confirmPickup(principal.accountId, body);
   }
 
   @Post('start-delivery')

@@ -1,6 +1,10 @@
 import { Module } from '@nestjs/common';
 import { AuthorizationModule } from '../authorization/authorization.module';
 import { AuthModule } from '../auth/auth.module';
+import { CatalogModule } from '../catalog/catalog.module';
+import { AdminCommerceVerticalCommandsService } from '../catalog/application/admin-commerce-vertical-commands.service';
+import { AdminCommerceVerticalController } from '../catalog/presentation/http/admin-commerce-vertical.controller';
+import { AdminMerchantBranchStorefrontController } from '../catalog/presentation/http/admin-merchant-branch-storefront.controller';
 import { CodModule } from '../cod/cod.module';
 import { DeliveryPricingModule } from '../delivery-pricing/delivery-pricing.module';
 import { DriversModule } from '../drivers/drivers.module';
@@ -11,6 +15,9 @@ import { NotificationsModule } from '../notifications/notifications.module';
 import { PromotionsModule } from '../promotions/promotions.module';
 import { RefundsModule } from '../refunds/refunds.module';
 import { TrackingModule } from '../tracking/tracking.module';
+import { AdminStorefrontCoverCommandsService } from './application/admin-storefront-cover-commands.service';
+import { AdminProductImageCommandsService } from './application/admin-product-image-commands.service';
+import { AdminProductImageController } from '../catalog/presentation/http/admin-product-image.controller';
 import { AdminAuditService } from './application/admin-audit.service';
 import { AdminCodCommandsService } from './application/admin-cod-commands.service';
 import { AdminDocumentAccessService } from './application/admin-document-access.service';
@@ -53,6 +60,7 @@ import { AdminDeliveryZoneController } from '../delivery-pricing/presentation/ht
     FinancialLedgerModule,
     NotificationsModule,
     DeliveryPricingModule,
+    CatalogModule,
   ],
   controllers: [
     AdminMeController,
@@ -69,6 +77,9 @@ import { AdminDeliveryZoneController } from '../delivery-pricing/presentation/ht
     AdminAuditController,
     AdminDeliveryZoneController,
     AdminDeliveryPricingRuleController,
+    AdminCommerceVerticalController,
+    AdminMerchantBranchStorefrontController,
+    AdminProductImageController,
   ],
   providers: [
     AdminProfileService,
@@ -83,6 +94,9 @@ import { AdminDeliveryZoneController } from '../delivery-pricing/presentation/ht
     AdminPromotionCommandsService,
     AdminDeliveryZoneCommandsService,
     AdminDeliveryPricingRuleCommandsService,
+    AdminCommerceVerticalCommandsService,
+    AdminStorefrontCoverCommandsService,
+    AdminProductImageCommandsService,
     AdminGuard,
   ],
   exports: [AdminProfileService, AdminAuditService, AdminGuard],

@@ -22,7 +22,9 @@ import {
   DELIVERY_INITIAL_STATUS,
   type DeliveryStatus,
 } from '../domain/delivery.policy';
+import { DELIVERY_EVENT_ARRIVED_PICKUP } from '../domain/driver-delivery.policy';
 import type { DeliveryDetailView } from '../domain/delivery.types';
+import { PickupHandoffRepository } from './pickup-handoff.repository';
 
 export type OrmClient = { orm: SpeedyGoDb['orm'] };
 
@@ -42,7 +44,10 @@ function parseCoordinate(value: unknown): number {
 
 @Injectable()
 export class DeliveryRepository {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly pickupHandoffs: PickupHandoffRepository,
+  ) {}
 
   private db(): SpeedyGoDb {
     return this.prisma.getDb();
@@ -480,12 +485,81 @@ export class DeliveryRepository {
     return true;
   }
 
+  async findOpenAcceptedAssignmentForDelivery(
+    deliveryId: string,
+    client?: OrmClient,
+  ): Promise<{
+    id: string;
+    driverId: string;
+    version: number;
+    status: string;
+    releasedAt: string | null;
+  } | null> {
+    const row = await orm(client ?? this.db())
+      .DriverAssignment.where({
+        deliveryId,
+        status: pgVarchar<64>('ACCEPTED'),
+        releasedAt: null,
+      })
+      .first();
+    return row
+      ? {
+          id: row.id,
+          driverId: row.driverId,
+          version: row.version,
+          status: row.status,
+          releasedAt: row.releasedAt,
+        }
+      : null;
+  }
+
+  async findDriverProfileFullName(
+    driverId: string,
+    client?: OrmClient,
+  ): Promise<string | null> {
+    const row = await orm(client ?? this.db())
+      .DriverProfile.where({ id: driverId })
+      .first();
+    return row?.fullName ?? null;
+  }
+
+  async findActiveVehicle(
+    driverId: string,
+    client?: OrmClient,
+  ): Promise<{ type: string; plateNumber: string } | null> {
+    const row = await orm(client ?? this.db())
+      .Vehicle.where({
+        driverId,
+        status: pgVarchar<64>('ACTIVE'),
+      })
+      .first();
+    return row ? { type: row.type, plateNumber: row.plateNumber } : null;
+  }
+
+  async findArrivedPickupAt(
+    deliveryId: string,
+    client?: OrmClient,
+  ): Promise<string | null> {
+    const rows = await orm(client ?? this.db())
+      .DeliveryEvent.where({
+        deliveryId,
+        type: pgVarchar<64>(DELIVERY_EVENT_ARRIVED_PICKUP),
+      })
+      .orderBy((event) => event.occurredAt.desc())
+      .limit(1)
+      .all();
+    return rows[0]?.occurredAt ?? null;
+  }
+
   async releaseAcceptedAssignment(
     assignmentId: string,
     client: OrmClient,
     occurredAt?: PgTimestamptz,
   ): Promise<boolean> {
     const now = occurredAt ?? pgNow();
+    const assignment = await orm(client)
+      .DriverAssignment.where({ id: assignmentId })
+      .first();
     await orm(client)
       .DriverAssignment.where({
         id: assignmentId,
@@ -499,9 +573,18 @@ export class DeliveryRepository {
     const row = await orm(client)
       .DriverAssignment.where({ id: assignmentId })
       .first();
-    return Boolean(
+    const released = Boolean(
       row && row.status === ASSIGNMENT_STATUS_RELEASED && row.releasedAt,
     );
+    if (released && assignment) {
+      await this.pickupHandoffs.invalidatePending(
+        assignment.deliveryId,
+        'ASSIGNMENT_RELEASED',
+        client,
+        now,
+      );
+    }
+    return released;
   }
 
   async completeActiveOrder(

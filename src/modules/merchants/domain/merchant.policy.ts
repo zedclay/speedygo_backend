@@ -51,6 +51,8 @@ export const MERCHANT_CAPABILITIES = {
   ORDER_WORKFLOW_MUTATE: 'ORDER_WORKFLOW_MUTATE',
   COMMISSION_READ: 'COMMISSION_READ',
   SETTLEMENT_READ: 'SETTLEMENT_READ',
+  TEAM_READ: 'TEAM_READ',
+  TEAM_MANAGE: 'TEAM_MANAGE',
 } as const;
 
 /**
@@ -91,6 +93,214 @@ export const MERCHANT_DOCUMENT_STATUSES = [
 
 export type MerchantDocumentStatus =
   (typeof MERCHANT_DOCUMENT_STATUSES)[number];
+
+export const LEGAL_KIND_MERCHANT_TERMS = 'MERCHANT_TERMS';
+export const LEGAL_KIND_DOSSIER_ACCURACY_DECLARATION =
+  'DOSSIER_ACCURACY_DECLARATION';
+
+export const LEGAL_KINDS = [
+  LEGAL_KIND_MERCHANT_TERMS,
+  LEGAL_KIND_DOSSIER_ACCURACY_DECLARATION,
+] as const;
+export type LegalKind = (typeof LEGAL_KINDS)[number];
+
+export const LEGAL_SEED_VERSION = '2026-10-03';
+
+export function isLegalKind(value: string): value is LegalKind {
+  return (LEGAL_KINDS as readonly string[]).includes(value);
+}
+
+export const VERIFICATION_OUTCOME_PENDING_REVIEW = 'PENDING_REVIEW';
+export const VERIFICATION_OUTCOME_APPROVED = 'APPROVED';
+export const VERIFICATION_OUTCOME_REJECTED = 'REJECTED';
+
+export const VERIFICATION_ISSUE_SCOPE_APPLICATION = 'APPLICATION';
+export const VERIFICATION_ISSUE_SCOPE_DOCUMENT = 'DOCUMENT';
+
+export const VERIFICATION_ISSUE_SCOPES = [
+  VERIFICATION_ISSUE_SCOPE_APPLICATION,
+  VERIFICATION_ISSUE_SCOPE_DOCUMENT,
+] as const;
+export type VerificationIssueScope = (typeof VERIFICATION_ISSUE_SCOPES)[number];
+
+export const VERIFICATION_APPLICATION_ISSUE_CODES = [
+  'PROFILE_INCOMPLETE',
+  'IDENTITY_MISMATCH',
+  'OTHER_APPLICATION',
+] as const;
+
+export const VERIFICATION_DOCUMENT_ISSUE_CODES = [
+  'DOCUMENT_MISSING',
+  'DOCUMENT_ILLEGIBLE',
+  'DOCUMENT_EXPIRED',
+  'DOCUMENT_MISMATCH',
+  'OTHER_DOCUMENT',
+] as const;
+
+export const VERIFICATION_ISSUE_MESSAGE_MAX_LENGTH = 500;
+export const VERIFICATION_ISSUES_MAX_COUNT = 20;
+
+export type RejectionIssueInput = {
+  scope: string;
+  code: string;
+  messageFr: string;
+  documentType?: string | null;
+};
+
+export type ValidatedRejectionIssue = {
+  scope: VerificationIssueScope;
+  code: string;
+  messageFr: string;
+  documentType: string | null;
+};
+
+export type RejectionIssuesValidation =
+  | { ok: true; issues: ValidatedRejectionIssue[] }
+  | { ok: false; message: string };
+
+/**
+ * Pure validation of an Admin rejection payload. `existingDocumentTypes` are
+ * the MerchantDocument.type values currently held by the Merchant.
+ */
+export function validateRejectionIssues(
+  issues: readonly RejectionIssueInput[] | null | undefined,
+  existingDocumentTypes: readonly string[],
+): RejectionIssuesValidation {
+  if (!issues || issues.length === 0) {
+    return { ok: false, message: 'At least one rejection issue is required' };
+  }
+  if (issues.length > VERIFICATION_ISSUES_MAX_COUNT) {
+    return {
+      ok: false,
+      message: `At most ${VERIFICATION_ISSUES_MAX_COUNT} rejection issues are allowed`,
+    };
+  }
+  const validated: ValidatedRejectionIssue[] = [];
+  for (const issue of issues) {
+    const messageFr =
+      typeof issue.messageFr === 'string' ? issue.messageFr.trim() : '';
+    if (
+      messageFr.length === 0 ||
+      messageFr.length > VERIFICATION_ISSUE_MESSAGE_MAX_LENGTH
+    ) {
+      return {
+        ok: false,
+        message: `messageFr must be 1-${VERIFICATION_ISSUE_MESSAGE_MAX_LENGTH} characters`,
+      };
+    }
+    if (issue.scope === VERIFICATION_ISSUE_SCOPE_APPLICATION) {
+      if (
+        !(VERIFICATION_APPLICATION_ISSUE_CODES as readonly string[]).includes(
+          issue.code,
+        )
+      ) {
+        return { ok: false, message: 'Unsupported APPLICATION issue code' };
+      }
+      if (issue.documentType) {
+        return {
+          ok: false,
+          message: 'APPLICATION issues must not carry a documentType',
+        };
+      }
+      validated.push({
+        scope: VERIFICATION_ISSUE_SCOPE_APPLICATION,
+        code: issue.code,
+        messageFr,
+        documentType: null,
+      });
+      continue;
+    }
+    if (issue.scope === VERIFICATION_ISSUE_SCOPE_DOCUMENT) {
+      if (
+        !(VERIFICATION_DOCUMENT_ISSUE_CODES as readonly string[]).includes(
+          issue.code,
+        )
+      ) {
+        return { ok: false, message: 'Unsupported DOCUMENT issue code' };
+      }
+      if (
+        !issue.documentType ||
+        !isMerchantDocumentType(issue.documentType) ||
+        !existingDocumentTypes.includes(issue.documentType)
+      ) {
+        return {
+          ok: false,
+          message:
+            'DOCUMENT issues require a documentType held by the Merchant',
+        };
+      }
+      validated.push({
+        scope: VERIFICATION_ISSUE_SCOPE_DOCUMENT,
+        code: issue.code,
+        messageFr,
+        documentType: issue.documentType,
+      });
+      continue;
+    }
+    return { ok: false, message: 'Unsupported issue scope' };
+  }
+  return { ok: true, issues: validated };
+}
+
+export type LegalAcceptanceInput = { kind: string; version: string };
+
+export type LegalAcceptanceEvaluation =
+  | { ok: true; acceptances: Array<{ kind: LegalKind; version: string }> }
+  | { ok: false; reason: 'REQUIRED' | 'OUTDATED'; message: string };
+
+/**
+ * Both active legal kinds must be accepted at their exact current version.
+ * `currentVersions` maps kind -> active version string.
+ */
+export function evaluateLegalAcceptances(
+  acceptances: readonly LegalAcceptanceInput[] | null | undefined,
+  currentVersions: ReadonlyMap<string, string>,
+): LegalAcceptanceEvaluation {
+  if (!acceptances || acceptances.length === 0) {
+    return {
+      ok: false,
+      reason: 'REQUIRED',
+      message: 'Acceptance of the current legal documents is required',
+    };
+  }
+  for (const row of acceptances) {
+    if (!isLegalKind(row.kind)) {
+      return {
+        ok: false,
+        reason: 'REQUIRED',
+        message: 'Unsupported legal document kind',
+      };
+    }
+  }
+  const resolved: Array<{ kind: LegalKind; version: string }> = [];
+  for (const kind of LEGAL_KINDS) {
+    const current = currentVersions.get(kind);
+    if (!current) {
+      return {
+        ok: false,
+        reason: 'REQUIRED',
+        message: `No active legal version is published for ${kind}`,
+      };
+    }
+    const matching = acceptances.filter((row) => row.kind === kind);
+    if (matching.length === 0) {
+      return {
+        ok: false,
+        reason: 'REQUIRED',
+        message: `Acceptance of ${kind} is required`,
+      };
+    }
+    if (matching.some((row) => row.version !== current)) {
+      return {
+        ok: false,
+        reason: 'OUTDATED',
+        message: `${kind} version is outdated; current version is ${current}`,
+      };
+    }
+    resolved.push({ kind, version: current });
+  }
+  return { ok: true, acceptances: resolved };
+}
 
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -346,8 +556,14 @@ export function roleHasCapability(
         role === MERCHANT_MEMBER_ROLE_OWNER ||
         role === MERCHANT_MEMBER_ROLE_MANAGER
       );
+    case MERCHANT_CAPABILITIES.TEAM_READ:
+      return (
+        role === MERCHANT_MEMBER_ROLE_OWNER ||
+        role === MERCHANT_MEMBER_ROLE_MANAGER
+      );
     case MERCHANT_CAPABILITIES.MERCHANT_PROFILE_UPDATE:
     case MERCHANT_CAPABILITIES.MERCHANT_VERIFICATION_MUTATE:
+    case MERCHANT_CAPABILITIES.TEAM_MANAGE:
       return role === MERCHANT_MEMBER_ROLE_OWNER;
     case MERCHANT_CAPABILITIES.MERCHANT_BRANCH_CREATE:
     case MERCHANT_CAPABILITIES.MERCHANT_BRANCH_UPDATE:
@@ -363,6 +579,31 @@ export function roleHasCapability(
     default:
       return false;
   }
+}
+
+export type MerchantFinanceAccess = 'GRANTED' | 'ROLE_RESTRICTED';
+
+/**
+ * Single Merchant financial-visibility rule shared by Orders and Reports.
+ * Commission (rate and amount), merchant net, merchant discount, settlement
+ * and refund adjustments require both COMMISSION_READ and SETTLEMENT_READ
+ * (OWNER, MANAGER). STAFF keeps operational data, merchandise sales, item
+ * prices, quantities and rankings. See docs/architecture/MERCHANT_FINANCIAL_VISIBILITY.md.
+ */
+export function merchantRoleHasFinanceAccess(
+  role: MerchantMemberRole | null,
+): boolean {
+  return (
+    role !== null &&
+    roleHasCapability(role, MERCHANT_CAPABILITIES.COMMISSION_READ) &&
+    roleHasCapability(role, MERCHANT_CAPABILITIES.SETTLEMENT_READ)
+  );
+}
+
+export function merchantFinanceAccess(
+  role: MerchantMemberRole | null,
+): MerchantFinanceAccess {
+  return merchantRoleHasFinanceAccess(role) ? 'GRANTED' : 'ROLE_RESTRICTED';
 }
 
 export function statusAllowsProfileUpdate(status: MerchantStatus): boolean {
@@ -426,4 +667,57 @@ export function deriveMerchantReadiness(input: {
     approved,
     operationalReady: profileComplete && approved && branchReady,
   };
+}
+
+export const BRANCH_DESCRIPTION_MAX_LENGTH = 2000;
+export const BRANCH_NAME_AR_MAX_LENGTH = 255;
+export const BRANCH_PUBLIC_EMAIL_MAX_LENGTH = 255;
+
+const BRANCH_PUBLIC_EMAIL_PATTERN =
+  /^[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?)+$/;
+
+/**
+ * Trims; empty string collapses to null (clear). Returns undefined when the
+ * field is not part of the request. Throws a plain Error message via the
+ * supplied factory when the length cap is exceeded.
+ */
+export function normalizeOptionalBranchText(
+  value: string | null | undefined,
+  maxLength: number,
+  onInvalid: (message: string) => Error,
+  field: string,
+): string | null | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return null;
+  }
+  const trimmed = value.trim();
+  if (trimmed.length === 0) {
+    return null;
+  }
+  if (trimmed.length > maxLength) {
+    throw onInvalid(`${field} must be at most ${maxLength} characters`);
+  }
+  return trimmed;
+}
+
+export function normalizeOptionalPublicEmail(
+  value: string | null | undefined,
+  onInvalid: (message: string) => Error,
+): string | null | undefined {
+  const trimmed = normalizeOptionalBranchText(
+    value,
+    BRANCH_PUBLIC_EMAIL_MAX_LENGTH,
+    onInvalid,
+    'publicEmail',
+  );
+  if (trimmed === undefined || trimmed === null) {
+    return trimmed;
+  }
+  if (!BRANCH_PUBLIC_EMAIL_PATTERN.test(trimmed)) {
+    throw onInvalid('publicEmail must be a valid email address');
+  }
+  return trimmed;
 }

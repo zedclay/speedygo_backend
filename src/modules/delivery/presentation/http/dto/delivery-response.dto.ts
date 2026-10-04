@@ -128,6 +128,52 @@ export class CustomerDeliveryResponseDto {
   events!: DeliveryEventResponseDto[];
 }
 
+export class AssignedDriverVehicleResponseDto {
+  @ApiProperty()
+  type!: string;
+
+  @ApiProperty()
+  plateNumber!: string;
+}
+
+export class AssignedDriverResponseDto {
+  @ApiProperty()
+  driverId!: string;
+
+  @ApiProperty()
+  assignmentId!: string;
+
+  @ApiProperty()
+  assignmentVersion!: number;
+
+  @ApiProperty()
+  displayName!: string;
+
+  @ApiProperty({ nullable: true, type: AssignedDriverVehicleResponseDto })
+  vehicle!: AssignedDriverVehicleResponseDto | null;
+
+  @ApiProperty({
+    nullable: true,
+    type: String,
+    description: 'Always null in v1. Account.phone is never shared with Merchants.',
+  })
+  contactPhone!: null;
+
+  @ApiProperty({
+    description: 'Always false in v1 until policy permits Merchant→Driver calls.',
+  })
+  callAllowed!: false;
+
+  @ApiProperty()
+  deliveryStatus!: string;
+
+  @ApiProperty({ nullable: true, type: String })
+  arrivedPickupAt!: string | null;
+
+  @ApiProperty({ nullable: true, type: String })
+  estimatedArrivalAt!: string | null;
+}
+
 export class MerchantDeliveryResponseDto {
   @ApiProperty()
   id!: string;
@@ -189,4 +235,12 @@ export class MerchantDeliveryResponseDto {
 
   @ApiProperty({ type: [DeliveryEventResponseDto] })
   events!: DeliveryEventResponseDto[];
+
+  @ApiProperty({
+    nullable: true,
+    type: AssignedDriverResponseDto,
+    description:
+      'Operational summary for the current open ACCEPTED assignment. Null when no Driver is assigned.',
+  })
+  assignedDriver!: AssignedDriverResponseDto | null;
 }

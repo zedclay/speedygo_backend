@@ -23,23 +23,36 @@ import {
 } from '../domain/merchant.errors';
 import { statusAllowsBranchMutation } from '../domain/merchant.policy';
 import {
+  LEGAL_KINDS,
+  LEGAL_SEED_VERSION,
   MERCHANT_BRANCH_OPERATIONAL_STATUS_ACTIVE,
   MERCHANT_DOCUMENT_STATUS_PENDING,
   MERCHANT_DOCUMENT_STATUS_SUBMITTED,
   MERCHANT_MEMBER_ROLE_OWNER,
   MERCHANT_STATUS_ACTIVE,
   MERCHANT_STATUS_PENDING_REVIEW,
+  VERIFICATION_ISSUE_SCOPE_DOCUMENT,
+  VERIFICATION_OUTCOME_PENDING_REVIEW,
+  VERIFICATION_OUTCOME_REJECTED,
   newPublicReference,
   objectKeyForMerchantDocument,
   parseMerchantStatus,
+  pickCurrentLegalVersions,
   type CreateBranchInput,
   type CreateMerchantInput,
+  type LegalAcceptanceRecord,
+  type LegalDocumentVersionRecord,
+  type MerchantBranchClassificationView,
   type MerchantBranchRecord,
   type MerchantDocumentSummary,
   type MerchantMemberRecord,
   type MerchantRecord,
+  type MerchantVerificationRecords,
   type UpdateBranchInput,
   type UpdateMerchantInput,
+  type ValidatedRejectionIssue,
+  type VerificationIssueRecord,
+  type VerificationSubmissionRecord,
 } from '../domain/merchant.types';
 
 export type OrmClient = {
@@ -211,12 +224,55 @@ export class MerchantRepository {
     return rows.map((row) => this.toBranch(row));
   }
 
+  async listBranchClassifications(
+    branchIds: string[],
+  ): Promise<Map<string, MerchantBranchClassificationView>> {
+    const result = new Map<string, MerchantBranchClassificationView>();
+    if (branchIds.length === 0) {
+      return result;
+    }
+    const assignments = await orm(this.db())
+      .MerchantBranchClassification.where((row) => row.branchId.in(branchIds))
+      .all();
+    if (assignments.length === 0) {
+      return result;
+    }
+    const verticalIds = [...new Set(assignments.map((row) => row.verticalId))];
+    const verticals = await orm(this.db())
+      .CommerceVertical.where((row) => row.id.in(verticalIds))
+      .all();
+    const byId = new Map(verticals.map((row) => [row.id, row]));
+    for (const assignment of assignments) {
+      const vertical = byId.get(assignment.verticalId);
+      if (!vertical) {
+        continue;
+      }
+      result.set(assignment.branchId, {
+        verticalId: vertical.id,
+        slug: String(vertical.slug),
+        name: String(vertical.name),
+        iconKey: String(vertical.iconKey),
+      });
+    }
+    return result;
+  }
+
   async findOwnedBranch(
     merchantId: string,
     branchId: string,
   ): Promise<MerchantBranchRecord | null> {
     const row = await orm(this.db())
       .MerchantBranch.where({ id: branchId, merchantId })
+      .first();
+    return row ? this.toBranch(row) : null;
+  }
+
+  async findBranchById(
+    branchId: string,
+    client?: OrmClient,
+  ): Promise<MerchantBranchRecord | null> {
+    const row = await orm(client ?? this.db())
+      .MerchantBranch.where({ id: branchId })
       .first();
     return row ? this.toBranch(row) : null;
   }
@@ -234,6 +290,8 @@ export class MerchantRepository {
       addressText: input.addressText,
       latitude: pgNumeric<9, 6>(input.latitude, 6),
       longitude: pgNumeric<9, 6>(input.longitude, 6),
+      wilayaCode: pgVarchar<2>(input.wilayaCode),
+      communeId: input.communeId,
       operationalStatus: pgVarchar<64>(
         MERCHANT_BRANCH_OPERATIONAL_STATUS_ACTIVE,
       ),
@@ -258,10 +316,26 @@ export class MerchantRepository {
       addressText?: string;
       latitude?: ReturnType<typeof pgNumeric<9, 6>>;
       longitude?: ReturnType<typeof pgNumeric<9, 6>>;
+      wilayaCode?: ReturnType<typeof pgVarchar<2>>;
+      communeId?: number;
+      description?: string | null;
+      nameAr?: ReturnType<typeof pgVarchar<255>> | null;
+      publicEmail?: ReturnType<typeof pgVarchar<255>> | null;
       updatedAt: ReturnType<typeof pgNow>;
     } = { updatedAt: pgNow() };
     if (input.name !== undefined) {
       patch.name = pgVarchar<255>(input.name);
+    }
+    if (input.description !== undefined) {
+      patch.description = input.description;
+    }
+    if (input.nameAr !== undefined) {
+      patch.nameAr =
+        input.nameAr === null ? null : pgVarchar<255>(input.nameAr);
+    }
+    if (input.publicEmail !== undefined) {
+      patch.publicEmail =
+        input.publicEmail === null ? null : pgVarchar<255>(input.publicEmail);
     }
     if (input.phone !== undefined) {
       patch.phone = pgVarchar<32>(input.phone);
@@ -274,6 +348,12 @@ export class MerchantRepository {
     }
     if (input.longitude !== undefined) {
       patch.longitude = pgNumeric<9, 6>(input.longitude, 6);
+    }
+    if (input.wilayaCode !== undefined) {
+      patch.wilayaCode = pgVarchar<2>(input.wilayaCode);
+    }
+    if (input.communeId !== undefined) {
+      patch.communeId = input.communeId;
     }
     await orm(this.db())
       .MerchantBranch.where({ id: branchId, merchantId })
@@ -551,6 +631,351 @@ export class MerchantRepository {
     }
   }
 
+  async listActiveLegalVersions(
+    client?: OrmClient,
+  ): Promise<LegalDocumentVersionRecord[]> {
+    const rows = await orm(client ?? this.db())
+      .LegalDocumentVersion.where({ active: true })
+      .all();
+    return pickCurrentLegalVersions(
+      rows.map((row) => this.toLegalVersion(row)),
+    );
+  }
+
+  /**
+   * Returns the active version per kind, seeding the default row for any kind
+   * that has none. Must run outside a caller transaction: a lost unique-race
+   * on (kind, version) aborts a PostgreSQL transaction.
+   */
+  async ensureActiveLegalVersions(): Promise<LegalDocumentVersionRecord[]> {
+    const active = await this.listActiveLegalVersions();
+    const missing = LEGAL_KINDS.filter(
+      (kind) => !active.some((row) => row.kind === kind),
+    );
+    if (missing.length === 0) {
+      return active;
+    }
+    for (const kind of missing) {
+      const now = pgNow();
+      try {
+        await orm(this.db()).LegalDocumentVersion.create({
+          id: createUuidV7(),
+          kind: pgVarchar<64>(kind),
+          version: pgVarchar<32>(LEGAL_SEED_VERSION),
+          contentUrl: null,
+          contentSha256: null,
+          effectiveFrom: now,
+          active: true,
+          createdAt: now,
+          updatedAt: now,
+        });
+      } catch (error) {
+        if (!isPostgresUniqueViolation(error)) {
+          throw error;
+        }
+      }
+    }
+    return this.listActiveLegalVersions();
+  }
+
+  async findLatestSubmission(
+    merchantId: string,
+    client: OrmClient,
+    outcome?: string,
+  ): Promise<VerificationSubmissionRecord | null> {
+    let query = orm(client).MerchantVerificationSubmission.where({
+      merchantId,
+    });
+    if (outcome !== undefined) {
+      query = query.where({ outcome: pgVarchar<64>(outcome) });
+    }
+    const row = await query.orderBy((s) => s.attemptNumber.desc()).first();
+    return row ? this.toSubmission(row) : null;
+  }
+
+  async createVerificationSubmission(
+    input: {
+      merchantId: string;
+      submittedByAccountId: string;
+      outcome?: string;
+      reviewedAt?: PgTimestamptz | null;
+      reviewedByAdminId?: string | null;
+    },
+    client: OrmClient,
+  ): Promise<VerificationSubmissionRecord> {
+    const previous = await this.findLatestSubmission(input.merchantId, client);
+    const now = pgNow();
+    const row = await orm(client).MerchantVerificationSubmission.create({
+      id: createUuidV7(),
+      merchantId: input.merchantId,
+      attemptNumber: (previous?.attemptNumber ?? 0) + 1,
+      submittedAt: now,
+      submittedByAccountId: input.submittedByAccountId,
+      outcome: pgVarchar<64>(
+        input.outcome ?? VERIFICATION_OUTCOME_PENDING_REVIEW,
+      ),
+      reviewedAt: input.reviewedAt ?? null,
+      reviewedByAdminId: input.reviewedByAdminId ?? null,
+      createdAt: now,
+      updatedAt: now,
+    });
+    return this.toSubmission(row);
+  }
+
+  async createLegalAcceptances(
+    input: {
+      merchantId: string;
+      submissionId: string;
+      accountId: string;
+      memberRole: string;
+      acceptances: Array<{ kind: string; version: string }>;
+    },
+    client: OrmClient,
+  ): Promise<void> {
+    const acceptedAt = pgNow();
+    for (const acceptance of input.acceptances) {
+      await orm(client).MerchantLegalAcceptance.create({
+        id: createUuidV7(),
+        merchantId: input.merchantId,
+        submissionId: input.submissionId,
+        accountId: input.accountId,
+        memberRole: pgVarchar<64>(input.memberRole),
+        kind: pgVarchar<64>(acceptance.kind),
+        version: pgVarchar<32>(acceptance.version),
+        acceptedAt,
+        createdAt: acceptedAt,
+      });
+    }
+  }
+
+  async markSubmissionReviewed(
+    submissionId: string,
+    outcome: string,
+    adminId: string,
+    client: OrmClient,
+  ): Promise<void> {
+    const now = pgNow();
+    await orm(client)
+      .MerchantVerificationSubmission.where({ id: submissionId })
+      .update({
+        outcome: pgVarchar<64>(outcome),
+        reviewedAt: now,
+        reviewedByAdminId: adminId,
+        updatedAt: now,
+      });
+  }
+
+  /** Oldest OWNER Account; used to attribute legacy submissions. */
+  async findOwnerAccountId(
+    merchantId: string,
+    client: OrmClient,
+  ): Promise<string | null> {
+    const row = await orm(client)
+      .MerchantMember.where({
+        merchantId,
+        role: pgVarchar<64>(MERCHANT_MEMBER_ROLE_OWNER),
+      })
+      .orderBy((member) => member.createdAt.asc())
+      .first();
+    return row?.accountId ?? null;
+  }
+
+  async createRejectionIssues(
+    input: {
+      submissionId: string;
+      merchantId: string;
+      issues: ValidatedRejectionIssue[];
+      documents: MerchantDocumentSummary[];
+    },
+    client: OrmClient,
+  ): Promise<void> {
+    const now = pgNow();
+    for (const issue of input.issues) {
+      const document =
+        issue.scope === VERIFICATION_ISSUE_SCOPE_DOCUMENT
+          ? input.documents.find((row) => row.type === issue.documentType)
+          : undefined;
+      await orm(client).MerchantVerificationIssue.create({
+        id: createUuidV7(),
+        submissionId: input.submissionId,
+        merchantId: input.merchantId,
+        scope: pgVarchar<64>(issue.scope),
+        documentType: issue.documentType
+          ? pgVarchar<64>(issue.documentType)
+          : null,
+        documentId: document?.id ?? null,
+        code: pgVarchar<64>(issue.code),
+        messageFr: pgVarchar<500>(issue.messageFr),
+        resolvedAt: null,
+        createdAt: now,
+      });
+    }
+  }
+
+  /**
+   * DOCUMENT-scoped unresolved issues of `documentType` on the latest
+   * REJECTED submission.
+   */
+  async resolveDocumentIssuesForType(
+    merchantId: string,
+    documentType: string,
+    client: OrmClient,
+  ): Promise<void> {
+    const rejected = await this.findLatestSubmission(
+      merchantId,
+      client,
+      VERIFICATION_OUTCOME_REJECTED,
+    );
+    if (!rejected) {
+      return;
+    }
+    await orm(client)
+      .MerchantVerificationIssue.where({
+        submissionId: rejected.id,
+        scope: pgVarchar<64>(VERIFICATION_ISSUE_SCOPE_DOCUMENT),
+        documentType: pgVarchar<64>(documentType),
+      })
+      .where((issue) => issue.resolvedAt.isNull())
+      .updateAll({ resolvedAt: pgNow() });
+  }
+
+  async resolveAllIssues(merchantId: string, client: OrmClient): Promise<void> {
+    await orm(client)
+      .MerchantVerificationIssue.where({ merchantId })
+      .where((issue) => issue.resolvedAt.isNull())
+      .updateAll({ resolvedAt: pgNow() });
+  }
+
+  /**
+   * Raw submission / acceptance / unresolved-issue rows for the given
+   * Merchants. Read models are assembled by `buildVerificationReviewView`.
+   */
+  async loadVerificationRecords(
+    merchantIds: string[],
+    client?: OrmClient,
+  ): Promise<Map<string, MerchantVerificationRecords>> {
+    const result = new Map<string, MerchantVerificationRecords>();
+    if (merchantIds.length === 0) {
+      return result;
+    }
+    const db = orm(client ?? this.db());
+    const [submissions, acceptances, issues] = await Promise.all([
+      db.MerchantVerificationSubmission.where((s) =>
+        s.merchantId.in(merchantIds),
+      ).all(),
+      db.MerchantLegalAcceptance.where((a) =>
+        a.merchantId.in(merchantIds),
+      ).all(),
+      db.MerchantVerificationIssue.where((i) => i.merchantId.in(merchantIds))
+        .where((i) => i.resolvedAt.isNull())
+        .all(),
+    ]);
+    const bucket = (merchantId: string): MerchantVerificationRecords => {
+      let entry = result.get(merchantId);
+      if (!entry) {
+        entry = { submissions: [], acceptances: [], unresolvedIssues: [] };
+        result.set(merchantId, entry);
+      }
+      return entry;
+    };
+    for (const row of submissions) {
+      bucket(row.merchantId).submissions.push(this.toSubmission(row));
+    }
+    for (const row of acceptances) {
+      bucket(row.merchantId).acceptances.push(this.toAcceptance(row));
+    }
+    for (const row of issues) {
+      bucket(row.merchantId).unresolvedIssues.push(this.toIssue(row));
+    }
+    return result;
+  }
+
+  private toLegalVersion(row: {
+    id: string;
+    kind: string;
+    version: string;
+    contentUrl: string | null;
+    contentSha256: string | null;
+    effectiveFrom: string;
+    active: boolean;
+  }): LegalDocumentVersionRecord {
+    return {
+      id: row.id,
+      kind: row.kind,
+      version: row.version,
+      contentUrl: row.contentUrl,
+      contentSha256: row.contentSha256,
+      effectiveFrom: row.effectiveFrom,
+      active: row.active,
+    };
+  }
+
+  private toSubmission(row: {
+    id: string;
+    merchantId: string;
+    attemptNumber: number;
+    submittedAt: string;
+    submittedByAccountId: string;
+    outcome: string;
+    reviewedAt: string | null;
+    reviewedByAdminId: string | null;
+  }): VerificationSubmissionRecord {
+    return {
+      id: row.id,
+      merchantId: row.merchantId,
+      attemptNumber: row.attemptNumber,
+      submittedAt: row.submittedAt,
+      submittedByAccountId: row.submittedByAccountId,
+      outcome: row.outcome,
+      reviewedAt: row.reviewedAt,
+      reviewedByAdminId: row.reviewedByAdminId,
+    };
+  }
+
+  private toAcceptance(row: {
+    id: string;
+    merchantId: string;
+    submissionId: string;
+    kind: string;
+    version: string;
+    acceptedAt: string;
+  }): LegalAcceptanceRecord {
+    return {
+      id: row.id,
+      merchantId: row.merchantId,
+      submissionId: row.submissionId,
+      kind: row.kind,
+      version: row.version,
+      acceptedAt: row.acceptedAt,
+    };
+  }
+
+  private toIssue(row: {
+    id: string;
+    submissionId: string;
+    merchantId: string;
+    scope: string;
+    documentType: string | null;
+    documentId: string | null;
+    code: string;
+    messageFr: string;
+    resolvedAt: string | null;
+    createdAt: string;
+  }): VerificationIssueRecord {
+    return {
+      id: row.id,
+      submissionId: row.submissionId,
+      merchantId: row.merchantId,
+      scope: row.scope,
+      documentType: row.documentType,
+      documentId: row.documentId,
+      code: row.code,
+      messageFr: row.messageFr,
+      resolvedAt: row.resolvedAt,
+      createdAt: row.createdAt,
+    };
+  }
+
   private toMerchant(row: {
     id: string;
     publicReference: string;
@@ -595,7 +1020,12 @@ export class MerchantRepository {
     addressText: string;
     latitude: unknown;
     longitude: unknown;
+    wilayaCode: string | null;
+    communeId: number | null;
     operationalStatus: string;
+    description: string | null;
+    nameAr: string | null;
+    publicEmail: string | null;
     createdAt: string;
     updatedAt: string;
   }): MerchantBranchRecord {
@@ -607,7 +1037,12 @@ export class MerchantRepository {
       addressText: row.addressText,
       latitude: parseCoordinate(row.latitude),
       longitude: parseCoordinate(row.longitude),
+      wilayaCode: row.wilayaCode ?? null,
+      communeId: row.communeId ?? null,
       operationalStatus: row.operationalStatus,
+      description: row.description ?? null,
+      nameAr: row.nameAr ?? null,
+      publicEmail: row.publicEmail ?? null,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

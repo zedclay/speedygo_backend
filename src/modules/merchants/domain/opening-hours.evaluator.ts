@@ -11,6 +11,27 @@ import {
   type LocalCivilParts,
 } from './opening-hours.timezone';
 
+/**
+ * A dated replacement of the weekly schedule for one civil date in the
+ * opening-hours timezone. Intervals never continue past that date's midnight.
+ */
+export type OpeningHoursExceptionDay = {
+  localDate: string;
+  closed: boolean;
+  intervals: ReadonlyArray<{
+    opensMinute: number;
+    closesMinute: number;
+    closesNextDay: boolean;
+  }>;
+};
+
+type IntervalTimes = Pick<
+  NormalizedOpeningInterval,
+  'opensMinute' | 'closesMinute' | 'closesNextDay'
+>;
+
+const NO_EXCEPTIONS: readonly OpeningHoursExceptionDay[] = [];
+
 export type OpeningHoursEvaluation = {
   hoursConfigured: boolean;
   isOpenNow: boolean;
@@ -25,7 +46,7 @@ type TimedWindow = {
 };
 
 function buildWindowForDayOffset(
-  interval: NormalizedOpeningInterval,
+  interval: IntervalTimes,
   localNow: LocalCivilParts,
   dayOffset: number,
   timeZone: string,
@@ -46,11 +67,99 @@ function buildWindowForDayOffset(
   return { opensAt, closesAt };
 }
 
+function civilDateKeyAtOffset(
+  localNow: LocalCivilParts,
+  dayOffset: number,
+  timeZone: string,
+): string {
+  const noon = localDatePlusDaysAtMinute(
+    localNow,
+    dayOffset,
+    12 * 60,
+    timeZone,
+  );
+  const parts = getLocalCivilParts(noon, timeZone);
+  return `${String(parts.year).padStart(4, '0')}-${String(parts.month).padStart(2, '0')}-${String(parts.day).padStart(2, '0')}`;
+}
+
+/**
+ * Exception-aware windows: a civil date with an exception uses only its own
+ * same-day intervals (none when closed); other dates use the weekly schedule,
+ * with overnight spill cut at the next date's 00:00 when that date has an exception.
+ */
+function windowsAroundNowWithExceptions(
+  intervals: readonly NormalizedOpeningInterval[],
+  exceptions: readonly OpeningHoursExceptionDay[],
+  now: Date,
+  timeZone: string,
+): TimedWindow[] {
+  const localNow = getLocalCivilParts(now, timeZone);
+  const byDate = new Map(exceptions.map((item) => [item.localDate, item]));
+  const offsets = [-1, 0, 1, 2, 3, 4, 5, 6, 7];
+  const dateKeys = new Map<number, string>();
+  for (const offset of [...offsets, 8]) {
+    dateKeys.set(offset, civilDateKeyAtOffset(localNow, offset, timeZone));
+  }
+  const windows: TimedWindow[] = [];
+  for (const dayOffset of offsets) {
+    const exception = byDate.get(dateKeys.get(dayOffset)!);
+    if (exception) {
+      if (!exception.closed) {
+        for (const interval of exception.intervals) {
+          windows.push(
+            buildWindowForDayOffset(interval, localNow, dayOffset, timeZone),
+          );
+        }
+      }
+      continue;
+    }
+    const nextDateHasException = byDate.has(dateKeys.get(dayOffset + 1)!);
+    const targetDay = isoDayPlus(localNow.dayOfWeek, dayOffset);
+    for (const interval of intervals) {
+      if (interval.dayOfWeek !== targetDay) {
+        continue;
+      }
+      const window = buildWindowForDayOffset(
+        interval,
+        localNow,
+        dayOffset,
+        timeZone,
+      );
+      if (interval.closesNextDay && nextDateHasException) {
+        const nextMidnight = localDatePlusDaysAtMinute(
+          localNow,
+          dayOffset + 1,
+          0,
+          timeZone,
+        );
+        if (window.closesAt.getTime() > nextMidnight.getTime()) {
+          window.closesAt = nextMidnight;
+        }
+        if (window.opensAt.getTime() >= window.closesAt.getTime()) {
+          continue;
+        }
+      }
+      windows.push(window);
+    }
+  }
+  return windows.sort((a, b) => a.opensAt.getTime() - b.opensAt.getTime());
+}
+
+function hasOpenException(
+  exceptions: readonly OpeningHoursExceptionDay[],
+): boolean {
+  return exceptions.some((item) => !item.closed && item.intervals.length > 0);
+}
+
 function windowsAroundNow(
   intervals: readonly NormalizedOpeningInterval[],
   now: Date,
   timeZone: string,
+  exceptions: readonly OpeningHoursExceptionDay[] = NO_EXCEPTIONS,
 ): TimedWindow[] {
+  if (exceptions.length > 0) {
+    return windowsAroundNowWithExceptions(intervals, exceptions, now, timeZone);
+  }
   const localNow = getLocalCivilParts(now, timeZone);
   const windows: TimedWindow[] = [];
   // Cover previous day (overnight into today), today, and next 7 days for nextOpen scan.
@@ -73,12 +182,13 @@ export function isOpenAt(
   intervals: readonly NormalizedOpeningInterval[],
   now: Date,
   timeZone: string = OPENING_HOURS_TIMEZONE,
+  exceptions: readonly OpeningHoursExceptionDay[] = NO_EXCEPTIONS,
 ): boolean {
-  if (intervals.length === 0) {
+  if (intervals.length === 0 && !hasOpenException(exceptions)) {
     return false;
   }
   const t = now.getTime();
-  for (const window of windowsAroundNow(intervals, now, timeZone)) {
+  for (const window of windowsAroundNow(intervals, now, timeZone, exceptions)) {
     if (t >= window.opensAt.getTime() && t < window.closesAt.getTime()) {
       return true;
     }
@@ -94,12 +204,13 @@ export function currentClosesAt(
   intervals: readonly NormalizedOpeningInterval[],
   now: Date,
   timeZone: string = OPENING_HOURS_TIMEZONE,
+  exceptions: readonly OpeningHoursExceptionDay[] = NO_EXCEPTIONS,
 ): Date | null {
-  if (!isOpenAt(intervals, now, timeZone)) {
+  if (!isOpenAt(intervals, now, timeZone, exceptions)) {
     return null;
   }
   const t = now.getTime();
-  const windows = windowsAroundNow(intervals, now, timeZone);
+  const windows = windowsAroundNow(intervals, now, timeZone, exceptions);
   const active = windows.find(
     (window) => t >= window.opensAt.getTime() && t < window.closesAt.getTime(),
   );
@@ -129,13 +240,14 @@ export function nextOpenAt(
   intervals: readonly NormalizedOpeningInterval[],
   now: Date,
   timeZone: string = OPENING_HOURS_TIMEZONE,
+  exceptions: readonly OpeningHoursExceptionDay[] = NO_EXCEPTIONS,
 ): Date | null {
-  if (intervals.length === 0) {
+  if (intervals.length === 0 && !hasOpenException(exceptions)) {
     return null;
   }
   const t = now.getTime();
   const bound = t + 7 * 24 * 60 * 60 * 1000;
-  for (const window of windowsAroundNow(intervals, now, timeZone)) {
+  for (const window of windowsAroundNow(intervals, now, timeZone, exceptions)) {
     if (window.opensAt.getTime() > t && window.opensAt.getTime() <= bound) {
       return window.opensAt;
     }
@@ -143,10 +255,12 @@ export function nextOpenAt(
   return null;
 }
 
+/** Missing weekly schedule stays HOURS_NOT_CONFIGURED; exceptions never configure hours. */
 export function evaluateOpeningHours(
   intervals: readonly NormalizedOpeningInterval[] | null | undefined,
   now: Date,
   timeZone: string = OPENING_HOURS_TIMEZONE,
+  exceptions: readonly OpeningHoursExceptionDay[] = NO_EXCEPTIONS,
 ): OpeningHoursEvaluation {
   if (intervals === null || intervals === undefined) {
     return {
@@ -157,13 +271,15 @@ export function evaluateOpeningHours(
       nextOpenAt: null,
     };
   }
-  const open = isOpenAt(intervals, now, timeZone);
+  const open = isOpenAt(intervals, now, timeZone, exceptions);
   return {
     hoursConfigured: true,
     isOpenNow: open,
     timezone: timeZone,
-    currentClosesAt: open ? currentClosesAt(intervals, now, timeZone) : null,
-    nextOpenAt: open ? null : nextOpenAt(intervals, now, timeZone),
+    currentClosesAt: open
+      ? currentClosesAt(intervals, now, timeZone, exceptions)
+      : null,
+    nextOpenAt: open ? null : nextOpenAt(intervals, now, timeZone, exceptions),
   };
 }
 

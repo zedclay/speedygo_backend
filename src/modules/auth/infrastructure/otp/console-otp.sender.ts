@@ -3,6 +3,7 @@ import type {
   OtpDelivery,
   OtpSenderPort,
 } from '../../domain/ports/otp-sender.port';
+import { writeDevOtpCapture } from './write-dev-otp-capture';
 
 @Injectable()
 export class ConsoleOtpSender implements OtpSenderPort {
@@ -17,6 +18,7 @@ export class ConsoleOtpSender implements OtpSenderPort {
     );
     // Development-only: code is written to stdout for local login, never via API.
     process.stdout.write(`[speedygo-dev-otp] ${delivery.code}\n`);
+    writeDevOtpCapture(delivery.code);
     return Promise.resolve();
   }
 }

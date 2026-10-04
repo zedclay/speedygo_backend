@@ -17,6 +17,8 @@ import {
   isRequiredDocumentExpiredAttention,
   isVerificationFormallySubmitted,
   isVerificationReady,
+  merchantFinanceAccess,
+  merchantRoleHasFinanceAccess,
   parseMerchantMemberRole,
   parseMerchantStatus,
   roleHasCapability,
@@ -39,6 +41,24 @@ describe('Merchant policy', () => {
   it('does not grant OWNER or MANAGER capabilities to unknown roles', () => {
     const unknown = parseMerchantMemberRole('CREATOR');
     expect(unknown).toBeNull();
+  });
+
+  it('grants Merchant financial visibility to OWNER and MANAGER only', () => {
+    expect(merchantRoleHasFinanceAccess(MERCHANT_MEMBER_ROLE_OWNER)).toBe(true);
+    expect(merchantRoleHasFinanceAccess(MERCHANT_MEMBER_ROLE_MANAGER)).toBe(
+      true,
+    );
+    expect(merchantRoleHasFinanceAccess(MERCHANT_MEMBER_ROLE_STAFF)).toBe(
+      false,
+    );
+    expect(merchantRoleHasFinanceAccess(null)).toBe(false);
+    expect(merchantFinanceAccess(MERCHANT_MEMBER_ROLE_OWNER)).toBe('GRANTED');
+    expect(merchantFinanceAccess(MERCHANT_MEMBER_ROLE_STAFF)).toBe(
+      'ROLE_RESTRICTED',
+    );
+    expect(merchantFinanceAccess(parseMerchantMemberRole('CREATOR'))).toBe(
+      'ROLE_RESTRICTED',
+    );
   });
 
   it('grants OWNER profile and branch capabilities', () => {
@@ -196,6 +216,48 @@ describe('Merchant policy', () => {
       roleHasCapability(
         MERCHANT_MEMBER_ROLE_STAFF,
         MERCHANT_CAPABILITIES.MERCHANT_BRANCH_DELETE,
+      ),
+    ).toBe(false);
+  });
+
+  it('grants TEAM_READ to OWNER and MANAGER only', () => {
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_OWNER,
+        MERCHANT_CAPABILITIES.TEAM_READ,
+      ),
+    ).toBe(true);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_MANAGER,
+        MERCHANT_CAPABILITIES.TEAM_READ,
+      ),
+    ).toBe(true);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_STAFF,
+        MERCHANT_CAPABILITIES.TEAM_READ,
+      ),
+    ).toBe(false);
+  });
+
+  it('grants TEAM_MANAGE to OWNER only', () => {
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_OWNER,
+        MERCHANT_CAPABILITIES.TEAM_MANAGE,
+      ),
+    ).toBe(true);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_MANAGER,
+        MERCHANT_CAPABILITIES.TEAM_MANAGE,
+      ),
+    ).toBe(false);
+    expect(
+      roleHasCapability(
+        MERCHANT_MEMBER_ROLE_STAFF,
+        MERCHANT_CAPABILITIES.TEAM_MANAGE,
       ),
     ).toBe(false);
   });

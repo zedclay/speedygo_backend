@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { Inject, Injectable, Logger } from '@nestjs/common';
 import {
   notificationIntegrityConflict,
   notificationNotFound,
@@ -28,8 +28,10 @@ import {
 import {
   NOTIFICATION_CHANNEL_IN_APP,
   NOTIFICATION_CHANNEL_PUSH,
+  NOTIFICATION_DELIVERY_PENDING,
   NOTIFICATION_DELIVERY_SENT,
   NOTIFICATION_DELIVERY_SKIPPED_NOT_CONFIGURED,
+  NOTIFICATION_PUSH_ENABLED_TYPES,
   NOTIFICATION_TYPE_DELIVERY_COMPLETED,
   NOTIFICATION_TYPE_DRIVER_ASSIGNED,
   NOTIFICATION_TYPE_DRIVER_EARNING_CREATED,
@@ -49,29 +51,46 @@ import {
   type NotificationView,
 } from '../domain/notification.types';
 import {
+  NOTIFICATION_JOBS,
+  type NotificationJobs,
+} from '../domain/notification.jobs';
+import {
   NotificationRepository,
   type OrmClient,
 } from '../infrastructure/notification.repository';
+import { PushDispatchService } from './push-dispatch.service';
 
 @Injectable()
 export class NotificationService {
   private readonly logger = new Logger(NotificationService.name);
 
-  constructor(private readonly notifications: NotificationRepository) {}
+  constructor(
+    private readonly notifications: NotificationRepository,
+    private readonly push: PushDispatchService,
+    @Inject(NOTIFICATION_JOBS) private readonly jobs: NotificationJobs,
+  ) {}
 
   /**
    * Create at-most-one logical Notification for (type, sourceId, accountId).
-   * Records IN_APP delivery as SENT. Does not call external Push providers.
-   * Push channel is logged as SKIPPED_NOT_CONFIGURED (no fake success).
+   * Records IN_APP delivery as SENT. Never calls the Push provider inline:
+   * push-enabled types get a PENDING Push log (sent post-commit by the queue);
+   * everything else is logged SKIPPED_NOT_CONFIGURED.
    */
   async emitLogical(
     input: EmitNotificationInput,
     client?: OrmClient,
-  ): Promise<{ notification: NotificationRecord; created: boolean }> {
+  ): Promise<{
+    notification: NotificationRecord;
+    created: boolean;
+    pushPending: boolean;
+  }> {
     const accountId = requireAccountId(input.accountId);
     const sourceId = requireSourceId(input.sourceId);
     requireTitleBody(input.title, input.body);
     const category = buildNotificationCategory(input.type, sourceId);
+    const pushPending =
+      NOTIFICATION_PUSH_ENABLED_TYPES.includes(input.type) &&
+      this.push.isConfigured();
 
     const run = async (tx: OrmClient) => {
       await this.notifications.lockLogicalNotification(
@@ -91,7 +110,11 @@ export class NotificationService {
         );
       }
       if (existing.length === 1) {
-        return { notification: existing[0], created: false };
+        return {
+          notification: existing[0],
+          created: false,
+          pushPending: false,
+        };
       }
       const notification = await this.notifications.createNotification(
         {
@@ -117,13 +140,15 @@ export class NotificationService {
         {
           notificationId: notification.id,
           channel: NOTIFICATION_CHANNEL_PUSH,
-          status: NOTIFICATION_DELIVERY_SKIPPED_NOT_CONFIGURED,
+          status: pushPending
+            ? NOTIFICATION_DELIVERY_PENDING
+            : NOTIFICATION_DELIVERY_SKIPPED_NOT_CONFIGURED,
           providerReference: null,
           sentAt: null,
         },
         tx,
       );
-      return { notification, created: true };
+      return { notification, created: true, pushPending };
     };
 
     if (client) {
@@ -136,11 +161,26 @@ export class NotificationService {
    * Never throws to callers. Business state must remain authoritative.
    */
   async emitSafe(input: EmitNotificationInput): Promise<void> {
+    let emitted: Awaited<ReturnType<NotificationService['emitLogical']>>;
     try {
-      await this.emitLogical(input);
+      emitted = await this.emitLogical(input);
     } catch (error) {
       this.logger.warn(
         `notification emit failed type=${input.type} source=${input.sourceId} account=${input.accountId} err=${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+      return;
+    }
+    if (!emitted.created || !emitted.pushPending) {
+      return;
+    }
+    try {
+      await this.jobs.enqueuePushSend(emitted.notification.id);
+    } catch (error) {
+      // Log stays PENDING; NotificationRecoveryService re-enqueues it.
+      this.logger.warn(
+        `push enqueue failed notification=${emitted.notification.id} err=${
           error instanceof Error ? error.message : String(error)
         }`,
       );

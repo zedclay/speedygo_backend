@@ -375,6 +375,8 @@ describe('Customer catalog discovery (e2e)', () => {
           addressText: 'Rue Discovery 1',
           latitude: 36.75,
           longitude: 3.05,
+          wilayaCode: '16',
+          communeId: 556,
         });
       expect(branch.status).toBe(201);
       const branchId = (branch.body as BranchBody).id;
@@ -393,6 +395,8 @@ describe('Customer catalog discovery (e2e)', () => {
           addressText: 'Rue Discovery 2',
           latitude: 36.76,
           longitude: 3.06,
+          wilayaCode: '16',
+          communeId: 556,
         });
       expect(branch2.status).toBe(201);
       const inactiveBranchId = (branch2.body as BranchBody).id;
@@ -413,6 +417,8 @@ describe('Customer catalog discovery (e2e)', () => {
           addressText: 'Rue Beta',
           latitude: 36.77,
           longitude: 3.07,
+          wilayaCode: '16',
+          communeId: 556,
         });
       expect(branchB.status).toBe(201);
       const branchBId = (branchB.body as BranchBody).id;

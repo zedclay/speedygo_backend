@@ -45,6 +45,7 @@ type MerchantOrderDetail = {
   confirmedAt: string | null;
   customerFullName: string | null;
   payment: { method: string; status: string };
+  financialAccess: 'GRANTED' | 'ROLE_RESTRICTED';
   financial: {
     grossMerchandiseSubtotalMinor: string;
     merchantNetAmountMinor: string;
@@ -52,11 +53,42 @@ type MerchantOrderDetail = {
   };
   items: Array<{
     productNameSnapshot: string;
+    quantity: number;
     unitPriceMinor: string;
+    lineTotalMinor: string;
     options: Array<{ additionalPriceMinor: string }>;
   }>;
   statusHistory: Array<{ eventType: string; actorType: string }>;
 };
+type MerchantOrderList = { total: number; items: MerchantOrderDetail[] };
+
+const MERCHANT_RESTRICTED_FINANCIAL_KEYS = [
+  'merchantDiscountMinor',
+  'merchantCommissionRateBps',
+  'merchantCommissionAmountMinor',
+  'merchantNetAmountMinor',
+];
+const MERCHANT_STAFF_FINANCIAL_KEYS = [
+  'currency',
+  'deliveryFeeMinor',
+  'grossMerchandiseSubtotalMinor',
+];
+const RESTRICTED_TERMS = /commission|merchantNet|discount|settlement|refund/i;
+
+function expectGrantedFinancial(view: MerchantOrderDetail): void {
+  expect(view.financialAccess).toBe('GRANTED');
+  for (const key of MERCHANT_RESTRICTED_FINANCIAL_KEYS) {
+    expect(view.financial).toHaveProperty(key);
+  }
+}
+
+function expectStaffFinancial(view: MerchantOrderDetail): void {
+  expect(view.financialAccess).toBe('ROLE_RESTRICTED');
+  expect(Object.keys(view.financial).sort()).toEqual(
+    MERCHANT_STAFF_FINANCIAL_KEYS,
+  );
+  expect(JSON.stringify(view)).not.toMatch(RESTRICTED_TERMS);
+}
 
 const INSIDE: [number, number] = [36.75, 3.05];
 const COVERING_RING: Array<[number, number]> = [
@@ -308,7 +340,7 @@ describe('Merchant order workflow (e2e)', () => {
   async function cleanupByPhone(phoneE164: string): Promise<void> {
     const account = await prisma
       .getDb()
-      .orm.public.Account.where({ phone: phoneE164 })
+      .orm.public.Account.where({ phone: pgVarchar<32>(phoneE164) })
       .first();
     if (!account) {
       return;
@@ -501,6 +533,8 @@ describe('Merchant order workflow (e2e)', () => {
           addressText: 'Street A',
           latitude: 36.75,
           longitude: 3.05,
+          wilayaCode: '16',
+          communeId: 556,
         });
       expect(branch.status).toBe(201);
       const branchId = (branch.body as BranchBody).id;
@@ -664,6 +698,80 @@ describe('Merchant order workflow (e2e)', () => {
       const snapshotNet = before.financial.merchantNetAmountMinor;
       const snapshotUnit = before.items[0].unitPriceMinor;
 
+      // Financial visibility: OWNER/MANAGER keep finance, STAFF gets none.
+      expectGrantedFinancial(before);
+      expectGrantedFinancial((listed.body as MerchantOrderList).items[0]);
+      const managerDetail = await request(server)
+        .get(`/api/v1/merchant/${merchantId}/orders/${orderId}`)
+        .set('Authorization', `Bearer ${tokenManager}`);
+      expect(managerDetail.status).toBe(200);
+      expectGrantedFinancial(managerDetail.body as MerchantOrderDetail);
+      expect(managerDetail.body).toEqual(before);
+      const managerList = await request(server)
+        .get(`/api/v1/merchant/${merchantId}/orders`)
+        .set('Authorization', `Bearer ${tokenManager}`);
+      expectGrantedFinancial((managerList.body as MerchantOrderList).items[0]);
+
+      const staffListed = staffList.body as MerchantOrderList;
+      expect(staffListed.total).toBe(1);
+      expectStaffFinancial(staffListed.items[0]);
+      const staffDetail = await request(server)
+        .get(`/api/v1/merchant/${merchantId}/orders/${orderId}`)
+        .set('Authorization', `Bearer ${tokenStaff}`);
+      expect(staffDetail.status).toBe(200);
+      const staffView = staffDetail.body as MerchantOrderDetail;
+      expectStaffFinancial(staffView);
+      expect(staffView.financial.grossMerchandiseSubtotalMinor).toBe(
+        before.financial.grossMerchandiseSubtotalMinor,
+      );
+      expect(staffView.items).toEqual(before.items);
+      expect(staffView.status).toBe(before.status);
+      expect(staffView.payment).toEqual(before.payment);
+      expect(staffView.customerFullName).toBe(before.customerFullName);
+      const staffBranchList = await request(server)
+        .get(`/api/v1/merchant/${merchantId}/orders?branchId=${branchId}`)
+        .set('Authorization', `Bearer ${tokenStaff}`);
+      expect(staffBranchList.status).toBe(200);
+      expectStaffFinancial(
+        (staffBranchList.body as MerchantOrderList).items[0],
+      );
+
+      const otherBranch = await request(server)
+        .post(`/api/v1/merchant/${otherMerchantId}/branches`)
+        .set('Authorization', `Bearer ${tokenOther}`)
+        .send({
+          name: 'Other Main',
+          phone: '0550123498',
+          addressText: 'Street B',
+          latitude: 36.75,
+          longitude: 3.05,
+          wilayaCode: '16',
+          communeId: 556,
+        });
+      expect(otherBranch.status).toBe(201);
+      const otherBranchId = (otherBranch.body as BranchBody).id;
+      const staffForeignBranch = await request(server)
+        .get(`/api/v1/merchant/${merchantId}/orders?branchId=${otherBranchId}`)
+        .set('Authorization', `Bearer ${tokenStaff}`);
+      expect(staffForeignBranch.status).toBe(404);
+      expect((staffForeignBranch.body as ErrorBody).error.code).toBe(
+        'MERCHANT_BRANCH_NOT_FOUND',
+      );
+      const staffForeignMerchantList = await request(server)
+        .get(`/api/v1/merchant/${otherMerchantId}/orders`)
+        .set('Authorization', `Bearer ${tokenStaff}`);
+      expect(staffForeignMerchantList.status).toBe(404);
+      expect((staffForeignMerchantList.body as ErrorBody).error.code).toBe(
+        'MERCHANT_NOT_FOUND',
+      );
+      const staffForeignMerchantGet = await request(server)
+        .get(`/api/v1/merchant/${otherMerchantId}/orders/${orderId}`)
+        .set('Authorization', `Bearer ${tokenStaff}`);
+      expect(staffForeignMerchantGet.status).toBe(404);
+      expect(JSON.stringify(staffForeignMerchantGet.body)).not.toMatch(
+        RESTRICTED_TERMS,
+      );
+
       const staffAccept = await request(server)
         .post(`/api/v1/merchant/${merchantId}/orders/${orderId}/accept`)
         .set('Authorization', `Bearer ${tokenStaff}`)
@@ -672,6 +780,25 @@ describe('Merchant order workflow (e2e)', () => {
       expect((staffAccept.body as ErrorBody).error.code).toBe(
         'MERCHANT_ROLE_FORBIDDEN',
       );
+      expect(JSON.stringify(staffAccept.body)).not.toMatch(RESTRICTED_TERMS);
+      for (const [path, body] of [
+        ['reject', { reason: 'Out of stock' }],
+        ['start-preparation', {}],
+        ['mark-ready', {}],
+        ['preparation-estimate', { addMinutes: 5, expectedEstimateVersion: 1 }],
+      ] as const) {
+        const staffMutation = await request(server)
+          .post(`/api/v1/merchant/${merchantId}/orders/${orderId}/${path}`)
+          .set('Authorization', `Bearer ${tokenStaff}`)
+          .send(body);
+        expect(staffMutation.status).toBe(403);
+        expect((staffMutation.body as ErrorBody).error.code).toBe(
+          'MERCHANT_ROLE_FORBIDDEN',
+        );
+        expect(JSON.stringify(staffMutation.body)).not.toMatch(
+          RESTRICTED_TERMS,
+        );
+      }
 
       const foreignList = await request(server)
         .get(`/api/v1/merchant/${otherMerchantId}/orders`)
@@ -765,6 +892,17 @@ describe('Merchant order workflow (e2e)', () => {
       expect(ready.items[0].unitPriceMinor).toBe(String(snapshotUnit));
       expect(ready.financial.merchantNetAmountMinor).toBe(String(snapshotNet));
       expect(ready.payment.status).toBe('PENDING');
+      expectGrantedFinancial(accepted);
+      expectGrantedFinancial(preparing);
+      expectGrantedFinancial(ready);
+      const staffAfterReady = await request(server)
+        .get(`/api/v1/merchant/${merchantId}/orders/${orderId}`)
+        .set('Authorization', `Bearer ${tokenStaff}`);
+      expect(staffAfterReady.status).toBe(200);
+      expectStaffFinancial(staffAfterReady.body as MerchantOrderDetail);
+      expect(
+        (staffAfterReady.body as MerchantOrderDetail).fulfillmentStatus,
+      ).toBe('READY');
       expect(
         ready.statusHistory.filter(
           (event) => event.eventType === 'ORDER_READY',

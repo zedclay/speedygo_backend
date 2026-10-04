@@ -5,12 +5,16 @@ import {
   Param,
   ParseUUIDPipe,
   Post,
+  Query,
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { AuthenticatedPrincipal } from '../../../auth/domain/auth.types';
 import { CurrentPrincipal } from '../../../auth/presentation/http/decorators/current-principal.decorator';
 import { RatingsService } from '../../application/ratings.service';
-import { CreateRatingDto } from './dto/ratings.dto';
+import {
+  CreateRatingDto,
+  MerchantRatingSummariesQueryDto,
+} from './dto/ratings.dto';
 
 @ApiTags('customer-ratings')
 @ApiBearerAuth()
@@ -77,6 +81,16 @@ export class CustomerRatingsController {
     @Param('orderId', ParseUUIDPipe) orderId: string,
   ) {
     return this.ratings.getOwnDriverRating(principal.accountId, orderId);
+  }
+
+  @Get('ratings/merchant-summaries')
+  @ApiOperation({
+    summary: 'Batch Merchant rating aggregates',
+    description:
+      'Authenticated. Query merchantIds=uuid,uuid (max 50). Returns count + average per existing Merchant. Avoids N per-branch requests when several branches share a Merchant.',
+  })
+  merchantSummaries(@Query() query: MerchantRatingSummariesQueryDto) {
+    return this.ratings.merchantSummaries(query.merchantIds);
   }
 
   @Get('merchants/:merchantId/ratings/summary')

@@ -38,6 +38,10 @@ export const ADMIN_PERMISSIONS = Object.freeze({
   DELIVERY_ZONES_MANAGE: 'delivery.zones.manage',
   DELIVERY_PRICING_READ: 'delivery.pricing.read',
   DELIVERY_PRICING_MANAGE: 'delivery.pricing.manage',
+  COMMERCE_VERTICALS_READ: 'commerce.verticals.read',
+  COMMERCE_VERTICALS_MANAGE: 'commerce.verticals.manage',
+  STOREFRONT_COVERS_MANAGE: 'storefront.covers.manage',
+  PRODUCT_IMAGES_MANAGE: 'product.images.manage',
 } as const);
 
 export type AdminPermissionCode =

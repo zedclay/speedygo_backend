@@ -1,0 +1,284 @@
+[
+  {
+    "id": "table.delivery_pickup_handoffs",
+    "label": "Create table \"delivery_pickup_handoffs\"",
+    "summary": "Creates table \"delivery_pickup_handoffs\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "delivery_pickup_handoffs"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"delivery_pickup_handoffs\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"delivery_pickup_handoffs\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"delivery_pickup_handoffs\"",
+        "sql": "CREATE TABLE \"public\".\"delivery_pickup_handoffs\" (\n  \"assignment_id\" uuid NOT NULL,\n  \"assignment_version\" int4 NOT NULL,\n  \"attempt_count\" int4 DEFAULT 0 NOT NULL,\n  \"code_hash\" character varying(128) NOT NULL,\n  \"code_sealed\" text NOT NULL,\n  \"consumed_at\" timestamptz(6),\n  \"consumed_by_driver_id\" uuid,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"created_by_account_id\" uuid,\n  \"delivery_id\" uuid NOT NULL,\n  \"expires_at\" timestamptz(6) NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"invalidated_at\" timestamptz(6),\n  \"invalidated_reason\" character varying(64),\n  \"locked_until\" timestamptz(6),\n  \"max_attempts\" int4 DEFAULT 5 NOT NULL,\n  \"status\" character varying(64) NOT NULL,\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"version\" int4 DEFAULT 1 NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"dph_assignment_version_positive_e4eba578\" CHECK (assignment_version >= 1),\n  CONSTRAINT \"dph_attempt_count_nonneg_0b6f9474\" CHECK (attempt_count >= 0),\n  CONSTRAINT \"dph_max_attempts_positive_8cc96d9d\" CHECK (max_attempts >= 1),\n  CONSTRAINT \"dph_status_values_303afc9b\" CHECK (status IN ('PENDING', 'CONSUMED', 'INVALIDATED', 'EXPIRED', 'LOCKED')),\n  CONSTRAINT \"dph_version_positive_c2490804\" CHECK (version >= 1)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"delivery_pickup_handoffs\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"delivery_pickup_handoffs\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.driver_assignments.version",
+    "label": "Add column \"version\" to \"driver_assignments\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "version",
+        "table": "driver_assignments"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"version\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "driver_assignments",
+          "version"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"version\"",
+        "sql": "ALTER TABLE \"public\".\"driver_assignments\" ADD COLUMN \"version\" int4 DEFAULT 1 NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"version\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "driver_assignments",
+          "version"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.driver_assignments.driver_assignments_version_positive_c2490804",
+    "label": "Add check constraint \"driver_assignments_version_positive_c2490804\" on \"driver_assignments\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "driver_assignments_version_positive_c2490804",
+        "table": "driver_assignments"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"driver_assignments_version_positive_c2490804\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "driver_assignments_version_positive_c2490804",
+          "public",
+          "\"public\".\"driver_assignments\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"driver_assignments_version_positive_c2490804\"",
+        "sql": "ALTER TABLE \"public\".\"driver_assignments\" ADD CONSTRAINT \"driver_assignments_version_positive_c2490804\" CHECK (version >= 1)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"driver_assignments_version_positive_c2490804\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "driver_assignments_version_positive_c2490804",
+          "public",
+          "\"public\".\"driver_assignments\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.delivery_pickup_handoffs.delivery_pickup_handoffs_assignment_566acae3",
+    "label": "Create index \"delivery_pickup_handoffs_assignment_566acae3\" on \"delivery_pickup_handoffs\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "delivery_pickup_handoffs_assignment_566acae3",
+        "table": "delivery_pickup_handoffs"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"delivery_pickup_handoffs_assignment_566acae3\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"delivery_pickup_handoffs_assignment_566acae3\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"delivery_pickup_handoffs_assignment_566acae3\"",
+        "sql": "CREATE INDEX \"delivery_pickup_handoffs_assignment_566acae3\" ON \"public\".\"delivery_pickup_handoffs\" (\"assignment_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"delivery_pickup_handoffs_assignment_566acae3\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"delivery_pickup_handoffs_assignment_566acae3\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.delivery_pickup_handoffs.delivery_pickup_handoffs_delivery_37cce61e",
+    "label": "Create index \"delivery_pickup_handoffs_delivery_37cce61e\" on \"delivery_pickup_handoffs\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "delivery_pickup_handoffs_delivery_37cce61e",
+        "table": "delivery_pickup_handoffs"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"delivery_pickup_handoffs_delivery_37cce61e\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"delivery_pickup_handoffs_delivery_37cce61e\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"delivery_pickup_handoffs_delivery_37cce61e\"",
+        "sql": "CREATE INDEX \"delivery_pickup_handoffs_delivery_37cce61e\" ON \"public\".\"delivery_pickup_handoffs\" (\"delivery_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"delivery_pickup_handoffs_delivery_37cce61e\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"delivery_pickup_handoffs_delivery_37cce61e\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.delivery_pickup_handoffs.delivery_pickup_handoffs_one_pending_per_delivery_d67328aa",
+    "label": "Create index \"delivery_pickup_handoffs_one_pending_per_delivery_d67328aa\" on \"delivery_pickup_handoffs\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "delivery_pickup_handoffs_one_pending_per_delivery_d67328aa",
+        "table": "delivery_pickup_handoffs"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"delivery_pickup_handoffs_one_pending_per_delivery_d67328aa\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"delivery_pickup_handoffs_one_pending_per_delivery_d67328aa\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"delivery_pickup_handoffs_one_pending_per_delivery_d67328aa\"",
+        "sql": "CREATE UNIQUE INDEX \"delivery_pickup_handoffs_one_pending_per_delivery_d67328aa\" ON \"public\".\"delivery_pickup_handoffs\" (\"delivery_id\") WHERE ((status = 'PENDING'))",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"delivery_pickup_handoffs_one_pending_per_delivery_d67328aa\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"delivery_pickup_handoffs_one_pending_per_delivery_d67328aa\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.delivery_pickup_handoffs.delivery_pickup_handoffs_delivery_id_fkey",
+    "label": "Add foreign key \"delivery_pickup_handoffs_delivery_id_fkey\" on \"delivery_pickup_handoffs\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "delivery_pickup_handoffs_delivery_id_fkey",
+        "table": "delivery_pickup_handoffs"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"delivery_pickup_handoffs_delivery_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "delivery_pickup_handoffs_delivery_id_fkey",
+          "public",
+          "\"public\".\"delivery_pickup_handoffs\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"delivery_pickup_handoffs_delivery_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"delivery_pickup_handoffs\"\nADD CONSTRAINT \"delivery_pickup_handoffs_delivery_id_fkey\"\nFOREIGN KEY (\"delivery_id\")\nREFERENCES \"public\".\"deliveries\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"delivery_pickup_handoffs_delivery_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "delivery_pickup_handoffs_delivery_id_fkey",
+          "public",
+          "\"public\".\"delivery_pickup_handoffs\""
+        ]
+      }
+    ]
+  }
+]

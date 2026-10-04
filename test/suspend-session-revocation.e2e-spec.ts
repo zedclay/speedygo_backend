@@ -47,6 +47,11 @@ import { deactivateOpenGlobalCommissionDefaults } from './helpers/sanitize-commi
 import { deactivateAllDeliveryZones } from './helpers/sanitize-delivery-zones';
 import { sanitizeOpenMatchingState } from './helpers/sanitize-open-matching';
 
+const LEGAL_ACCEPTANCES = [
+  { kind: 'MERCHANT_TERMS', version: '2026-10-03' },
+  { kind: 'DOSSIER_ACCURACY_DECLARATION', version: '2026-10-03' },
+];
+
 type TokenPair = { accessToken: string; refreshToken: string };
 type ErrorBody = { error: { code: string; message: string } };
 type AuthMeBody = { account: { id: string; phone: string; status?: string } };
@@ -296,7 +301,7 @@ describe('P1-G Suspend + Session Revocation (e2e)', () => {
     const submitted = await request(server)
       .post(`/api/v1/merchant/${merchantId}/verification/submit`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({});
+      .send({ acceptances: LEGAL_ACCEPTANCES });
     expect(submitted.status).toBe(200);
     return merchantId;
   }
@@ -402,6 +407,21 @@ describe('P1-G Suspend + Session Revocation (e2e)', () => {
   async function cleanupMerchantsByIds(merchantIds: string[]): Promise<void> {
     const db = prisma.getDb().orm.public;
     for (const merchantId of merchantIds) {
+      for (const row of await db.MerchantVerificationIssue.where({
+        merchantId: merchantId,
+      }).all()) {
+        await db.MerchantVerificationIssue.where({ id: row.id }).delete();
+      }
+      for (const row of await db.MerchantLegalAcceptance.where({
+        merchantId: merchantId,
+      }).all()) {
+        await db.MerchantLegalAcceptance.where({ id: row.id }).delete();
+      }
+      for (const row of await db.MerchantVerificationSubmission.where({
+        merchantId: merchantId,
+      }).all()) {
+        await db.MerchantVerificationSubmission.where({ id: row.id }).delete();
+      }
       for (const doc of await db.MerchantDocument.where({
         merchantId,
       }).all()) {
@@ -1225,6 +1245,8 @@ describe('P1-G Suspend + Session Revocation (e2e)', () => {
           addressText: 'Street A',
           latitude: 36.75,
           longitude: 3.05,
+          wilayaCode: '16',
+          communeId: 556,
         });
       const branchId = (branch.body as BranchBody).id;
       await ensureBranchOpeningHours(prisma, branchId, owner.id);
@@ -1599,6 +1621,8 @@ describe('P1-G Suspend + Session Revocation (e2e)', () => {
           addressText: 'Street B',
           latitude: 36.75,
           longitude: 3.05,
+          wilayaCode: '16',
+          communeId: 556,
         });
       const branchId = (branch.body as BranchBody).id;
       await ensureBranchOpeningHours(prisma, branchId, owner.id);
@@ -1989,6 +2013,8 @@ describe('P1-G Suspend + Session Revocation (e2e)', () => {
           addressText: 'Street C',
           latitude: 36.75,
           longitude: 3.05,
+          wilayaCode: '16',
+          communeId: 556,
         });
       expect(branchB.status).toBe(201);
     } finally {

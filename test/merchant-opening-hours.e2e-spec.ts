@@ -390,6 +390,8 @@ describe('Merchant opening hours (e2e)', () => {
           addressText: 'Street',
           latitude: INSIDE[0],
           longitude: INSIDE[1],
+          wilayaCode: '16',
+          communeId: 556,
         });
       expect(branch.status).toBe(201);
       const branchId = (branch.body as BranchBody).id;
@@ -655,6 +657,8 @@ describe('Merchant opening hours (e2e)', () => {
           addressText: 'Street',
           latitude: INSIDE[0],
           longitude: INSIDE[1],
+          wilayaCode: '16',
+          communeId: 556,
         });
       const branchId = (branch.body as BranchBody).id;
       await approveMerchant(merchantId);
@@ -806,6 +810,8 @@ describe('Merchant opening hours (e2e)', () => {
           addressText: 'Street',
           latitude: INSIDE[0],
           longitude: INSIDE[1],
+          wilayaCode: '16',
+          communeId: 556,
         });
       const branchId = (branch.body as BranchBody).id;
       await approveMerchant(merchantId);
@@ -980,6 +986,8 @@ describe('Merchant opening hours (e2e)', () => {
           addressText: 'Street',
           latitude: INSIDE[0],
           longitude: INSIDE[1],
+          wilayaCode: '16',
+          communeId: 556,
         });
       const branchId = (branch.body as BranchBody).id;
       await approveMerchant(merchantId);
@@ -1131,6 +1139,264 @@ describe('Merchant opening hours (e2e)', () => {
       expect(configuredHit.storefront.nextOpenAt).toBeNull();
       expect(configuredHit.storefront).not.toHaveProperty('days');
       expect(configuredHit.storefront).not.toHaveProperty('version');
+    } finally {
+      fixedNow = null;
+      for (const phone of e164) {
+        await cleanupAccount(phone);
+      }
+    }
+  });
+
+  it('filters openNow before pagination with accurate totals and verticalId', async () => {
+    const server = app.getHttpServer();
+    const suffix = Date.now().toString().slice(-6);
+    const phones = {
+      customer: `0580${suffix}`,
+      owner: `0581${suffix}`,
+    };
+    const e164: string[] = [];
+    // Mon 11:00 Africa/Algiers
+    fixedNow = new Date('2024-01-15T10:00:00.000Z');
+
+    try {
+      const tokenCustomer = await authenticate(phones.customer);
+      const tokenOwner = await authenticate(phones.owner);
+      e164.push(
+        (await authMe(tokenCustomer)).phone,
+        (await authMe(tokenOwner)).phone,
+      );
+
+      await request(server)
+        .post('/api/v1/customer/profile')
+        .set('Authorization', `Bearer ${tokenCustomer}`)
+        .send({ fullName: 'OpenNow Customer' });
+
+      const merchant = await request(server)
+        .post('/api/v1/merchant/profile')
+        .set('Authorization', `Bearer ${tokenOwner}`)
+        .send({ name: `OpenNowMerch${suffix}` });
+      const merchantId = (merchant.body as MembershipBody).merchantId;
+
+      async function createBranch(name: string) {
+        const branch = await request(server)
+          .post(`/api/v1/merchant/${merchantId}/branches`)
+          .set('Authorization', `Bearer ${tokenOwner}`)
+          .send({
+            name,
+            phone: '0550123499',
+            addressText: 'Street',
+            latitude: INSIDE[0],
+            longitude: INSIDE[1],
+            wilayaCode: '16',
+            communeId: 556,
+          });
+        expect(branch.status).toBe(201);
+        return (branch.body as BranchBody).id;
+      }
+
+      // Names sort first (ORDER BY name ASC) so a small limit still finds them
+      // among leftover fixture branches in speedygo_test.
+      const openId = await createBranch(`000-OpenNow-A ${suffix}`);
+      const closedId = await createBranch(`000-OpenNow-B ${suffix}`);
+      const unconfiguredId = await createBranch(`000-OpenNow-C ${suffix}`);
+      await approveMerchant(merchantId);
+
+      await request(server)
+        .put(
+          `/api/v1/merchant/${merchantId}/branches/${openId}/opening-hours`,
+        )
+        .set('Authorization', `Bearer ${tokenOwner}`)
+        .send({
+          expectedVersion: 0,
+          days: weeklyDays({
+            1: [{ opens: '09:00', closes: '17:00' }],
+          }),
+        })
+        .expect(200);
+
+      await request(server)
+        .put(
+          `/api/v1/merchant/${merchantId}/branches/${closedId}/opening-hours`,
+        )
+        .set('Authorization', `Bearer ${tokenOwner}`)
+        .send({
+          expectedVersion: 0,
+          days: weeklyDays({
+            1: [{ opens: '18:00', closes: '22:00' }],
+          }),
+        })
+        .expect(200);
+
+      const unfiltered = await request(server)
+        .get('/api/v1/customer/branches?limit=20&offset=0&openNow=false')
+        .set('Authorization', `Bearer ${tokenCustomer}`);
+      expect(unfiltered.status).toBe(200);
+      const unfilteredItems = (
+        unfiltered.body as { items: Array<{ branchId: string }>; total: number }
+      ).items;
+      expect(unfilteredItems.some((i) => i.branchId === openId)).toBe(true);
+      expect(unfilteredItems.some((i) => i.branchId === closedId)).toBe(true);
+      expect(unfilteredItems.some((i) => i.branchId === unconfiguredId)).toBe(
+        true,
+      );
+
+      const filtered = await request(server)
+        .get('/api/v1/customer/branches?limit=20&offset=0&openNow=true')
+        .set('Authorization', `Bearer ${tokenCustomer}`);
+      expect(filtered.status).toBe(200);
+      const filteredBody = filtered.body as {
+        items: Array<{ branchId: string; isOpenNow: boolean }>;
+        total: number;
+        limit: number;
+        offset: number;
+      };
+      const filteredIds = filteredBody.items.map((i) => i.branchId);
+      expect(filteredIds).toContain(openId);
+      expect(filteredIds).not.toContain(closedId);
+      expect(filteredIds).not.toContain(unconfiguredId);
+      expect(filteredBody.items.every((i) => i.isOpenNow === true)).toBe(true);
+      expect(filteredBody.total).toBeGreaterThanOrEqual(1);
+      // Filtered total is the full matching count, not the page size.
+      expect(filteredBody.total).toBeGreaterThanOrEqual(filteredIds.length);
+      expect(filteredBody.offset).toBe(0);
+
+      const page = await request(server)
+        .get('/api/v1/customer/branches?limit=1&offset=0&openNow=true')
+        .set('Authorization', `Bearer ${tokenCustomer}`);
+      expect(page.status).toBe(200);
+      const pageBody = page.body as {
+        items: unknown[];
+        total: number;
+        limit: number;
+      };
+      expect(pageBody.limit).toBe(1);
+      expect(pageBody.items).toHaveLength(1);
+      expect(pageBody.total).toBeGreaterThanOrEqual(1);
+      expect(pageBody.total).toBe(filteredBody.total);
+
+      const bad = await request(server)
+        .get('/api/v1/customer/branches?openNow=1')
+        .set('Authorization', `Bearer ${tokenCustomer}`);
+      expect(bad.status).toBe(400);
+    } finally {
+      fixedNow = null;
+      for (const phone of e164) {
+        await cleanupAccount(phone);
+      }
+    }
+  });
+
+  it('openNow at night includes 24h and overnight intervals (not daytime-only)', async () => {
+    const server = app.getHttpServer();
+    const suffix = Date.now().toString().slice(-6);
+    const phones = {
+      customer: `0582${suffix}`,
+      owner: `0583${suffix}`,
+    };
+    const e164: string[] = [];
+    // Tue 03:55 Africa/Algiers — same local night window as COD acceptance probe
+    fixedNow = new Date('2026-09-15T02:55:00.000Z');
+
+    try {
+      const tokenCustomer = await authenticate(phones.customer);
+      const tokenOwner = await authenticate(phones.owner);
+      e164.push(
+        (await authMe(tokenCustomer)).phone,
+        (await authMe(tokenOwner)).phone,
+      );
+
+      await request(server)
+        .post('/api/v1/customer/profile')
+        .set('Authorization', `Bearer ${tokenCustomer}`)
+        .send({ fullName: 'OpenNow Night Customer' });
+
+      const merchant = await request(server)
+        .post('/api/v1/merchant/profile')
+        .set('Authorization', `Bearer ${tokenOwner}`)
+        .send({ name: `OpenNowNight${suffix}` });
+      const merchantId = (merchant.body as MembershipBody).merchantId;
+
+      async function createBranch(name: string) {
+        const branch = await request(server)
+          .post(`/api/v1/merchant/${merchantId}/branches`)
+          .set('Authorization', `Bearer ${tokenOwner}`)
+          .send({
+            name,
+            phone: '0550123498',
+            addressText: 'Street',
+            latitude: INSIDE[0],
+            longitude: INSIDE[1],
+            wilayaCode: '16',
+            communeId: 556,
+          });
+        expect(branch.status).toBe(201);
+        return (branch.body as BranchBody).id;
+      }
+
+      const alwaysId = await createBranch(`000-Night-24h ${suffix}`);
+      const overnightId = await createBranch(`000-Night-OV ${suffix}`);
+      const daytimeId = await createBranch(`000-Night-Day ${suffix}`);
+      await approveMerchant(merchantId);
+
+      await request(server)
+        .put(
+          `/api/v1/merchant/${merchantId}/branches/${alwaysId}/opening-hours`,
+        )
+        .set('Authorization', `Bearer ${tokenOwner}`)
+        .send({
+          expectedVersion: 0,
+          days: weeklyDays(
+            Object.fromEntries(
+              ISO_DAYS_OF_WEEK.map((d) => [d, [{ opens: '00:00', closes: '00:00' }]]),
+            ),
+          ),
+        })
+        .expect(200);
+
+      // Monday 22:00 → Tuesday 06:00 — still open at Tue 03:55
+      await request(server)
+        .put(
+          `/api/v1/merchant/${merchantId}/branches/${overnightId}/opening-hours`,
+        )
+        .set('Authorization', `Bearer ${tokenOwner}`)
+        .send({
+          expectedVersion: 0,
+          days: weeklyDays({
+            1: [{ opens: '22:00', closes: '06:00' }],
+          }),
+        })
+        .expect(200);
+
+      await request(server)
+        .put(
+          `/api/v1/merchant/${merchantId}/branches/${daytimeId}/opening-hours`,
+        )
+        .set('Authorization', `Bearer ${tokenOwner}`)
+        .send({
+          expectedVersion: 0,
+          days: weeklyDays({
+            2: [{ opens: '09:00', closes: '17:00' }],
+          }),
+        })
+        .expect(200);
+
+      const filtered = await request(server)
+        .get('/api/v1/customer/branches?limit=50&offset=0&openNow=true')
+        .set('Authorization', `Bearer ${tokenCustomer}`);
+      expect(filtered.status).toBe(200);
+      const body = filtered.body as {
+        items: Array<{ branchId: string; branchName: string; isOpenNow: boolean }>;
+        total: number;
+      };
+      const ids = body.items.map((i) => i.branchId);
+      expect(ids).toContain(alwaysId);
+      expect(ids).toContain(overnightId);
+      expect(ids).not.toContain(daytimeId);
+      expect(
+        body.items
+          .filter((i) => i.branchId === alwaysId || i.branchId === overnightId)
+          .every((i) => i.isOpenNow === true),
+      ).toBe(true);
     } finally {
       fixedNow = null;
       for (const phone of e164) {

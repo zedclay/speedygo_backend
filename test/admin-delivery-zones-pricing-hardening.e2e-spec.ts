@@ -467,6 +467,8 @@ describe('Admin Delivery Zones + Pricing P1-I hardening (e2e)', () => {
         addressText: 'Hardening Street',
         latitude: INSIDE[0],
         longitude: INSIDE[1],
+        wilayaCode: '16',
+        communeId: 556,
       });
     expect(branchResponse.status).toBe(201);
     const branchId = (branchResponse.body as BranchBody).id;

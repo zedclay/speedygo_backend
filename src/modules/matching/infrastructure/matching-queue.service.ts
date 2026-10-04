@@ -2,6 +2,12 @@ import { InjectQueue } from '@nestjs/bullmq';
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Queue } from 'bullmq';
+import {
+  MATCHING_RECOVERY_JOB_ID,
+  matchingRetryJobId,
+  matchingStartJobId,
+  matchingTimeoutJobId,
+} from '../../../infrastructure/queue/bull-job-id';
 import { DELIVERY_STATUS_SEARCHING_DRIVER } from '../../delivery/domain/delivery.policy';
 import {
   MATCHING_JOB_RECOVERY,
@@ -37,20 +43,14 @@ export class MatchingQueueService implements MatchingJobs, OnModuleInit {
       'matching.recoveryIntervalMs',
       15_000,
     );
-    await this.addJob(
-      MATCHING_JOB_RECOVERY,
-      {},
-      'matching:recovery',
-      undefined,
-      every,
-    );
+    await this.scheduleRecovery(every);
   }
 
   async enqueueStart(orderId: string): Promise<void> {
     await this.addJob(
       MATCHING_JOB_START,
       { orderId },
-      `matching:start:${orderId}`,
+      matchingStartJobId(orderId),
     );
   }
 
@@ -60,7 +60,7 @@ export class MatchingQueueService implements MatchingJobs, OnModuleInit {
     await this.addJob(
       MATCHING_JOB_TIMEOUT,
       { assignmentId },
-      `matching:timeout:${assignmentId}`,
+      matchingTimeoutJobId(assignmentId),
       Math.max(0, delay),
     );
   }
@@ -70,7 +70,7 @@ export class MatchingQueueService implements MatchingJobs, OnModuleInit {
     await this.addJob(
       MATCHING_JOB_RETRY,
       { deliveryId },
-      `matching:retry:${deliveryId}`,
+      matchingRetryJobId(deliveryId),
       delay,
     );
   }
@@ -88,12 +88,42 @@ export class MatchingQueueService implements MatchingJobs, OnModuleInit {
     }
   }
 
+  /**
+   * BullMQ 6 ignores `repeat` on `Queue.add` (legacy repeatables were removed),
+   * so the recurring sweep must be a Job Scheduler. `every <= 0` runs once.
+   */
+  private async scheduleRecovery(every: number): Promise<void> {
+    if (every <= 0) {
+      await this.addJob(MATCHING_JOB_RECOVERY, {}, MATCHING_RECOVERY_JOB_ID);
+      return;
+    }
+    try {
+      await this.queue.upsertJobScheduler(
+        MATCHING_RECOVERY_JOB_ID,
+        { every },
+        {
+          name: MATCHING_JOB_RECOVERY,
+          data: {},
+          opts: {
+            attempts: JOB_ATTEMPTS,
+            backoff: { type: 'exponential', delay: JOB_BACKOFF_MS },
+            removeOnComplete: true,
+            removeOnFail: 20,
+          },
+        },
+      );
+    } catch (error) {
+      this.logger.warn(
+        `Matching recovery schedule failed: ${error instanceof Error ? error.message : String(error)}`,
+      );
+    }
+  }
+
   private async addJob(
     name: string,
     data: Record<string, string>,
     jobId: string,
     delay?: number,
-    repeatEvery?: number,
   ): Promise<void> {
     try {
       await this.queue.add(name, data, {
@@ -103,9 +133,6 @@ export class MatchingQueueService implements MatchingJobs, OnModuleInit {
         backoff: { type: 'exponential', delay: JOB_BACKOFF_MS },
         removeOnComplete: true,
         removeOnFail: 20,
-        ...(repeatEvery
-          ? { repeat: { every: repeatEvery }, delay: undefined }
-          : {}),
       });
     } catch (error) {
       if (isDuplicateJobError(error)) {

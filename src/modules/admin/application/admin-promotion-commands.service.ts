@@ -72,4 +72,70 @@ export class AdminPromotionCommandsService {
       return result;
     });
   }
+
+  async publishDiscovery(
+    admin: CurrentAdminContext,
+    promotionId: string,
+    customerLabel?: string | null,
+  ) {
+    return this.prisma.getDb().transaction(async (tx) => {
+      const result = await this.promotions.setPromotionDiscoverableInTx(
+        tx,
+        promotionId,
+        true,
+        customerLabel,
+      );
+      await this.audit.recordInTx(tx, {
+        adminId: admin.adminProfileId,
+        action: ADMIN_AUDIT_ACTIONS.PROMOTION_PUBLISH_DISCOVERY,
+        targetType: ADMIN_AUDIT_TARGET_TYPES.PROMOTION,
+        targetId: promotionId,
+        afterJson: result,
+        sessionId: admin.sessionId,
+      });
+      return result;
+    });
+  }
+
+  async hideDiscovery(admin: CurrentAdminContext, promotionId: string) {
+    return this.prisma.getDb().transaction(async (tx) => {
+      const result = await this.promotions.setPromotionDiscoverableInTx(
+        tx,
+        promotionId,
+        false,
+      );
+      await this.audit.recordInTx(tx, {
+        adminId: admin.adminProfileId,
+        action: ADMIN_AUDIT_ACTIONS.PROMOTION_HIDE_DISCOVERY,
+        targetType: ADMIN_AUDIT_TARGET_TYPES.PROMOTION,
+        targetId: promotionId,
+        afterJson: result,
+        sessionId: admin.sessionId,
+      });
+      return result;
+    });
+  }
+
+  async updatePresentation(
+    admin: CurrentAdminContext,
+    promotionId: string,
+    customerLabel?: string | null,
+  ) {
+    return this.prisma.getDb().transaction(async (tx) => {
+      const result = await this.promotions.setPromotionPresentationInTx(
+        tx,
+        promotionId,
+        customerLabel,
+      );
+      await this.audit.recordInTx(tx, {
+        adminId: admin.adminProfileId,
+        action: ADMIN_AUDIT_ACTIONS.PROMOTION_UPDATE_PRESENTATION,
+        targetType: ADMIN_AUDIT_TARGET_TYPES.PROMOTION,
+        targetId: promotionId,
+        afterJson: result,
+        sessionId: admin.sessionId,
+      });
+      return result;
+    });
+  }
 }

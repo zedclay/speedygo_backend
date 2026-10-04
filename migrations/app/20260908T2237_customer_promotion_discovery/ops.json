@@ -1,0 +1,125 @@
+[
+  {
+    "id": "column.public.promotions.customer_discoverable",
+    "label": "Add column \"customer_discoverable\" to \"promotions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "customer_discoverable",
+        "table": "promotions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"customer_discoverable\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "promotions",
+          "customer_discoverable"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"customer_discoverable\"",
+        "sql": "ALTER TABLE \"public\".\"promotions\" ADD COLUMN \"customer_discoverable\" bool DEFAULT false NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"customer_discoverable\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "promotions",
+          "customer_discoverable"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.promotions.customer_label",
+    "label": "Add column \"customer_label\" to \"promotions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "customer_label",
+        "table": "promotions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"customer_label\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "promotions",
+          "customer_label"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"customer_label\"",
+        "sql": "ALTER TABLE \"public\".\"promotions\" ADD COLUMN \"customer_label\" character varying(64)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"customer_label\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "promotions",
+          "customer_label"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.promotions.promotions_customer_discovery_a02cab51",
+    "label": "Create index \"promotions_customer_discovery_a02cab51\" on \"promotions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "promotions_customer_discovery_a02cab51",
+        "table": "promotions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"promotions_customer_discovery_a02cab51\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"promotions_customer_discovery_a02cab51\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"promotions_customer_discovery_a02cab51\"",
+        "sql": "CREATE INDEX \"promotions_customer_discovery_a02cab51\" ON \"public\".\"promotions\" (\"customer_discoverable\", \"active\", \"ends_at\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"promotions_customer_discovery_a02cab51\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"promotions_customer_discovery_a02cab51\""
+        ]
+      }
+    ]
+  }
+]

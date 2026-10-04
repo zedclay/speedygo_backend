@@ -1,0 +1,86 @@
+[
+  {
+    "id": "column.public.order_cancellations.reason_code",
+    "label": "Add column \"reason_code\" to \"order_cancellations\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "reason_code",
+        "table": "order_cancellations"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"reason_code\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "order_cancellations",
+          "reason_code"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"reason_code\"",
+        "sql": "ALTER TABLE \"public\".\"order_cancellations\" ADD COLUMN \"reason_code\" character varying(64)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"reason_code\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "order_cancellations",
+          "reason_code"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.order_cancellations.order_cancellations_reason_code_values_1be6ec5c",
+    "label": "Add check constraint \"order_cancellations_reason_code_values_1be6ec5c\" on \"order_cancellations\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "order_cancellations_reason_code_values_1be6ec5c",
+        "table": "order_cancellations"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"order_cancellations_reason_code_values_1be6ec5c\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "order_cancellations_reason_code_values_1be6ec5c",
+          "public",
+          "\"public\".\"order_cancellations\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"order_cancellations_reason_code_values_1be6ec5c\"",
+        "sql": "ALTER TABLE \"public\".\"order_cancellations\" ADD CONSTRAINT \"order_cancellations_reason_code_values_1be6ec5c\" CHECK (reason_code IS NULL OR reason_code IN ('PRODUCT_UNAVAILABLE', 'TOO_BUSY', 'CLOSING_SOON', 'OTHER'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"order_cancellations_reason_code_values_1be6ec5c\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "order_cancellations_reason_code_values_1be6ec5c",
+          "public",
+          "\"public\".\"order_cancellations\""
+        ]
+      }
+    ]
+  }
+]

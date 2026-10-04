@@ -299,6 +299,8 @@ describe('Promotions Foundation (e2e)', () => {
         addressText: 'Pickup',
         latitude: INSIDE[0],
         longitude: INSIDE[1],
+        wilayaCode: '16',
+        communeId: 556,
       });
     const branchId = (branch.body as { id: string }).id;
     await ensureBranchOpeningHours(prisma, branchId, accounts[1].id);

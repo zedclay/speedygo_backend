@@ -283,6 +283,8 @@ describe('Merchant foundation (e2e)', () => {
           addressText: 'Street A',
           latitude: 36.75,
           longitude: 3.05,
+          wilayaCode: '16',
+          communeId: 556,
         });
       expect(branchA.status).toBe(201);
       const createdA = branchA.body as BranchBody;
@@ -415,6 +417,8 @@ describe('Merchant foundation (e2e)', () => {
           addressText: 'Street M',
           latitude: 36.75,
           longitude: 3.05,
+          wilayaCode: '16',
+          communeId: 556,
         });
       expect(managerBranch.status).toBe(201);
 
@@ -427,6 +431,8 @@ describe('Merchant foundation (e2e)', () => {
           addressText: 'Street S',
           latitude: 36.76,
           longitude: 3.06,
+          wilayaCode: '16',
+          communeId: 556,
         });
       expect(staffBranch.status).toBe(403);
       expect((staffBranch.body as ErrorBody).error.code).toBe(
@@ -497,6 +503,8 @@ describe('Merchant foundation (e2e)', () => {
         addressText: 'Street',
         latitude: 36.75,
         longitude: 3.05,
+        wilayaCode: '16',
+        communeId: 556,
       };
       const first = await request(server)
         .post(`/api/v1/merchant/${merchantId}/branches`)

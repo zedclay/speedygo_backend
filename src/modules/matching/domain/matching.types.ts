@@ -19,6 +19,7 @@ export type AssignmentRecord = {
   assignedAt: string;
   acceptedAt: string | null;
   releasedAt: string | null;
+  version: number;
 };
 
 export type MatchingContext = {

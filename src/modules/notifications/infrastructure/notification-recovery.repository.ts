@@ -329,4 +329,32 @@ export class NotificationRecoveryRepository {
       this.db().runtime().query(plan),
     );
   }
+
+  /**
+   * PUSH delivery logs still PENDING (enqueue gap / crashed worker) inside the
+   * lookback window and older than [olderThanIso] so fresh jobs are not raced.
+   */
+  async listPendingPushNotificationIds(input: {
+    lookbackIso: string;
+    olderThanIso: string;
+    limit: number;
+  }): Promise<Array<{ notificationId: string }>> {
+    const plan = this.db().raw.sql`
+      SELECT l.notification_id AS "notificationId"
+      FROM notification_delivery_logs l
+      WHERE l.channel = 'PUSH'
+        AND l.status = 'PENDING'
+        AND l.created_at >= ${input.lookbackIso}::timestamptz
+        AND l.created_at <= ${input.olderThanIso}::timestamptz
+      ORDER BY l.created_at ASC
+      LIMIT ${input.limit}
+    `
+      .returnsRow({
+        notificationId: 'pg/uuid@1',
+      })
+      .build();
+    return consumeQueryRows<{ notificationId: string }>(
+      this.db().runtime().query(plan),
+    );
+  }
 }

@@ -1,0 +1,608 @@
+[
+  {
+    "id": "table.merchant_branch_hours_exception_intervals",
+    "label": "Create table \"merchant_branch_hours_exception_intervals\"",
+    "summary": "Creates table \"merchant_branch_hours_exception_intervals\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "merchant_branch_hours_exception_intervals"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"merchant_branch_hours_exception_intervals\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_hours_exception_intervals\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"merchant_branch_hours_exception_intervals\"",
+        "sql": "CREATE TABLE \"public\".\"merchant_branch_hours_exception_intervals\" (\n  \"closes_minute\" int4 NOT NULL,\n  \"closes_next_day\" bool NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"exception_id\" uuid NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"opens_minute\" int4 NOT NULL,\n  \"sort_order\" int4 NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"mbhei_closes_minute_range_bf3125d6\" CHECK (closes_minute >= 0 AND closes_minute <= 1439),\n  CONSTRAINT \"mbhei_opens_minute_range_c4a5e691\" CHECK (opens_minute >= 0 AND opens_minute <= 1439),\n  CONSTRAINT \"mbhei_same_day_ddcda821\" CHECK ((closes_next_day = false AND closes_minute > opens_minute) OR (closes_next_day = true AND closes_minute = 0)),\n  CONSTRAINT \"mbhei_sort_order_nonneg_eb4b5508\" CHECK (sort_order >= 0)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"merchant_branch_hours_exception_intervals\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_hours_exception_intervals\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.merchant_branch_hours_exceptions",
+    "label": "Create table \"merchant_branch_hours_exceptions\"",
+    "summary": "Creates table \"merchant_branch_hours_exceptions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "merchant_branch_hours_exceptions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"merchant_branch_hours_exceptions\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_hours_exceptions\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"merchant_branch_hours_exceptions\"",
+        "sql": "CREATE TABLE \"public\".\"merchant_branch_hours_exceptions\" (\n  \"branch_id\" uuid NOT NULL,\n  \"closed\" bool NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"customer_message\" character varying(500),\n  \"id\" uuid NOT NULL,\n  \"label\" character varying(80) NOT NULL,\n  \"local_date\" date NOT NULL,\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"updated_by_account_id\" uuid NOT NULL,\n  \"version\" int4 NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"mbhe_label_not_blank_69b5916b\" CHECK (length(btrim(label)) > 0),\n  CONSTRAINT \"mbhe_version_positive_c2490804\" CHECK (version >= 1)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"merchant_branch_hours_exceptions\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_hours_exceptions\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "table.merchant_branch_logos",
+    "label": "Create table \"merchant_branch_logos\"",
+    "summary": "Creates table \"merchant_branch_logos\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "merchant_branch_logos"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"merchant_branch_logos\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_logos\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"merchant_branch_logos\"",
+        "sql": "CREATE TABLE \"public\".\"merchant_branch_logos\" (\n  \"branch_id\" uuid NOT NULL,\n  \"byte_size\" int4 NOT NULL,\n  \"content_type\" character varying(64) NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"height_px\" int4 NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"object_id\" character varying(64) NOT NULL,\n  \"updated_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"width_px\" int4 NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"merchant_branch_logos_byte_size_pos_37df7c4a\" CHECK (byte_size > 0),\n  CONSTRAINT \"merchant_branch_logos_height_pos_194b6462\" CHECK (height_px > 0),\n  CONSTRAINT \"merchant_branch_logos_width_pos_9aff30b8\" CHECK (width_px > 0)\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"merchant_branch_logos\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_logos\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.products.duplicate_request_key",
+    "label": "Add column \"duplicate_request_key\" to \"products\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "duplicate_request_key",
+        "table": "products"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"duplicate_request_key\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "products",
+          "duplicate_request_key"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"duplicate_request_key\"",
+        "sql": "ALTER TABLE \"public\".\"products\" ADD COLUMN \"duplicate_request_key\" character varying(64)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"duplicate_request_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "products",
+          "duplicate_request_key"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.merchant_branch_logos.merchant_branch_logos_branch_id_key",
+    "label": "Add unique constraint on \"merchant_branch_logos\" (branch_id)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "merchant_branch_logos_branch_id_key",
+        "table": "merchant_branch_logos"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"merchant_branch_logos_branch_id_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_logos_branch_id_key",
+          "public",
+          "\"public\".\"merchant_branch_logos\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"merchant_branch_logos_branch_id_key\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_logos\" ADD CONSTRAINT \"merchant_branch_logos_branch_id_key\" UNIQUE (\"branch_id\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"merchant_branch_logos_branch_id_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_logos_branch_id_key",
+          "public",
+          "\"public\".\"merchant_branch_logos\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "unique.products.products_duplicate_request_key_key",
+    "label": "Add unique constraint on \"products\" (duplicate_request_key)",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "unique",
+        "name": "products_duplicate_request_key_key",
+        "table": "products"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"products_duplicate_request_key_key\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "products_duplicate_request_key_key",
+          "public",
+          "\"public\".\"products\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add unique constraint \"products_duplicate_request_key_key\"",
+        "sql": "ALTER TABLE \"public\".\"products\" ADD CONSTRAINT \"products_duplicate_request_key_key\" UNIQUE (\"duplicate_request_key\")"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"products_duplicate_request_key_key\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "products_duplicate_request_key_key",
+          "public",
+          "\"public\".\"products\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_branch_hours_exception_intervals.mbhei_exception_sort_6abf0a5c",
+    "label": "Create index \"mbhei_exception_sort_6abf0a5c\" on \"merchant_branch_hours_exception_intervals\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "mbhei_exception_sort_6abf0a5c",
+        "table": "merchant_branch_hours_exception_intervals"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"mbhei_exception_sort_6abf0a5c\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mbhei_exception_sort_6abf0a5c\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"mbhei_exception_sort_6abf0a5c\"",
+        "sql": "CREATE INDEX \"mbhei_exception_sort_6abf0a5c\" ON \"public\".\"merchant_branch_hours_exception_intervals\" (\"exception_id\", \"sort_order\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"mbhei_exception_sort_6abf0a5c\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mbhei_exception_sort_6abf0a5c\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_branch_hours_exception_intervals.merchant_branch_hours_exception_intervals_exception_id_a9e27c78",
+    "label": "Create index \"merchant_branch_hours_exception_intervals_exception_id_a9e27c78\" on \"merchant_branch_hours_exception_intervals\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "merchant_branch_hours_exception_intervals_exception_id_a9e27c78",
+        "table": "merchant_branch_hours_exception_intervals"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"merchant_branch_hours_exception_intervals_exception_id_a9e27c78\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_hours_exception_intervals_exception_id_a9e27c78\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"merchant_branch_hours_exception_intervals_exception_id_a9e27c78\"",
+        "sql": "CREATE INDEX \"merchant_branch_hours_exception_intervals_exception_id_a9e27c78\" ON \"public\".\"merchant_branch_hours_exception_intervals\" (\"exception_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"merchant_branch_hours_exception_intervals_exception_id_a9e27c78\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_hours_exception_intervals_exception_id_a9e27c78\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_branch_hours_exceptions.mbhe_branch_local_date_uq_3efafeed",
+    "label": "Create index \"mbhe_branch_local_date_uq_3efafeed\" on \"merchant_branch_hours_exceptions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "mbhe_branch_local_date_uq_3efafeed",
+        "table": "merchant_branch_hours_exceptions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"mbhe_branch_local_date_uq_3efafeed\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mbhe_branch_local_date_uq_3efafeed\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"mbhe_branch_local_date_uq_3efafeed\"",
+        "sql": "CREATE UNIQUE INDEX \"mbhe_branch_local_date_uq_3efafeed\" ON \"public\".\"merchant_branch_hours_exceptions\" (\"branch_id\", \"local_date\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"mbhe_branch_local_date_uq_3efafeed\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"mbhe_branch_local_date_uq_3efafeed\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_branch_hours_exceptions.merchant_branch_hours_exceptions_branch_id_idx_b5212172",
+    "label": "Create index \"merchant_branch_hours_exceptions_branch_id_idx_b5212172\" on \"merchant_branch_hours_exceptions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "merchant_branch_hours_exceptions_branch_id_idx_b5212172",
+        "table": "merchant_branch_hours_exceptions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"merchant_branch_hours_exceptions_branch_id_idx_b5212172\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_hours_exceptions_branch_id_idx_b5212172\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"merchant_branch_hours_exceptions_branch_id_idx_b5212172\"",
+        "sql": "CREATE INDEX \"merchant_branch_hours_exceptions_branch_id_idx_b5212172\" ON \"public\".\"merchant_branch_hours_exceptions\" (\"branch_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"merchant_branch_hours_exceptions_branch_id_idx_b5212172\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_hours_exceptions_branch_id_idx_b5212172\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.merchant_branch_hours_exceptions.merchant_branch_hours_exceptions_updated_by_account_id_8a198d5b",
+    "label": "Create index \"merchant_branch_hours_exceptions_updated_by_account_id_8a198d5b\" on \"merchant_branch_hours_exceptions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "merchant_branch_hours_exceptions_updated_by_account_id_8a198d5b",
+        "table": "merchant_branch_hours_exceptions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"merchant_branch_hours_exceptions_updated_by_account_id_8a198d5b\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_hours_exceptions_updated_by_account_id_8a198d5b\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"merchant_branch_hours_exceptions_updated_by_account_id_8a198d5b\"",
+        "sql": "CREATE INDEX \"merchant_branch_hours_exceptions_updated_by_account_id_8a198d5b\" ON \"public\".\"merchant_branch_hours_exceptions\" (\"updated_by_account_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"merchant_branch_hours_exceptions_updated_by_account_id_8a198d5b\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"merchant_branch_hours_exceptions_updated_by_account_id_8a198d5b\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_branch_hours_exception_intervals.merchant_branch_hours_exception_intervals_exception_id_fkey",
+    "label": "Add foreign key \"merchant_branch_hours_exception_intervals_exception_id_fkey\" on \"merchant_branch_hours_exception_intervals\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_branch_hours_exception_intervals_exception_id_fkey",
+        "table": "merchant_branch_hours_exception_intervals"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_branch_hours_exception_intervals_exception_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_hours_exception_intervals_exception_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_hours_exception_intervals\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_branch_hours_exception_intervals_exception_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_hours_exception_intervals\"\nADD CONSTRAINT \"merchant_branch_hours_exception_intervals_exception_id_fkey\"\nFOREIGN KEY (\"exception_id\")\nREFERENCES \"public\".\"merchant_branch_hours_exceptions\" (\"id\")\nON DELETE CASCADE"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_branch_hours_exception_intervals_exception_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_hours_exception_intervals_exception_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_hours_exception_intervals\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_branch_hours_exceptions.merchant_branch_hours_exceptions_branch_id_fkey",
+    "label": "Add foreign key \"merchant_branch_hours_exceptions_branch_id_fkey\" on \"merchant_branch_hours_exceptions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_branch_hours_exceptions_branch_id_fkey",
+        "table": "merchant_branch_hours_exceptions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_branch_hours_exceptions_branch_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_hours_exceptions_branch_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_hours_exceptions\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_branch_hours_exceptions_branch_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_hours_exceptions\"\nADD CONSTRAINT \"merchant_branch_hours_exceptions_branch_id_fkey\"\nFOREIGN KEY (\"branch_id\")\nREFERENCES \"public\".\"merchant_branches\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_branch_hours_exceptions_branch_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_hours_exceptions_branch_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_hours_exceptions\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_branch_hours_exceptions.merchant_branch_hours_exceptions_updated_by_account_id_fkey",
+    "label": "Add foreign key \"merchant_branch_hours_exceptions_updated_by_account_id_fkey\" on \"merchant_branch_hours_exceptions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_branch_hours_exceptions_updated_by_account_id_fkey",
+        "table": "merchant_branch_hours_exceptions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_branch_hours_exceptions_updated_by_account_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_hours_exceptions_updated_by_account_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_hours_exceptions\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_branch_hours_exceptions_updated_by_account_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_hours_exceptions\"\nADD CONSTRAINT \"merchant_branch_hours_exceptions_updated_by_account_id_fkey\"\nFOREIGN KEY (\"updated_by_account_id\")\nREFERENCES \"public\".\"accounts\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_branch_hours_exceptions_updated_by_account_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_hours_exceptions_updated_by_account_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_hours_exceptions\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.merchant_branch_logos.merchant_branch_logos_branch_id_fkey",
+    "label": "Add foreign key \"merchant_branch_logos_branch_id_fkey\" on \"merchant_branch_logos\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "merchant_branch_logos_branch_id_fkey",
+        "table": "merchant_branch_logos"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"merchant_branch_logos_branch_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_logos_branch_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_logos\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"merchant_branch_logos_branch_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"merchant_branch_logos\"\nADD CONSTRAINT \"merchant_branch_logos_branch_id_fkey\"\nFOREIGN KEY (\"branch_id\")\nREFERENCES \"public\".\"merchant_branches\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"merchant_branch_logos_branch_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "merchant_branch_logos_branch_id_fkey",
+          "public",
+          "\"public\".\"merchant_branch_logos\""
+        ]
+      }
+    ]
+  }
+]

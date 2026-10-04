@@ -4,9 +4,17 @@ import {
   type CheckoutClock,
 } from '../../checkout/domain/checkout.clock';
 import { customerProfileNotFound } from '../../customers/domain/customer.errors';
+import { MerchantProductImageService } from './merchant-product-image.service';
+import { MerchantBranchCoverService } from '../../merchants/application/merchant-branch-cover.service';
 import { OpeningHoursService } from '../../merchants/application/opening-hours.service';
 import { OPENING_HOURS_TIMEZONE } from '../../merchants/domain/opening-hours.constants';
 import type { OpeningHoursEvaluation } from '../../merchants/domain/opening-hours.evaluator';
+import { captureOpenNowLocalParts } from '../../merchants/domain/opening-hours.open-now-filter';
+import {
+  commerceVerticalInactive,
+  commerceVerticalNotFound,
+} from '../domain/commerce-vertical.errors';
+import type { CustomerCommerceVerticalView } from '../domain/commerce-vertical.types';
 import {
   customerProductNotFound,
   customerStorefrontNotFound,
@@ -25,6 +33,7 @@ import type {
   CustomerStorefrontDetail,
   CustomerStorefrontSummary,
 } from '../domain/customer-catalog.types';
+import { CommerceVerticalRepository } from '../infrastructure/commerce-vertical.repository';
 import { CustomerCatalogRepository } from '../infrastructure/customer-catalog.repository';
 
 @Injectable()
@@ -33,17 +42,58 @@ export class CustomerCatalogService {
     private readonly catalog: CustomerCatalogRepository,
     private readonly openingHours: OpeningHoursService,
     @Inject(CHECKOUT_CLOCK) private readonly clock: CheckoutClock,
+    private readonly verticals: CommerceVerticalRepository,
+    private readonly covers: MerchantBranchCoverService,
+    private readonly productImages: MerchantProductImageService,
   ) {}
+
+  async listCommerceVerticals(
+    accountId: string,
+  ): Promise<{ items: CustomerCommerceVerticalView[] }> {
+    await this.requireCustomerProfile(accountId);
+    const rows = await this.verticals.listActive();
+    return {
+      items: rows.map((row) => ({
+        id: row.id,
+        slug: row.slug,
+        name: row.name,
+        iconKey: row.iconKey,
+        sortOrder: row.sortOrder,
+      })),
+    };
+  }
 
   async listStorefronts(
     accountId: string,
-    query: { limit?: number; offset?: number; sort?: string },
+    query: {
+      limit?: number;
+      offset?: number;
+      sort?: string;
+      verticalId?: string;
+      openNow?: boolean;
+    },
   ): Promise<CustomerCatalogPage<CustomerStorefrontSummary>> {
     await this.requireCustomerProfile(accountId);
     resolveCustomerCatalogSort(query.sort);
     const page = normalizeCustomerCatalogPagination(query);
-    const result = await this.catalog.listStorefronts(page);
+    if (query.verticalId) {
+      const vertical = await this.verticals.findById(query.verticalId);
+      if (!vertical) {
+        throw commerceVerticalNotFound();
+      }
+      if (!vertical.active) {
+        throw commerceVerticalInactive();
+      }
+    }
+    // One captured "now" for openNow SQL filter + hours enrichment so totals agree.
     const now = this.clock.now();
+    const openNowLocal =
+      query.openNow === true ? captureOpenNowLocalParts(now) : undefined;
+    const result = await this.catalog.listStorefronts({
+      ...page,
+      verticalId: query.verticalId,
+      openNowLocal,
+    });
     const hours = await this.openingHours.evaluateBranches(
       result.items.map((item) => item.branchId),
       now,
@@ -130,6 +180,34 @@ export class CustomerCatalogService {
     return product;
   }
 
+  async readCover(
+    accountId: string,
+    branchId: string,
+  ): Promise<{ body: Buffer; contentType: string }> {
+    await this.requireCustomerProfile(accountId);
+    const storefront = await this.catalog.findVisibleStorefront(branchId);
+    if (!storefront) {
+      throw customerStorefrontNotFound();
+    }
+    return this.covers.readCustomerCover(branchId);
+  }
+
+  async readProductImage(
+    accountId: string,
+    branchId: string,
+    productId: string,
+  ): Promise<{ body: Buffer; contentType: string }> {
+    await this.requireCustomerProfile(accountId);
+    const product = await this.catalog.findVisibleProductDetail(
+      branchId,
+      productId,
+    );
+    if (!product) {
+      throw customerProductNotFound();
+    }
+    return this.productImages.readCustomerImage(productId);
+  }
+
   async search(
     accountId: string,
     query: { q: string; limit?: number; offset?: number; sort?: string },
@@ -187,6 +265,7 @@ export class CustomerCatalogService {
       merchantId: storefront.merchantId,
       merchantName: storefront.merchantName,
       merchantPublicReference: storefront.merchantPublicReference,
+      coverImageUrl: storefront.coverImageUrl ?? null,
       hoursConfigured: hours.hoursConfigured,
       isOpenNow: hours.isOpenNow,
       timezone: hours.timezone,

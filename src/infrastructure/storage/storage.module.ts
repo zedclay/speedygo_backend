@@ -4,6 +4,8 @@ import { ClamAvMalwareScanner } from './adapters/clamav-malware.scanner';
 import { LocalObjectStorage } from './adapters/local-object.storage';
 import { S3ObjectStorage } from './adapters/s3-object.storage';
 import { UnavailableMalwareScanner } from './adapters/unavailable-malware.scanner';
+import { CoverMediaStorageService } from './application/cover-media-storage.service';
+import { ProductImageStorageService } from './application/product-image-storage.service';
 import { DocumentObjectRegistry } from './application/document-object.registry';
 import { PendingObjectCleanupService } from './application/pending-object-cleanup.service';
 import { SecureDocumentStorageService } from './application/secure-document-storage.service';
@@ -52,6 +54,8 @@ function assertProductionStorageConfig(config: ConfigService): void {
   providers: [
     DocumentObjectRegistry,
     SecureDocumentStorageService,
+    CoverMediaStorageService,
+    ProductImageStorageService,
     PendingObjectCleanupService,
     UnavailableMalwareScanner,
     ClamAvMalwareScanner,
@@ -99,6 +103,8 @@ function assertProductionStorageConfig(config: ConfigService): void {
     MALWARE_SCANNER_PORT,
     DocumentObjectRegistry,
     SecureDocumentStorageService,
+    CoverMediaStorageService,
+    ProductImageStorageService,
     PendingObjectCleanupService,
   ],
 })

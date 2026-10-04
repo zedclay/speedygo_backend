@@ -3,9 +3,13 @@ import {
   assertPromotionEffective,
   buildPromotionDecision,
   calculateDiscountAmountMinor,
+  compareDiscoverablePromotions,
+  isPromotionDiscoverable,
+  normalizeCustomerLabel,
   normalizePromotionCode,
   parsePromotionType,
   requirePositiveCustomerPayableAfterPromotion,
+  toCustomerDiscoverablePromotion,
 } from './promotion.policy';
 import { PROMOTION_ERROR_CODES } from './promotion.errors';
 import {
@@ -36,6 +40,8 @@ function basePromo(
     startsAt: '2020-01-01T00:00:00.000Z',
     endsAt: '2099-01-01T00:00:00.000Z',
     active: overrides.active ?? true,
+    customerDiscoverable: false,
+    customerLabel: null,
     createdAt: '2020-01-01T00:00:00.000Z',
     updatedAt: '2020-01-01T00:00:00.000Z',
   };
@@ -218,5 +224,96 @@ describe('promotion.policy', () => {
         deliveryFeeMinor: 200,
       }),
     ).toBe(200);
+  });
+
+  it('keeps unpublished promotions undiscoverable even when effective', () => {
+    expect(
+      isPromotionDiscoverable(basePromo(), new Date('2026-01-01T00:00:00.000Z')),
+    ).toBe(false);
+  });
+
+  it('discovers only published effective promotions', () => {
+    const now = new Date('2026-06-01T00:00:00.000Z');
+    expect(
+      isPromotionDiscoverable(
+        { ...basePromo(), customerDiscoverable: true },
+        now,
+      ),
+    ).toBe(true);
+    expect(
+      isPromotionDiscoverable(
+        { ...basePromo(), customerDiscoverable: true, active: false },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isPromotionDiscoverable(
+        {
+          ...basePromo(),
+          customerDiscoverable: true,
+          startsAt: '2027-01-01T00:00:00.000Z',
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isPromotionDiscoverable(
+        {
+          ...basePromo(),
+          customerDiscoverable: true,
+          endsAt: '2026-01-01T00:00:00.000Z',
+        },
+        now,
+      ),
+    ).toBe(false);
+    expect(
+      isPromotionDiscoverable(
+        {
+          ...basePromo(),
+          customerDiscoverable: true,
+          endsAt: '2026-06-01T00:00:00.000Z',
+        },
+        now,
+      ),
+    ).toBe(false);
+  });
+
+  it('strips funding from Customer discovery projection', () => {
+    const view = toCustomerDiscoverablePromotion({
+      ...basePromo({
+        type: PROMOTION_TYPE_SPEEDYGO_FIXED_MINOR,
+        value: 15000,
+      }),
+      customerDiscoverable: true,
+      customerLabel: 'Offre Spéciale',
+    });
+    expect(view).toEqual({
+      id: 'p1',
+      code: 'SAVE10',
+      discountKind: PROMOTION_KIND_FIXED_MINOR,
+      value: 15000,
+      startsAt: '2020-01-01T00:00:00.000Z',
+      endsAt: '2099-01-01T00:00:00.000Z',
+      customerLabel: 'Offre Spéciale',
+      eligibility: 'DISCOVERABLE',
+    });
+    expect(view).not.toHaveProperty('type');
+    expect(view).not.toHaveProperty('funding');
+    expect(view).not.toHaveProperty('customerDiscoverable');
+  });
+
+  it('orders discovery by endsAt then id', () => {
+    const earlier = { id: 'b', endsAt: '2026-07-01T00:00:00.000Z' };
+    const later = { id: 'a', endsAt: '2026-08-01T00:00:00.000Z' };
+    const sameEndA = { id: 'aaa', endsAt: '2026-07-01T00:00:00.000Z' };
+    const sameEndB = { id: 'bbb', endsAt: '2026-07-01T00:00:00.000Z' };
+    expect(compareDiscoverablePromotions(earlier, later)).toBeLessThan(0);
+    expect(compareDiscoverablePromotions(sameEndA, sameEndB)).toBeLessThan(0);
+  });
+
+  it('normalizes optional customer labels', () => {
+    expect(normalizeCustomerLabel('  Offre Spéciale  ')).toBe('Offre Spéciale');
+    expect(normalizeCustomerLabel('   ')).toBeNull();
+    expect(normalizeCustomerLabel(null)).toBeNull();
   });
 });

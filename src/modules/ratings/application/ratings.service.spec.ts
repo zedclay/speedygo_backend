@@ -261,6 +261,34 @@ describe('RatingsService', () => {
     });
   });
 
+  it('batches merchant summaries for existing merchants only', async () => {
+    const repo = {
+      listExistingMerchantIds: jest
+        .fn()
+        .mockResolvedValue(['dddddddd-dddd-4ddd-8ddd-dddddddddddd']),
+      aggregateMerchantRatingsMany: jest.fn().mockResolvedValue(
+        new Map([
+          ['dddddddd-dddd-4ddd-8ddd-dddddddddddd', { count: 2, sum: 9 }],
+        ]),
+      ),
+    };
+    const service = build(repo);
+    await expect(
+      service.merchantSummaries(
+        'dddddddd-dddd-4ddd-8ddd-dddddddddddd,eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      ),
+    ).resolves.toEqual({
+      items: [
+        {
+          targetType: 'MERCHANT',
+          targetId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+          count: 2,
+          average: 4.5,
+        },
+      ],
+    });
+  });
+
   it('summary averages with two-decimal precision', async () => {
     const repo = {
       driverExists: jest.fn().mockResolvedValue(true),

@@ -402,6 +402,8 @@ describe('Merchant Commission Foundation (e2e)', () => {
             addressText: 'Street',
             latitude: 36.75,
             longitude: 3.05,
+            wilayaCode: '16',
+            communeId: 556,
           });
         const branchId = (branch.body as BranchBody).id;
         const merchantAccount = await authMe(token);
@@ -772,6 +774,8 @@ describe('Merchant Commission Foundation (e2e)', () => {
           addressText: 'Street',
           latitude: 36.75,
           longitude: 3.05,
+          wilayaCode: '16',
+          communeId: 556,
         });
       const branchId = (branch.body as BranchBody).id;
       const merchantAccount = await authMe(tokenMerchant);

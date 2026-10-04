@@ -1,0 +1,186 @@
+{
+  "purpose": "Local copies of licensed photographs used as fictional storefront covers. Downloaded and optimized; not hotlinked.",
+  "usage": "Development visual review only. Attribution required where the license demands it.",
+  "covers": [
+    {
+      "storefront": "Dar El Bahja",
+      "localFile": "assets/dar-el-bahja.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Couscousalgeriennr1.jpg",
+      "author": "Slothtysloth",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "Couscous algérien — Slothtysloth, CC BY-SA 4.0, via Wikimedia Commons"
+    },
+    {
+      "storefront": "Le Jardin d’El Biar",
+      "localFile": "assets/jardin-el-biar.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Barlovento,_La_Palma,_garden_salad.jpg",
+      "author": "Gerda Arendt",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "attribution": "Salade de jardin — Gerda Arendt, CC0 1.0, via Wikimedia Commons"
+    },
+    {
+      "storefront": "Grillade des Oliviers",
+      "localFile": "assets/grillade-oliviers.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Brochettes.jpg",
+      "author": "François Terrier",
+      "license": "CC BY 2.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+      "attribution": "Brochettes — François Terrier, CC BY 2.0, via Wikimedia Commons"
+    },
+    {
+      "storefront": "Four de Didouche",
+      "localFile": "assets/four-didouche.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Croissants_au_beurre_(18953292873).jpg",
+      "author": "Herry Wibisono (herryway)",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "attribution": "Croissants au beurre — Herry Wibisono, CC0 1.0, via Wikimedia Commons"
+    },
+    {
+      "storefront": "Maison du Blé",
+      "localFile": "assets/maison-du-ble.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Pain_au_chocolat_Luc_Viatour.jpg",
+      "author": "Luc Viatour",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "attribution": "Pain au chocolat — Luc Viatour, CC BY-SA 3.0, via Wikimedia Commons"
+    },
+    {
+      "storefront": "Souk El Khemis",
+      "localFile": "assets/souk-el-khemis.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Fruit_stall.jpg",
+      "author": "Mauryndinar",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "Étal de fruits — Mauryndinar, CC BY-SA 4.0, via Wikimedia Commons"
+    },
+    {
+      "storefront": "Épicerie du Parc",
+      "localFile": "assets/epicerie-du-parc.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Best_organic_produce_Toronto.jpg",
+      "author": "Andrea Fonseca",
+      "license": "CC BY 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/3.0/",
+      "attribution": "Fruits et légumes — Andrea Fonseca, CC BY 3.0, via Wikimedia Commons"
+    },
+    {
+      "storefront": "Pharmacie Atlas",
+      "localFile": "assets/pharmacie-atlas.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Pharmacy_111025-F-HK400-027.jpg",
+      "author": "Airman 1st Class Zachary Hada, United States Air Force",
+      "license": "Public domain (U.S. work)",
+      "licenseUrl": "https://commons.wikimedia.org/wiki/File:Pharmacy_111025-F-HK400-027.jpg",
+      "attribution": "Rayon pharmacie — Zachary Hada, U.S. Air Force, public domain, via Wikimedia Commons"
+    },
+    {
+      "storefront": "Glaces du Palmier",
+      "localFile": "assets/glaces-du-palmier.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Ice_Cream_Dessert_(Unsplash).jpg",
+      "author": "Alex Jones",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "attribution": "Dessert glacé — Alex Jones, CC0 1.0, via Wikimedia Commons / Unsplash"
+    },
+    {
+      "storefront": "Atelier Sucré",
+      "localFile": "assets/atelier-sucre.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Baklava_1.jpg",
+      "author": "Challiyan",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "Baklava — Challiyan, CC BY-SA 4.0, via Wikimedia Commons"
+    }
+  ],
+  "products": [
+    {
+      "product": "Couscous royal",
+      "productId": "0d00c071-d000-7000-8000-000000030101",
+      "localFile": "assets/dar-el-bahja.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Couscousalgeriennr1.jpg",
+      "author": "Slothtysloth",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "Couscous algérien — Slothtysloth, CC BY-SA 4.0, via Wikimedia Commons",
+      "modifications": "JPEG resized/compressed locally. Bound as the product photograph via the merchant image API."
+    },
+    {
+      "product": "Salade du jardin",
+      "productId": "0d00c071-d000-7000-8000-000000030201",
+      "localFile": "assets/jardin-el-biar.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Barlovento,_La_Palma,_garden_salad.jpg",
+      "author": "Gerda Arendt",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "attribution": "Salade de jardin — Gerda Arendt, CC0 1.0, via Wikimedia Commons",
+      "modifications": "JPEG resized/compressed locally. Bound as the product photograph via the merchant image API."
+    },
+    {
+      "product": "Brochettes d’agneau",
+      "productId": "0d00c071-d000-7000-8000-000000030301",
+      "localFile": "assets/grillade-oliviers.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Brochettes.jpg",
+      "author": "François Terrier",
+      "license": "CC BY 2.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by/2.0/",
+      "attribution": "Brochettes — François Terrier, CC BY 2.0, via Wikimedia Commons",
+      "modifications": "JPEG resized/compressed locally. Bound as the product photograph via the merchant image API."
+    },
+    {
+      "product": "Croissant au beurre",
+      "productId": "0d00c071-d000-7000-8000-000000030421",
+      "localFile": "assets/four-didouche.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Croissants_au_beurre_(18953292873).jpg",
+      "author": "Herry Wibisono (herryway)",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "attribution": "Croissants au beurre — Herry Wibisono, CC0 1.0, via Wikimedia Commons",
+      "modifications": "JPEG resized/compressed locally. Bound as the product photograph via the merchant image API."
+    },
+    {
+      "product": "Pain au chocolat",
+      "productId": "0d00c071-d000-7000-8000-000000030422",
+      "localFile": "assets/maison-du-ble.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Pain_au_chocolat_Luc_Viatour.jpg",
+      "author": "Luc Viatour",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "attribution": "Pain au chocolat — Luc Viatour, CC BY-SA 3.0, via Wikimedia Commons",
+      "modifications": "JPEG resized/compressed locally. Bound as the product photograph via the merchant image API."
+    },
+    {
+      "product": "Tomates 1 kg",
+      "productId": "0d00c071-d000-7000-8000-000000030601",
+      "localFile": "assets/tomates-1kg.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Tomato_je.jpg",
+      "author": "fir0002",
+      "license": "CC BY-SA 3.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/3.0/",
+      "attribution": "Tomato — fir0002, CC BY-SA 3.0, via Wikimedia Commons",
+      "modifications": "JPEG resized/compressed locally. Bound as the product photograph via the merchant image API."
+    },
+    {
+      "product": "Cornet 2 boules",
+      "productId": "0d00c071-d000-7000-8000-000000030901",
+      "localFile": "assets/glaces-du-palmier.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Ice_Cream_Dessert_(Unsplash).jpg",
+      "author": "Alex Jones",
+      "license": "CC0 1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "attribution": "Dessert glacé — Alex Jones, CC0 1.0, via Wikimedia Commons / Unsplash",
+      "modifications": "JPEG resized/compressed locally. Bound as the product photograph via the merchant image API."
+    },
+    {
+      "product": "Baklava",
+      "productId": "0d00c071-d000-7000-8000-000000031007",
+      "localFile": "assets/atelier-sucre.jpg",
+      "sourcePage": "https://commons.wikimedia.org/wiki/File:Baklava_1.jpg",
+      "author": "Challiyan",
+      "license": "CC BY-SA 4.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/4.0/",
+      "attribution": "Baklava — Challiyan, CC BY-SA 4.0, via Wikimedia Commons",
+      "modifications": "JPEG resized/compressed locally. Bound as the product photograph via the merchant image API."
+    }
+  ]
+}

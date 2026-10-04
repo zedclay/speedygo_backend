@@ -16,6 +16,10 @@ import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import { CART_STATUS_CONVERTED } from '../../cart/domain/cart.policy';
 import type { CheckoutPricingRuleRecord } from '../../checkout/domain/checkout.types';
+import {
+  deriveMerchantDeliveryImpact,
+  derivePreparationDelayMinutes,
+} from '../domain/merchant-delivery-impact';
 import { orderAlreadyCreated } from '../domain/order.errors';
 import {
   MERCHANT_FULFILLMENT_STATUS_FILTERS,
@@ -510,8 +514,26 @@ export class OrderRepository {
     actorAccountId: string,
     expectedUpdatedAt: string,
     client: OrmClient,
+    preparationMinutes?: number,
   ): Promise<boolean> {
     const now = pgNow();
+    const acceptInstant = new Date();
+    const estimateFields =
+      preparationMinutes != null
+        ? (() => {
+            const ready = new Date(
+              acceptInstant.getTime() + preparationMinutes * 60_000,
+            );
+            const readyTs = pgTimestamptz(ready.toISOString());
+            return {
+              preparationMinutes,
+              originalPreparationMinutes: preparationMinutes,
+              estimatedReadyAt: readyTs,
+              originalEstimatedReadyAt: readyTs,
+              preparationEstimateVersion: 1,
+            };
+          })()
+        : {};
     await orm(client)
       .Order.where({
         id: orderId,
@@ -524,6 +546,7 @@ export class OrderRepository {
         fulfillmentStatus: ORDER_FULFILLMENT_ACCEPTED,
         confirmedAt: now,
         updatedAt: now,
+        ...estimateFields,
       });
     const row = await orm(client).Order.where({ id: orderId }).first();
     if (
@@ -544,7 +567,93 @@ export class OrderRepository {
       client,
       now,
     );
+    if (preparationMinutes != null && row.estimatedReadyAt) {
+      await orm(client).OrderPreparationEstimateRevision.create({
+        id: createUuidV7(),
+        orderId,
+        revisionNumber: 1,
+        previousEstimatedReadyAt: null,
+        newEstimatedReadyAt: pgTimestamptz(row.estimatedReadyAt),
+        addMinutes: preparationMinutes,
+        reason: null,
+        actorAccountId,
+        createdAt: now,
+      });
+    }
     return true;
+  }
+
+  async applyPreparationEstimateAdd(
+    orderId: string,
+    actorAccountId: string,
+    expectedUpdatedAt: string,
+    expectedEstimateVersion: number,
+    addMinutes: number,
+    reason: string | null,
+    client: OrmClient,
+  ): Promise<
+    | { ok: true }
+    | { ok: false; reason: 'CONFLICT' | 'NOT_ALLOWED' | 'NO_ESTIMATE' }
+  > {
+    const existing = await orm(client).Order.where({ id: orderId }).first();
+    if (!existing) {
+      return { ok: false, reason: 'NOT_ALLOWED' };
+    }
+    if (
+      existing.status === 'CANCELLED' ||
+      existing.status === 'FAILED' ||
+      existing.status === 'COMPLETED'
+    ) {
+      return { ok: false, reason: 'NOT_ALLOWED' };
+    }
+    if (
+      existing.fulfillmentStatus !== ORDER_FULFILLMENT_ACCEPTED &&
+      existing.fulfillmentStatus !== ORDER_FULFILLMENT_PREPARING
+    ) {
+      return { ok: false, reason: 'NOT_ALLOWED' };
+    }
+    if (existing.preparationEstimateVersion < 1 || !existing.estimatedReadyAt) {
+      return { ok: false, reason: 'NO_ESTIMATE' };
+    }
+    if (existing.preparationEstimateVersion !== expectedEstimateVersion) {
+      return { ok: false, reason: 'CONFLICT' };
+    }
+    const previous = existing.estimatedReadyAt;
+    const previousDate = new Date(previous);
+    const nextDate = new Date(previousDate.getTime() + addMinutes * 60_000);
+    const now = pgNow();
+    const nextVersion = expectedEstimateVersion + 1;
+    await orm(client)
+      .Order.where({
+        id: orderId,
+        updatedAt: pgTimestamptz(expectedUpdatedAt),
+        preparationEstimateVersion: expectedEstimateVersion,
+      })
+      .update({
+        estimatedReadyAt: pgTimestamptz(nextDate.toISOString()),
+        preparationEstimateVersion: nextVersion,
+        updatedAt: now,
+      });
+    const row = await orm(client).Order.where({ id: orderId }).first();
+    if (
+      !row ||
+      row.preparationEstimateVersion !== nextVersion ||
+      !row.estimatedReadyAt
+    ) {
+      return { ok: false, reason: 'CONFLICT' };
+    }
+    await orm(client).OrderPreparationEstimateRevision.create({
+      id: createUuidV7(),
+      orderId,
+      revisionNumber: nextVersion,
+      previousEstimatedReadyAt: pgTimestamptz(previous),
+      newEstimatedReadyAt: pgTimestamptz(row.estimatedReadyAt),
+      addMinutes,
+      reason: reason ? pgVarchar<255>(reason) : null,
+      actorAccountId,
+      createdAt: now,
+    });
+    return { ok: true };
   }
 
   async applyStartPreparation(
@@ -634,6 +743,7 @@ export class OrderRepository {
     reason: string,
     expectedUpdatedAt: string,
     client: OrmClient,
+    reasonCode?: string | null,
   ): Promise<'APPLIED' | 'NOT_APPLIED'> {
     const now = pgNow();
     await orm(client)
@@ -659,6 +769,7 @@ export class OrderRepository {
       id: createUuidV7(),
       orderId,
       reason: pgVarchar<255>(reason),
+      reasonCode: reasonCode ? pgVarchar<64>(reasonCode) : null,
       internalNote: null,
       cancelledByAccountId: actorAccountId,
       cancelledAt: now,
@@ -881,23 +992,34 @@ export class OrderRepository {
     if (branchMerchantId !== merchantId) {
       return null;
     }
-    const [summaries, address, itemRows, eventRows, cancellation] =
-      await Promise.all([
-        this.toMerchantSummaries([order], db),
-        orm(db)
-          .OrderDeliveryAddressSnapshot.where({ orderId: order.id })
-          .first(),
-        orm(db).OrderItem.where({ orderId: order.id }).all(),
-        orm(db)
-          .OrderStatusEvent.where({ orderId: order.id })
-          .orderBy((event) => event.occurredAt.asc())
-          .all(),
-        orm(db).OrderCancellation.where({ orderId: order.id }).first(),
-      ]);
+    const [
+      summaries,
+      address,
+      itemRows,
+      eventRows,
+      cancellation,
+      delivery,
+      latestRevision,
+    ] = await Promise.all([
+      this.toMerchantSummaries([order], db),
+      orm(db).OrderDeliveryAddressSnapshot.where({ orderId: order.id }).first(),
+      orm(db).OrderItem.where({ orderId: order.id }).all(),
+      orm(db)
+        .OrderStatusEvent.where({ orderId: order.id })
+        .orderBy((event) => event.occurredAt.asc())
+        .all(),
+      orm(db).OrderCancellation.where({ orderId: order.id }).first(),
+      orm(db).Delivery.where({ orderId: order.id }).first(),
+      orm(db)
+        .OrderPreparationEstimateRevision.where({ orderId: order.id })
+        .orderBy((revision) => revision.revisionNumber.desc())
+        .first(),
+    ]);
     const summary = summaries[0];
     if (!summary || !address) {
       return null;
     }
+    const asOf = new Date();
     const itemIds = itemRows.map((row) => row.id);
     const optionRows =
       itemIds.length === 0
@@ -947,9 +1069,32 @@ export class OrderRepository {
       cancellation: cancellation
         ? {
             reason: cancellation.reason,
+            reasonCode: cancellation.reasonCode ?? null,
             cancelledAt: cancellation.cancelledAt,
           }
         : null,
+      delayMinutes: derivePreparationDelayMinutes(
+        summary.isPreparationLate,
+        summary.estimatedReadyAt,
+        asOf,
+      ),
+      latestPreparationRevision: latestRevision
+        ? {
+            revisionNumber: latestRevision.revisionNumber,
+            addMinutes: latestRevision.addMinutes,
+            reason: latestRevision.reason ?? null,
+            createdAt: latestRevision.createdAt,
+          }
+        : null,
+      deliveryImpact: {
+        state: deriveMerchantDeliveryImpact({
+          isPreparationLate: summary.isPreparationLate,
+          fulfillmentStatus: summary.fulfillmentStatus,
+          orderStatus: summary.status,
+          deliveryStatus: delivery?.status ?? null,
+        }),
+        deliveryStatus: delivery?.status ?? null,
+      },
     };
   }
 
@@ -963,6 +1108,11 @@ export class OrderRepository {
       customerId: string;
       createdAt: string;
       confirmedAt: string | null;
+      preparationMinutes?: number | null;
+      originalPreparationMinutes?: number | null;
+      estimatedReadyAt?: string | null;
+      originalEstimatedReadyAt?: string | null;
+      preparationEstimateVersion?: number;
     }>,
     client: OrmClient,
   ): Promise<MerchantOrderSummaryView[]> {
@@ -993,6 +1143,7 @@ export class OrderRepository {
     const nameByCustomer = new Map(
       profiles.map((row) => [row.id, row.fullName]),
     );
+    const now = new Date();
     const summaries: MerchantOrderSummaryView[] = [];
     for (const order of orders) {
       const financial = financialByOrder.get(order.id);
@@ -1000,11 +1151,21 @@ export class OrderRepository {
       if (!financial || !payment) {
         continue;
       }
+      const estimatedReadyAt = order.estimatedReadyAt ?? null;
+      const fulfillmentStatus = order.fulfillmentStatus;
+      const isPreparationLate =
+        !!estimatedReadyAt &&
+        (fulfillmentStatus === ORDER_FULFILLMENT_ACCEPTED ||
+          fulfillmentStatus === ORDER_FULFILLMENT_PREPARING) &&
+        order.status !== ORDER_STATUS_CANCELLED &&
+        order.status !== 'FAILED' &&
+        order.status !== 'COMPLETED' &&
+        now.getTime() > new Date(estimatedReadyAt).getTime();
       summaries.push({
         id: order.id,
         publicReference: order.publicReference,
         status: order.status,
-        fulfillmentStatus: order.fulfillmentStatus,
+        fulfillmentStatus,
         merchantBranchId: order.merchantBranchId,
         createdAt: order.createdAt,
         confirmedAt: order.confirmedAt,
@@ -1032,6 +1193,12 @@ export class OrderRepository {
             financial.customerDeliveryFeeMinor,
           ),
         },
+        preparationMinutes: order.preparationMinutes ?? null,
+        originalPreparationMinutes: order.originalPreparationMinutes ?? null,
+        estimatedReadyAt,
+        originalEstimatedReadyAt: order.originalEstimatedReadyAt ?? null,
+        preparationEstimateVersion: order.preparationEstimateVersion ?? 0,
+        isPreparationLate,
       });
     }
     return summaries;

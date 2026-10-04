@@ -12,6 +12,10 @@ export type PendingUploadRecord = {
   ownerType: 'DRIVER' | 'MERCHANT';
   ownerId: string;
   purpose: string;
+  /** Cover and product-image pending tokens must name the intended MerchantBranch. */
+  branchId?: string;
+  /** Product-image pending tokens must name the intended Product. */
+  productId?: string;
   /** Pending namespace object key only. */
   objectKey: string;
   contentType: string;
@@ -68,6 +72,8 @@ export class DocumentObjectRegistry {
     ownerType: 'DRIVER' | 'MERCHANT';
     ownerId: string;
     purpose: string;
+    branchId?: string;
+    productId?: string;
   }): Promise<PendingUploadRecord> {
     const uploadId = this.parseUploadReference(input.uploadReference);
     const key = `${this.prefix()}pending:${uploadId}`;
@@ -81,7 +87,9 @@ export class DocumentObjectRegistry {
       record.accountId !== input.accountId ||
       record.ownerType !== input.ownerType ||
       record.ownerId !== input.ownerId ||
-      record.purpose !== input.purpose
+      record.purpose !== input.purpose ||
+      (input.branchId !== undefined && record.branchId !== input.branchId) ||
+      input.productId !== record.productId
     ) {
       throw storageUploadReferenceForeign();
     }

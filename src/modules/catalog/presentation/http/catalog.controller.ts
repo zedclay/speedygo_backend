@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  Res,
 } from '@nestjs/common';
 import {
   ApiBearerAuth,
@@ -18,10 +19,12 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import type { Response } from 'express';
 import type { AuthenticatedPrincipal } from '../../../auth/domain/auth.types';
 import { CurrentPrincipal } from '../../../auth/presentation/http/decorators/current-principal.decorator';
 import { MERCHANT_ERROR_CODES } from '../../../merchants/domain/merchant.errors';
 import { CatalogService } from '../../application/catalog.service';
+import { ProductDuplicationService } from '../../application/product-duplication.service';
 import { CATALOG_ERROR_CODES } from '../../domain/catalog.errors';
 import {
   CatalogBootstrapResponseDto,
@@ -32,6 +35,7 @@ import {
   CatalogOptionGroupResponseDto,
   CatalogOptionResponseDto,
   CatalogProductDetailResponseDto,
+  CatalogProductDuplicateResponseDto,
   CatalogProductListResponseDto,
 } from './dto/catalog-response.dto';
 import {
@@ -40,6 +44,7 @@ import {
   CreateCatalogOptionDto,
   CreateCatalogOptionGroupDto,
   CreateCatalogProductDto,
+  DuplicateCatalogProductDto,
   ListCatalogProductsQueryDto,
   UpdateCatalogCategoryDto,
   UpdateCatalogOptionDto,
@@ -51,7 +56,10 @@ import {
 @ApiBearerAuth()
 @Controller('merchant/:merchantId')
 export class CatalogController {
-  constructor(private readonly catalog: CatalogService) {}
+  constructor(
+    private readonly catalog: CatalogService,
+    private readonly duplication: ProductDuplicationService,
+  ) {}
 
   @Get('catalog')
   @ApiOperation({
@@ -250,6 +258,8 @@ export class CatalogController {
         description: body.description,
         priceMinor: body.priceMinor,
         available: body.available,
+        sellingUnitCode: body.sellingUnitCode,
+        sellingUnitLabelFr: body.sellingUnitLabelFr,
       },
     );
   }
@@ -258,7 +268,7 @@ export class CatalogController {
   @ApiOperation({
     summary: 'Update an owned Product',
     description:
-      'Cannot move a Product to another Branch. categoryId must stay on the same Branch. available=false keeps the Product stored and editable.',
+      'Cannot move a Product to another Branch. categoryId must stay on the same Branch. available=false keeps the Product stored and editable. sellingUnitCode may be null to clear.',
   })
   @ApiOkResponse({ type: CatalogProductDetailResponseDto })
   updateProduct(
@@ -277,6 +287,8 @@ export class CatalogController {
         description: body.description,
         priceMinor: body.priceMinor,
         available: body.available,
+        sellingUnitCode: body.sellingUnitCode,
+        sellingUnitLabelFr: body.sellingUnitLabelFr,
       },
     );
   }
@@ -302,6 +314,46 @@ export class CatalogController {
       merchantId,
       productId,
     );
+  }
+
+  @Post('products/:productId/duplicate')
+  @ApiOperation({
+    summary: 'Duplicate an owned Product atomically',
+    description:
+      'PRODUCT_MANAGE (OWNER, MANAGER). One transaction copies the Product, option groups (required choices and extras) and options with new ids; the photograph bytes are copied to a new object. The copy starts available=false; order history, cart items and audit identity are never copied. The source is unchanged. 201 for a new copy; 200 with replayed=true when the same requestId already produced a copy of this source.',
+  })
+  @ApiCreatedResponse({ type: CatalogProductDuplicateResponseDto })
+  @ApiOkResponse({
+    type: CatalogProductDuplicateResponseDto,
+    description: 'Replay of an earlier identical requestId',
+  })
+  @ApiResponse({
+    status: 403,
+    description: MERCHANT_ERROR_CODES.MERCHANT_ROLE_FORBIDDEN,
+  })
+  @ApiResponse({
+    status: 404,
+    description: CATALOG_ERROR_CODES.CATALOG_PRODUCT_NOT_FOUND,
+  })
+  @ApiResponse({
+    status: 409,
+    description: CATALOG_ERROR_CODES.CATALOG_DUPLICATE_REQUEST_CONFLICT,
+  })
+  async duplicateProduct(
+    @CurrentPrincipal() principal: AuthenticatedPrincipal,
+    @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
+    @Param('productId', new ParseUUIDPipe()) productId: string,
+    @Body() body: DuplicateCatalogProductDto,
+    @Res({ passthrough: true }) res: Response,
+  ) {
+    const result = await this.duplication.duplicate(
+      principal.accountId,
+      merchantId,
+      productId,
+      { requestId: body.requestId, name: body.name },
+    );
+    res.status(result.replayed ? 200 : 201);
+    return result;
   }
 
   @Get('products/:productId/option-groups')

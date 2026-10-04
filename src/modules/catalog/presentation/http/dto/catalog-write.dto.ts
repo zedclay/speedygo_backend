@@ -21,6 +21,10 @@ import {
   CATALOG_SORT_ORDER_MAX,
   CATALOG_SORT_ORDER_MIN,
 } from '../../../domain/catalog.types';
+import {
+  SELLING_UNIT_CODES,
+  SELLING_UNIT_CUSTOM_LABEL_MAX_LENGTH,
+} from '../../../domain/catalog.policy';
 
 function trimString(value: unknown): unknown {
   return typeof value === 'string' ? value.trim() : value;
@@ -189,6 +193,30 @@ export class CreateCatalogProductDto {
   @IsOptional()
   @IsBoolean()
   available?: boolean;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    enum: SELLING_UNIT_CODES,
+    description:
+      'Selling unit shown next to the price. null/omitted = legacy (no unit). Quantity stays an integer.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value === null ? null : trimString(value)))
+  @IsString()
+  @MaxLength(32)
+  sellingUnitCode?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    maxLength: SELLING_UNIT_CUSTOM_LABEL_MAX_LENGTH,
+    description:
+      'Required (1..64) when sellingUnitCode is CUSTOM; must be omitted/null otherwise.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value === null ? null : trimString(value)))
+  @IsString()
+  @MaxLength(SELLING_UNIT_CUSTOM_LABEL_MAX_LENGTH)
+  sellingUnitLabelFr?: string | null;
 }
 
 export class UpdateCatalogProductDto {
@@ -234,6 +262,30 @@ export class UpdateCatalogProductDto {
   @IsOptional()
   @IsBoolean()
   available?: boolean;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    enum: SELLING_UNIT_CODES,
+    description:
+      'Selling unit shown next to the price. null/omitted = legacy (no unit). Quantity stays an integer.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value === null ? null : trimString(value)))
+  @IsString()
+  @MaxLength(32)
+  sellingUnitCode?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    maxLength: SELLING_UNIT_CUSTOM_LABEL_MAX_LENGTH,
+    description:
+      'Required (1..64) when sellingUnitCode is CUSTOM; must be omitted/null otherwise.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (value === null ? null : trimString(value)))
+  @IsString()
+  @MaxLength(SELLING_UNIT_CUSTOM_LABEL_MAX_LENGTH)
+  sellingUnitLabelFr?: string | null;
 }
 
 export class CreateCatalogOptionGroupDto {
@@ -369,4 +421,37 @@ export class UpdateCatalogOptionDto {
   @IsOptional()
   @IsBoolean()
   available?: boolean;
+}
+
+export class BindProductImageDto {
+  @ApiProperty({
+    description:
+      'Opaque upload reference from POST .../image/content (sg-upload:v1:...). Never a path or URL.',
+  })
+  @Transform(({ value }) => trimString(value))
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(128)
+  uploadReference!: string;
+}
+
+export class DuplicateCatalogProductDto {
+  @ApiProperty({
+    format: 'uuid',
+    description:
+      'Client-generated once per duplication attempt and reused on retry. The same requestId for the same source returns the existing copy (replayed=true).',
+  })
+  @IsUUID()
+  requestId!: string;
+
+  @ApiPropertyOptional({
+    maxLength: CATALOG_NAME_MAX_LENGTH,
+    description: 'Name of the copy. Default: "Copie de <source name>".',
+  })
+  @IsOptional()
+  @Transform(({ value }) => trimString(value))
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(CATALOG_NAME_MAX_LENGTH)
+  name?: string;
 }

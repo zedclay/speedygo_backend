@@ -313,7 +313,12 @@ export class DriverRepository {
   async findOpenAcceptedAssignment(
     driverId: string,
     client?: OrmClient,
-  ): Promise<{ id: string; deliveryId: string; status: string } | null> {
+  ): Promise<{
+    id: string;
+    deliveryId: string;
+    status: string;
+    version: number;
+  } | null> {
     const row = await orm(client ?? this.db())
       .DriverAssignment.where({
         driverId,
@@ -322,7 +327,12 @@ export class DriverRepository {
       })
       .first();
     return row
-      ? { id: row.id, deliveryId: row.deliveryId, status: row.status }
+      ? {
+          id: row.id,
+          deliveryId: row.deliveryId,
+          status: row.status,
+          version: row.version,
+        }
       : null;
   }
 

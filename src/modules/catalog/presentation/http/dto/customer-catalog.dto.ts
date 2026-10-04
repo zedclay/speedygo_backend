@@ -1,6 +1,7 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
+  IsBoolean,
   IsInt,
   IsOptional,
   IsString,
@@ -22,6 +23,20 @@ import {
 
 function trimString(value: unknown): unknown {
   return typeof value === 'string' ? value.trim() : value;
+}
+
+/** Query-string safe: only the literals "true"/"false" coerce; "false" is never truthy. */
+function toOptionalBoolean(value: unknown): unknown {
+  if (value === undefined || value === null || value === '') {
+    return undefined;
+  }
+  if (value === true || value === 'true') {
+    return true;
+  }
+  if (value === false || value === 'false') {
+    return false;
+  }
+  return value;
 }
 
 export class CustomerCatalogPaginationQueryDto {
@@ -56,6 +71,49 @@ export class CustomerCatalogPaginationQueryDto {
   @IsOptional()
   @IsString()
   sort?: string;
+}
+
+export class CustomerStorefrontListQueryDto extends CustomerCatalogPaginationQueryDto {
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'When set, only visible branches explicitly classified to this active commerce vertical',
+  })
+  @IsOptional()
+  @IsUUID()
+  verticalId?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'When true, only storefronts the authoritative opening-hours evaluator considers open at request time. Unconfigured hours are excluded. Does not imply delivery eligibility. Default false/omitted = unfiltered. Query string "false" must not become true.',
+    default: false,
+  })
+  @IsOptional()
+  @Transform(({ value }) => toOptionalBoolean(value))
+  @IsBoolean()
+  openNow?: boolean;
+}
+
+export class CustomerCommerceVerticalResponseDto {
+  @ApiProperty({ format: 'uuid' })
+  id!: string;
+
+  @ApiProperty()
+  slug!: string;
+
+  @ApiProperty()
+  name!: string;
+
+  @ApiProperty()
+  iconKey!: string;
+
+  @ApiProperty()
+  sortOrder!: number;
+}
+
+export class CustomerCommerceVerticalListResponseDto {
+  @ApiProperty({ type: [CustomerCommerceVerticalResponseDto] })
+  items!: CustomerCommerceVerticalResponseDto[];
 }
 
 export class CustomerCatalogProductListQueryDto extends CustomerCatalogPaginationQueryDto {
@@ -103,6 +161,13 @@ export class CustomerStorefrontResponseDto {
 
   @ApiProperty()
   merchantPublicReference!: string;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Authenticated Customer cover path `/customer/branches/:branchId/cover`, or null when unbound',
+  })
+  coverImageUrl!: string | null;
 
   @ApiProperty({
     description:
@@ -224,6 +289,13 @@ export class CustomerProductResponseDto {
     example: '1500',
   })
   priceMinor!: string;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Authenticated Customer image path `/customer/branches/:branchId/products/:productId/image`, or null when unbound. Never a storage key or branch cover.',
+  })
+  imageUrl!: string | null;
 }
 
 export class CustomerProductListResponseDto {

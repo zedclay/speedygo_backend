@@ -16,6 +16,7 @@ import {
   PROMOTION_TYPE_SPEEDYGO_FIXED_MINOR,
   PROMOTION_TYPE_SPEEDYGO_RATE_BPS,
   PROMOTION_TYPES_V1,
+  type CustomerDiscoverablePromotion,
   type PromotionDecision,
   type PromotionFundingV1,
   type PromotionRecord,
@@ -207,6 +208,103 @@ export function buildPromotionDecision(input: {
     merchantDiscountMinor: buckets.merchantDiscountMinor,
     platformDiscountMinor: buckets.platformDiscountMinor,
     decisionAt: input.decisionAt.toISOString(),
+  };
+}
+
+const CUSTOMER_LABEL_MAX_LEN = 64;
+
+/**
+ * Optional Customer-facing pill text. Empty / whitespace → null.
+ * Presentation only — never changes discount math.
+ */
+export function normalizeCustomerLabel(
+  raw: string | null | undefined,
+): string | null {
+  if (raw == null) {
+    return null;
+  }
+  if (typeof raw !== 'string') {
+    throw promotionConfigurationInvalid('customerLabel must be a string');
+  }
+  const trimmed = raw.trim();
+  if (!trimmed) {
+    return null;
+  }
+  if (trimmed.length > CUSTOMER_LABEL_MAX_LEN) {
+    throw promotionConfigurationInvalid(
+      `customerLabel must be at most ${CUSTOMER_LABEL_MAX_LEN} characters`,
+    );
+  }
+  return trimmed;
+}
+
+export function isPromotionWindowEffective(
+  promotion: Pick<PromotionRecord, 'active' | 'startsAt' | 'endsAt'>,
+  decisionAt: Date,
+): boolean {
+  if (!promotion.active) {
+    return false;
+  }
+  const start = new Date(promotion.startsAt).getTime();
+  const end = new Date(promotion.endsAt).getTime();
+  const at = decisionAt.getTime();
+  if (
+    !Number.isFinite(start) ||
+    !Number.isFinite(end) ||
+    !Number.isFinite(at)
+  ) {
+    return false;
+  }
+  return at >= start && at < end;
+}
+
+/**
+ * Discoverable ≠ cart-eligible. Requires explicit publish + effective window.
+ * Unknown types are treated as definitively ineligible for discovery.
+ */
+export function isPromotionDiscoverable(
+  promotion: PromotionRecord,
+  decisionAt: Date,
+): boolean {
+  if (!promotion.customerDiscoverable) {
+    return false;
+  }
+  if (!isPromotionWindowEffective(promotion, decisionAt)) {
+    return false;
+  }
+  try {
+    parsePromotionType(promotion.type);
+  } catch {
+    return false;
+  }
+  return true;
+}
+
+export function compareDiscoverablePromotions(
+  left: Pick<PromotionRecord, 'endsAt' | 'id'>,
+  right: Pick<PromotionRecord, 'endsAt' | 'id'>,
+): number {
+  const leftEnd = new Date(left.endsAt).getTime();
+  const rightEnd = new Date(right.endsAt).getTime();
+  if (leftEnd !== rightEnd) {
+    return leftEnd - rightEnd;
+  }
+  return left.id.localeCompare(right.id);
+}
+
+export function toCustomerDiscoverablePromotion(
+  promotion: PromotionRecord,
+): CustomerDiscoverablePromotion {
+  const parsed = parsePromotionType(promotion.type);
+  return {
+    id: promotion.id,
+    code: promotion.code,
+    discountKind: parsed.kind,
+    value: promotion.value,
+    startsAt: promotion.startsAt,
+    endsAt: promotion.endsAt,
+    customerLabel: promotion.customerLabel,
+    eligibility: 'DISCOVERABLE',
   };
 }
 

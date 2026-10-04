@@ -146,9 +146,10 @@ export class OpeningHoursRepository {
       if (!existing || existing.version !== input.expectedVersion) {
         return null;
       }
+      // Prisma 8 `delete()` removes only the first matching row.
       await orm(tx)
-        .MerchantBranchOpeningInterval.where({ scheduleId: input.scheduleId })
-        .delete();
+        .MerchantBranchOpeningInterval.where({ scheduleId: existing.id })
+        .deleteAndCount();
       await this.insertIntervals(tx, input.scheduleId, input.intervals);
       await orm(tx)
         .MerchantBranchOpeningSchedule.where({ id: input.scheduleId })

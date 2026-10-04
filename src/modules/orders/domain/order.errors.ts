@@ -28,6 +28,11 @@ export const ORDER_ERROR_CODES = {
   MERCHANT_ORDER_PAYMENT_NOT_READY: 'MERCHANT_ORDER_PAYMENT_NOT_READY',
   MERCHANT_ORDER_REJECTION_REQUIRES_CANCELLATION_FLOW:
     'MERCHANT_ORDER_REJECTION_REQUIRES_CANCELLATION_FLOW',
+  MERCHANT_ORDER_PREP_ESTIMATE_INVALID: 'MERCHANT_ORDER_PREP_ESTIMATE_INVALID',
+  MERCHANT_ORDER_PREP_ESTIMATE_CONFLICT:
+    'MERCHANT_ORDER_PREP_ESTIMATE_CONFLICT',
+  MERCHANT_ORDER_PREP_ESTIMATE_NOT_ALLOWED:
+    'MERCHANT_ORDER_PREP_ESTIMATE_NOT_ALLOWED',
   ORDER_CANCELLATION_NOT_ALLOWED: 'ORDER_CANCELLATION_NOT_ALLOWED',
   ORDER_CANCELLATION_REASON_INVALID: 'ORDER_CANCELLATION_REASON_INVALID',
   ORDER_CANCELLATION_FULFILLMENT_ACTIVE:
@@ -262,6 +267,37 @@ export function merchantOrderPaymentNotReady(): OrderError {
   return new OrderError(
     ORDER_ERROR_CODES.MERCHANT_ORDER_PAYMENT_NOT_READY,
     'Electronic payment must succeed before preparation can start',
+    409,
+  );
+}
+
+export function merchantOrderPrepEstimateInvalid(
+  message = 'Preparation estimate is invalid',
+): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.MERCHANT_ORDER_PREP_ESTIMATE_INVALID,
+    message,
+    400,
+  );
+}
+
+export function merchantOrderPrepEstimateConflict(
+  current?: Record<string, unknown>,
+): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.MERCHANT_ORDER_PREP_ESTIMATE_CONFLICT,
+    'Preparation estimate version conflict',
+    409,
+    current ? { preparationEstimate: current } : undefined,
+  );
+}
+
+export function merchantOrderPrepEstimateNotAllowed(
+  message = 'Preparation estimate cannot be updated in the current Order state',
+): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.MERCHANT_ORDER_PREP_ESTIMATE_NOT_ALLOWED,
+    message,
     409,
   );
 }

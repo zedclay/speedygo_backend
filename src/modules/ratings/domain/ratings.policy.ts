@@ -9,6 +9,40 @@ export const RATING_AVERAGE_DECIMAL_PLACES = 2;
 export const RATING_TARGET_DRIVER = 'DRIVER';
 export const RATING_TARGET_MERCHANT = 'MERCHANT';
 
+export const RATING_MERCHANT_SUMMARY_BATCH_MAX = 50;
+export const RATING_MERCHANT_ID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+export function parseMerchantSummaryIds(raw: unknown): string[] | null {
+  if (typeof raw !== 'string') {
+    return null;
+  }
+  const parts = raw
+    .split(',')
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0);
+  if (parts.length === 0) {
+    return [];
+  }
+  const unique: string[] = [];
+  const seen = new Set<string>();
+  for (const part of parts) {
+    if (!RATING_MERCHANT_ID_PATTERN.test(part)) {
+      return null;
+    }
+    const id = part.toLowerCase();
+    if (seen.has(id)) {
+      continue;
+    }
+    seen.add(id);
+    unique.push(id);
+    if (unique.length > RATING_MERCHANT_SUMMARY_BATCH_MAX) {
+      return null;
+    }
+  }
+  return unique;
+}
+
 export const RATING_TARGETS = [
   RATING_TARGET_DRIVER,
   RATING_TARGET_MERCHANT,

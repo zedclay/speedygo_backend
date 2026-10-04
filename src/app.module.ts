@@ -17,6 +17,7 @@ import { CheckoutModule } from './modules/checkout/checkout.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { DeliveryModule } from './modules/delivery/delivery.module';
 import { DriversModule } from './modules/drivers/drivers.module';
+import { GeoModule } from './modules/geo/geo.module';
 import { MatchingModule } from './modules/matching/matching.module';
 import { TrackingModule } from './modules/tracking/tracking.module';
 import { IdentityModule } from './modules/identity/identity.module';
@@ -63,6 +64,7 @@ import { SettingsModule } from './modules/settings/settings.module';
     PaymentsModule,
     DeliveryModule,
     DriversModule,
+    GeoModule,
     MatchingModule,
     TrackingModule,
     CodModule,

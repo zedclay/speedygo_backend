@@ -12,6 +12,19 @@ export const MERCHANT_ERROR_CODES = {
   MERCHANT_VERIFICATION_INVALID_STATE: 'MERCHANT_VERIFICATION_INVALID_STATE',
   MERCHANT_VERIFICATION_ADMIN_REQUIRED: 'MERCHANT_VERIFICATION_ADMIN_REQUIRED',
   MERCHANT_VERIFICATION_INTEGRITY: 'MERCHANT_VERIFICATION_INTEGRITY',
+  MERCHANT_REJECTION_ISSUES_INVALID: 'MERCHANT_REJECTION_ISSUES_INVALID',
+  LEGAL_ACCEPTANCE_REQUIRED: 'LEGAL_ACCEPTANCE_REQUIRED',
+  LEGAL_VERSION_OUTDATED: 'LEGAL_VERSION_OUTDATED',
+  TEAM_INVALID_INPUT: 'TEAM_INVALID_INPUT',
+  TEAM_OWNER_PROTECTED: 'TEAM_OWNER_PROTECTED',
+  TEAM_SELF_FORBIDDEN: 'TEAM_SELF_FORBIDDEN',
+  TEAM_DUPLICATE_MEMBER: 'TEAM_DUPLICATE_MEMBER',
+  TEAM_DUPLICATE_INVITE: 'TEAM_DUPLICATE_INVITE',
+  TEAM_INVITE_NOT_FOUND: 'TEAM_INVITE_NOT_FOUND',
+  TEAM_INVITE_EXPIRED: 'TEAM_INVITE_EXPIRED',
+  TEAM_INVITE_CODE_INVALID: 'TEAM_INVITE_CODE_INVALID',
+  TEAM_PHONE_MISMATCH: 'TEAM_PHONE_MISMATCH',
+  TEAM_VERSION_CONFLICT: 'TEAM_VERSION_CONFLICT',
 } as const;
 
 export type MerchantErrorCode =
@@ -116,6 +129,36 @@ export function merchantVerificationAdminRequired(): MerchantError {
   );
 }
 
+export function legalAcceptanceRequired(
+  message = 'Acceptance of the current legal documents is required',
+): MerchantError {
+  return new MerchantError(
+    MERCHANT_ERROR_CODES.LEGAL_ACCEPTANCE_REQUIRED,
+    message,
+    400,
+  );
+}
+
+export function legalVersionOutdated(
+  message = 'A legal document version is no longer current',
+): MerchantError {
+  return new MerchantError(
+    MERCHANT_ERROR_CODES.LEGAL_VERSION_OUTDATED,
+    message,
+    400,
+  );
+}
+
+export function merchantRejectionIssuesInvalid(
+  message = 'Rejection issues are invalid',
+): MerchantError {
+  return new MerchantError(
+    MERCHANT_ERROR_CODES.MERCHANT_REJECTION_ISSUES_INVALID,
+    message,
+    400,
+  );
+}
+
 export function merchantVerificationIntegrity(
   message = 'Merchant verification evidence is corrupt or ambiguous',
 ): MerchantError {
@@ -123,5 +166,96 @@ export function merchantVerificationIntegrity(
     MERCHANT_ERROR_CODES.MERCHANT_VERIFICATION_INTEGRITY,
     message,
     409,
+  );
+}
+
+export function teamInvalidInput(
+  message = 'Team request is invalid',
+): MerchantError {
+  return new MerchantError(
+    MERCHANT_ERROR_CODES.TEAM_INVALID_INPUT,
+    message,
+    400,
+  );
+}
+
+export function teamOwnerProtected(): MerchantError {
+  return new MerchantError(
+    MERCHANT_ERROR_CODES.TEAM_OWNER_PROTECTED,
+    'The OWNER membership cannot be assigned, changed or revoked through team management',
+    403,
+  );
+}
+
+export function teamSelfForbidden(): MerchantError {
+  return new MerchantError(
+    MERCHANT_ERROR_CODES.TEAM_SELF_FORBIDDEN,
+    'You cannot revoke or demote your own membership',
+    403,
+  );
+}
+
+export function teamDuplicateMember(): MerchantError {
+  return new MerchantError(
+    MERCHANT_ERROR_CODES.TEAM_DUPLICATE_MEMBER,
+    'This Account is already a member of the Merchant',
+    409,
+  );
+}
+
+export function teamDuplicateInvite(): MerchantError {
+  return new MerchantError(
+    MERCHANT_ERROR_CODES.TEAM_DUPLICATE_INVITE,
+    'A pending invitation already exists for this phone',
+    409,
+  );
+}
+
+export function teamInviteNotFound(): MerchantError {
+  return new MerchantError(
+    MERCHANT_ERROR_CODES.TEAM_INVITE_NOT_FOUND,
+    'Invitation was not found',
+    404,
+  );
+}
+
+export function teamInviteExpired(): MerchantError {
+  return new MerchantError(
+    MERCHANT_ERROR_CODES.TEAM_INVITE_EXPIRED,
+    'Invitation has expired',
+    409,
+  );
+}
+
+export function teamInviteCodeInvalid(): MerchantError {
+  return new MerchantError(
+    MERCHANT_ERROR_CODES.TEAM_INVITE_CODE_INVALID,
+    'Invitation code is invalid',
+    400,
+  );
+}
+
+export function teamPhoneMismatch(): MerchantError {
+  return new MerchantError(
+    MERCHANT_ERROR_CODES.TEAM_PHONE_MISMATCH,
+    'Invitation does not match the authenticated phone',
+    403,
+  );
+}
+
+export function teamVersionConflict(): MerchantError {
+  return new MerchantError(
+    MERCHANT_ERROR_CODES.TEAM_VERSION_CONFLICT,
+    'Team record was modified; reload and retry',
+    409,
+  );
+}
+
+/** Unknown member of this Merchant; reuses MERCHANT_NOT_FOUND (no new code). */
+export function teamMemberNotFound(): MerchantError {
+  return new MerchantError(
+    MERCHANT_ERROR_CODES.MERCHANT_NOT_FOUND,
+    'Team member was not found',
+    404,
   );
 }

@@ -1,5 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { Type } from 'class-transformer';
+import { Transform, Type } from 'class-transformer';
 import {
   IsIn,
   IsInt,
@@ -18,7 +18,11 @@ import {
   SUPPORT_STATUSES,
 } from '../../../domain/support.policy';
 
-/** User create — body + optional orderId only. Spoof fields rejected by forbidNonWhitelisted. */
+/**
+ * User create — body + optional orderId. topicCode + subject are accepted for
+ * Merchant create (both required there, enforced in the service) and ignored
+ * for Customer/Driver. Spoof fields rejected by forbidNonWhitelisted.
+ */
 export class CreateSupportTicketDto {
   @ApiProperty({ minLength: 1, maxLength: 4000 })
   @IsString()
@@ -30,6 +34,28 @@ export class CreateSupportTicketDto {
   @IsOptional()
   @IsUUID()
   orderId?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 64,
+    description:
+      'Merchant create: required. A code from GET /merchant/:merchantId/support/topics. Ignored for Customer and Driver.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MaxLength(64)
+  topicCode?: string;
+
+  @ApiPropertyOptional({
+    maxLength: 255,
+    description:
+      'Merchant create: required, 1–255 characters. Ignored for Customer and Driver.',
+  })
+  @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
+  @IsString()
+  @MaxLength(255)
+  subject?: string;
 }
 
 export class SupportMessageBodyDto {

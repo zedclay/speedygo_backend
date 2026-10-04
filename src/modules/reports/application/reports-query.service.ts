@@ -35,7 +35,7 @@ export type OrmClient = {
   query?: (plan: unknown) => unknown;
 };
 
-async function consumeQueryRows<T>(result: unknown): Promise<T[]> {
+export async function consumeQueryRows<T>(result: unknown): Promise<T[]> {
   if (Array.isArray(result)) {
     return result as T[];
   }

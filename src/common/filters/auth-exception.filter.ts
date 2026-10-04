@@ -19,6 +19,12 @@ export type ErrorEnvelope = {
       deliveryFeeMinor: string;
       customerTotalMinor: string;
     };
+    /** Present on AVAILABILITY_VERSION_CONFLICT — client must reload. */
+    availability?: Record<string, unknown>;
+    /** Present on MERCHANT_ORDER_PREP_ESTIMATE_CONFLICT. */
+    preparationEstimate?: Record<string, unknown>;
+    /** Present on OPENING_HOURS_EXCEPTION_VERSION_CONFLICT; null when the date has no exception. */
+    openingHoursException?: Record<string, unknown> | null;
   };
 };
 
@@ -44,6 +50,34 @@ export class AuthExceptionFilter implements ExceptionFilter {
                   deliveryFeeMinor: string;
                   customerTotalMinor: string;
                 },
+              }
+            : {}),
+          ...(details &&
+          'availability' in details &&
+          details.availability &&
+          typeof details.availability === 'object'
+            ? {
+                availability: details.availability as Record<string, unknown>,
+              }
+            : {}),
+          ...(details &&
+          'preparationEstimate' in details &&
+          details.preparationEstimate &&
+          typeof details.preparationEstimate === 'object'
+            ? {
+                preparationEstimate: details.preparationEstimate as Record<
+                  string,
+                  unknown
+                >,
+              }
+            : {}),
+          ...(details && 'openingHoursException' in details
+            ? {
+                openingHoursException:
+                  details.openingHoursException &&
+                  typeof details.openingHoursException === 'object'
+                    ? (details.openingHoursException as Record<string, unknown>)
+                    : null,
               }
             : {}),
         },

@@ -94,6 +94,7 @@ export class AssignmentRepository {
         assignedAt: now,
         acceptedAt: null,
         releasedAt: null,
+        version: 1,
       });
       return this.toAssignment(created);
     } catch (error) {
@@ -200,6 +201,7 @@ export class AssignmentRepository {
     assignedAt: string;
     acceptedAt: string | null;
     releasedAt: string | null;
+    version?: number;
   }): AssignmentRecord {
     return {
       id: row.id,
@@ -209,6 +211,7 @@ export class AssignmentRepository {
       assignedAt: row.assignedAt,
       acceptedAt: row.acceptedAt,
       releasedAt: row.releasedAt,
+      version: row.version ?? 1,
     };
   }
 }

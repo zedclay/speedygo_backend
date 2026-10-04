@@ -4,6 +4,7 @@ import {
   isHistoricalServingAssignment,
   isOrderEligibleForRating,
   normalizeRatingComment,
+  parseMerchantSummaryIds,
   parseRatingScore,
   RATING_SCORE_MAX,
   RATING_SCORE_MIN,
@@ -103,6 +104,19 @@ describe('RatingsPolicy', () => {
       expect(formatRatingAverage(14, 3)).toBe(4.67);
       expect(formatRatingAverage(9, 2)).toBe(4.5);
       expect(formatRatingAverage(13, 3)).toBe(4.33);
+    });
+  });
+
+  describe('merchant summary batch ids', () => {
+    it('parses unique UUIDs and rejects invalid input', () => {
+      expect(parseMerchantSummaryIds('')).toEqual([]);
+      expect(
+        parseMerchantSummaryIds(
+          'dddddddd-dddd-4ddd-8ddd-dddddddddddd,DDDDDDDD-DDDD-4DDD-8DDD-DDDDDDDDDDDD',
+        ),
+      ).toEqual(['dddddddd-dddd-4ddd-8ddd-dddddddddddd']);
+      expect(parseMerchantSummaryIds('not-a-uuid')).toBeNull();
+      expect(parseMerchantSummaryIds(1)).toBeNull();
     });
   });
 });

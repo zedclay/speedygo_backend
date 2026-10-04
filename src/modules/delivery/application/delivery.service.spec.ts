@@ -74,6 +74,10 @@ describe('DeliveryService', () => {
     findProfileIdByAccountId: jest.Mock;
     findOrderRecord: jest.Mock;
     findBranchMerchantId: jest.Mock;
+    findOpenAcceptedAssignmentForDelivery: jest.Mock;
+    findDriverProfileFullName: jest.Mock;
+    findActiveVehicle: jest.Mock;
+    findArrivedPickupAt: jest.Mock;
   };
   let service: DeliveryService;
   let current: DeliveryDetailView | null;
@@ -119,6 +123,10 @@ describe('DeliveryService', () => {
         publicReference: 'sgo_abc',
       }),
       findBranchMerchantId: jest.fn().mockResolvedValue(MERCHANT),
+      findOpenAcceptedAssignmentForDelivery: jest.fn().mockResolvedValue(null),
+      findDriverProfileFullName: jest.fn().mockResolvedValue(null),
+      findActiveVehicle: jest.fn().mockResolvedValue(null),
+      findArrivedPickupAt: jest.fn().mockResolvedValue(null),
     };
     service = new DeliveryService(deliveries as never, access as never);
   });
@@ -313,6 +321,7 @@ describe('DeliveryService', () => {
     expect(read.pickup.phone).toBe('0550123499');
     expect(read.status).toBe('SEARCHING_DRIVER');
     expect(read.assignedDriverId).toBeNull();
+    expect(read.assignedDriver).toBeNull();
     expect(read).not.toHaveProperty('deliveryFeeMinor');
     expect(read).not.toHaveProperty('driverRemunerationMinor');
     expect(access.requireCapability).toHaveBeenCalledWith(
@@ -320,6 +329,41 @@ describe('DeliveryService', () => {
       MERCHANT,
       MERCHANT_CAPABILITIES.ORDER_READ,
     );
+  });
+
+  it('enriches Merchant Delivery with assignedDriver without Account.phone', async () => {
+    current = detail({
+      status: 'AT_PICKUP',
+      assignedDriverId: 'driver-1',
+      estimatedArrivalAt: null,
+    });
+    deliveries.findOpenAcceptedAssignmentForDelivery.mockResolvedValue({
+      id: 'asg-1',
+      driverId: 'driver-1',
+      version: 2,
+      status: 'ACCEPTED',
+      releasedAt: null,
+    });
+    deliveries.findDriverProfileFullName.mockResolvedValue('Ada Driver');
+    deliveries.findActiveVehicle.mockResolvedValue({
+      type: 'MOTORCYCLE',
+      plateNumber: '12345-A-67',
+    });
+    deliveries.findArrivedPickupAt.mockResolvedValue('2026-01-15T12:30:00.000Z');
+    const read = await service.getMerchantDelivery(ACCOUNT, MERCHANT, ORDER_ID);
+    expect(read.assignedDriver).toEqual({
+      driverId: 'driver-1',
+      assignmentId: 'asg-1',
+      assignmentVersion: 2,
+      displayName: 'Ada Driver',
+      vehicle: { type: 'MOTORCYCLE', plateNumber: '12345-A-67' },
+      contactPhone: null,
+      callAllowed: false,
+      deliveryStatus: 'AT_PICKUP',
+      arrivedPickupAt: '2026-01-15T12:30:00.000Z',
+      estimatedArrivalAt: null,
+    });
+    expect(JSON.stringify(read.assignedDriver)).not.toContain('phone');
   });
 
   it('lets SUSPENDED Merchant membership read SEARCHING_DRIVER before Driver assignment', async () => {

@@ -580,6 +580,9 @@ export class AdminQueryRepository {
         startsAt: row.startsAt,
         endsAt: row.endsAt,
         active: row.active,
+        customerDiscoverable: Boolean(row.customerDiscoverable),
+        customerLabel:
+          row.customerLabel == null ? null : String(row.customerLabel),
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
       })),
@@ -601,6 +604,9 @@ export class AdminQueryRepository {
       startsAt: row.startsAt,
       endsAt: row.endsAt,
       active: row.active,
+      customerDiscoverable: Boolean(row.customerDiscoverable),
+      customerLabel:
+        row.customerLabel == null ? null : String(row.customerLabel),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };

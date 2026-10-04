@@ -17,6 +17,7 @@ import {
   isOrderEligibleForDelivery,
 } from '../domain/delivery.policy';
 import type {
+  AssignedDriverSummary,
   CustomerDeliveryView,
   DeliveryDetailView,
   MerchantDeliveryView,
@@ -127,6 +128,43 @@ export class DeliveryService {
       throw deliveryNotFound();
     }
     const { deliveryFeeMinor: _fee, ...rest } = detail;
-    return rest;
+    const assignedDriver = await this.loadAssignedDriverSummary(
+      detail.id,
+      detail.status,
+      detail.estimatedArrivalAt,
+    );
+    return { ...rest, assignedDriver };
+  }
+
+  private async loadAssignedDriverSummary(
+    deliveryId: string,
+    deliveryStatus: string,
+    estimatedArrivalAt: string | null,
+  ): Promise<AssignedDriverSummary | null> {
+    const assignment =
+      await this.deliveries.findOpenAcceptedAssignmentForDelivery(deliveryId);
+    if (!assignment) {
+      return null;
+    }
+    const [displayName, vehicle, arrivedPickupAt] = await Promise.all([
+      this.deliveries.findDriverProfileFullName(assignment.driverId),
+      this.deliveries.findActiveVehicle(assignment.driverId),
+      this.deliveries.findArrivedPickupAt(deliveryId),
+    ]);
+    if (!displayName) {
+      return null;
+    }
+    return {
+      driverId: assignment.driverId,
+      assignmentId: assignment.id,
+      assignmentVersion: assignment.version,
+      displayName,
+      vehicle,
+      contactPhone: null,
+      callAllowed: false,
+      deliveryStatus,
+      arrivedPickupAt,
+      estimatedArrivalAt,
+    };
   }
 }

@@ -16,6 +16,7 @@ import {
   PROMOTION_ADVISORY_LOCK_CLASS,
   promotionAdvisoryObjectId,
 } from '../domain/promotion.lock';
+import { CUSTOMER_PROMOTION_DISCOVERY_FETCH_CAP } from '../domain/promotion.types';
 import type {
   PromotionFundingV1,
   PromotionRecord,
@@ -65,17 +66,21 @@ function toPromotion(row: {
   startsAt: string;
   endsAt: string;
   active: boolean;
+  customerDiscoverable: boolean;
+  customerLabel: string | null;
   createdAt: string;
   updatedAt: string;
 }): PromotionRecord {
   return {
     id: row.id,
-    code: row.code,
-    type: row.type,
+    code: String(row.code),
+    type: String(row.type),
     value: Number(row.value),
     startsAt: row.startsAt,
     endsAt: row.endsAt,
-    active: row.active,
+    active: Boolean(row.active),
+    customerDiscoverable: Boolean(row.customerDiscoverable),
+    customerLabel: row.customerLabel == null ? null : String(row.customerLabel),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -167,6 +172,8 @@ export class PromotionRepository {
       startsAt: string;
       endsAt: string;
       active: boolean;
+      customerDiscoverable: boolean;
+      customerLabel: string | null;
     },
     client?: OrmClient,
   ): Promise<PromotionRecord> {
@@ -181,6 +188,11 @@ export class PromotionRepository {
       startsAt: pgTimestamptz(input.startsAt),
       endsAt: pgTimestamptz(input.endsAt),
       active: input.active,
+      customerDiscoverable: input.customerDiscoverable,
+      customerLabel:
+        input.customerLabel == null
+          ? null
+          : pgVarchar<64>(input.customerLabel),
       createdAt: now,
       updatedAt: now,
     });
@@ -189,6 +201,60 @@ export class PromotionRepository {
       throw promotionConfigurationInvalid('Promotion create failed');
     }
     return toPromotion(row);
+  }
+
+  async setCustomerDiscovery(
+    id: string,
+    input: { customerDiscoverable: boolean; customerLabel?: string | null },
+    client?: OrmClient,
+  ): Promise<PromotionRecord> {
+    const db = this.asClient(client);
+    const patch: {
+      customerDiscoverable: boolean;
+      customerLabel?: ReturnType<typeof pgVarchar<64>> | null;
+      updatedAt: ReturnType<typeof pgNow>;
+    } = {
+      customerDiscoverable: input.customerDiscoverable,
+      updatedAt: pgNow(),
+    };
+    if (input.customerLabel !== undefined) {
+      patch.customerLabel =
+        input.customerLabel == null
+          ? null
+          : pgVarchar<64>(input.customerLabel);
+    }
+    await orm(db).Promotion.where({ id }).update(patch);
+    const row = await orm(db).Promotion.where({ id }).first();
+    if (!row) {
+      throw promotionConfigurationInvalid('Promotion update failed');
+    }
+    return toPromotion(row);
+  }
+
+  async listDiscoverableCandidates(client?: OrmClient): Promise<PromotionRecord[]> {
+    const rows = await orm(this.asClient(client))
+      .Promotion.where({ customerDiscoverable: true, active: true })
+      .orderBy((row) => row.endsAt.asc())
+      .limit(CUSTOMER_PROMOTION_DISCOVERY_FETCH_CAP)
+      .all();
+    return rows.map(toPromotion);
+  }
+
+  async countAllRedemptions(client?: OrmClient): Promise<number> {
+    const counted = await orm(this.asClient(client)).PromotionRedemption.aggregate(
+      (agg) => ({ total: agg.count() }),
+    );
+    return Number(counted.total);
+  }
+
+  async findCustomerProfileIdByAccountId(
+    accountId: string,
+    client?: OrmClient,
+  ): Promise<string | null> {
+    const row = await orm(this.asClient(client))
+      .CustomerProfile.where({ accountId })
+      .first();
+    return row?.id ?? null;
   }
 
   async setActive(

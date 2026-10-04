@@ -1,4 +1,8 @@
 import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
+import {
+  resolveSellingUnitLabelFr,
+  type SellingUnitCode,
+} from './catalog.policy';
 
 export {
   CATALOG_DESCRIPTION_MAX_LENGTH,
@@ -30,6 +34,8 @@ export type ProductRecord = {
   description: string | null;
   priceMinor: number;
   available: boolean;
+  sellingUnitCode: SellingUnitCode | null;
+  sellingUnitLabelFr: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -73,6 +79,8 @@ export type CreateProductInput = {
   description?: string | null;
   priceMinor: number;
   available?: boolean;
+  sellingUnitCode?: string | null;
+  sellingUnitLabelFr?: string | null;
 };
 
 export type UpdateProductInput = {
@@ -81,6 +89,8 @@ export type UpdateProductInput = {
   description?: string | null;
   priceMinor?: number;
   available?: boolean;
+  sellingUnitCode?: string | null;
+  sellingUnitLabelFr?: string | null;
 };
 
 export type CreateOptionGroupInput = {
@@ -141,6 +151,9 @@ export type ProductSummaryView = {
   description: string | null;
   priceMinor: string;
   available: boolean;
+  hasImage: boolean;
+  sellingUnitCode: SellingUnitCode | null;
+  sellingUnitLabelFr: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -194,7 +207,10 @@ export function toCategoryView(row: CategoryRecord): CategoryView {
   };
 }
 
-export function toProductSummaryView(row: ProductRecord): ProductSummaryView {
+export function toProductSummaryView(
+  row: ProductRecord,
+  hasImage = false,
+): ProductSummaryView {
   return {
     id: row.id,
     branchId: row.merchantBranchId,
@@ -203,6 +219,9 @@ export function toProductSummaryView(row: ProductRecord): ProductSummaryView {
     description: row.description,
     priceMinor: moneyMinorToDecimalString(row.priceMinor),
     available: row.available,
+    hasImage,
+    sellingUnitCode: row.sellingUnitCode,
+    sellingUnitLabelFr: resolveSellingUnitLabelFr(row),
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };

@@ -29,6 +29,14 @@ docker compose up -d
 pnpm start:dev
 ```
 
+`pnpm start:dev` runs `scripts/start-dev-api.sh`, which exports a persistent
+`STORAGE_LOCAL_ROOT` (`$HOME/.speedygo/dev/storage` by default) without editing
+`.env`. That directory is owner-only (`0700`), lives outside Git, and is
+**development persistence only** — not a production backup. E2E keeps an
+isolated temp root via `test/setup-e2e-env.ts` and never shares this path.
+Override with `SPEEDYGO_DEV_STORAGE_ROOT` if needed. Fixture apply/verify
+scripts talk to the already-running API (`http://127.0.0.1:3000/api/v1`).
+
 | Service | Port |
 | --- | --- |
 | API | 3000 |
@@ -66,7 +74,7 @@ pnpm prisma:verify
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm start:dev` | Watch mode |
+| `pnpm start:dev` | Watch mode via `scripts/start-dev-api.sh` (persistent local storage) |
 | `pnpm build` | Compile |
 | `pnpm lint` | ESLint |
 | `pnpm test` | Unit tests |

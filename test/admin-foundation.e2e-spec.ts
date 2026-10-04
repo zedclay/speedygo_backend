@@ -26,6 +26,19 @@ import {
 import { deleteAccountNotificationArtifacts } from './helpers/delete-account-notifications';
 import { deleteBranchOpeningHours } from './helpers/ensure-branch-opening-hours';
 
+const LEGAL_ACCEPTANCES = [
+  { kind: 'MERCHANT_TERMS', version: '2026-10-03' },
+  { kind: 'DOSSIER_ACCURACY_DECLARATION', version: '2026-10-03' },
+];
+
+const REJECT_ISSUES = [
+  {
+    scope: 'APPLICATION',
+    code: 'PROFILE_INCOMPLETE',
+    messageFr: 'Le profil est incomplet.',
+  },
+];
+
 type TokenBody = { accessToken: string };
 type ErrorBody = { error: { code: string; message: string } };
 type AuthMeBody = { account: { id: string; phone: string } };
@@ -128,6 +141,21 @@ describe('Admin Foundation (e2e)', () => {
       accountId: account.id,
     }).all();
     for (const member of members) {
+      for (const row of await db.MerchantVerificationIssue.where({
+        merchantId: member.merchantId,
+      }).all()) {
+        await db.MerchantVerificationIssue.where({ id: row.id }).delete();
+      }
+      for (const row of await db.MerchantLegalAcceptance.where({
+        merchantId: member.merchantId,
+      }).all()) {
+        await db.MerchantLegalAcceptance.where({ id: row.id }).delete();
+      }
+      for (const row of await db.MerchantVerificationSubmission.where({
+        merchantId: member.merchantId,
+      }).all()) {
+        await db.MerchantVerificationSubmission.where({ id: row.id }).delete();
+      }
       const docs = await db.MerchantDocument.where({
         merchantId: member.merchantId,
       }).all();
@@ -250,7 +278,7 @@ describe('Admin Foundation (e2e)', () => {
     const submitted = await request(server)
       .post(`/api/v1/merchant/${merchantId}/verification/submit`)
       .set('Authorization', `Bearer ${ownerToken}`)
-      .send({});
+      .send({ acceptances: LEGAL_ACCEPTANCES });
     expect(submitted.status).toBe(200);
     return merchantId;
   }
@@ -258,6 +286,21 @@ describe('Admin Foundation (e2e)', () => {
   async function cleanupMerchantsByIds(merchantIds: string[]): Promise<void> {
     const db = prisma.getDb().orm.public;
     for (const merchantId of merchantIds) {
+      for (const row of await db.MerchantVerificationIssue.where({
+        merchantId: merchantId,
+      }).all()) {
+        await db.MerchantVerificationIssue.where({ id: row.id }).delete();
+      }
+      for (const row of await db.MerchantLegalAcceptance.where({
+        merchantId: merchantId,
+      }).all()) {
+        await db.MerchantLegalAcceptance.where({ id: row.id }).delete();
+      }
+      for (const row of await db.MerchantVerificationSubmission.where({
+        merchantId: merchantId,
+      }).all()) {
+        await db.MerchantVerificationSubmission.where({ id: row.id }).delete();
+      }
       for (const doc of await db.MerchantDocument.where({
         merchantId,
       }).all()) {
@@ -437,7 +480,7 @@ describe('Admin Foundation (e2e)', () => {
         request(server)
           .post(`/api/v1/admin/merchants/${merchantId}/verification/reject`)
           .set('Authorization', `Bearer ${adminToken}`)
-          .send({}),
+          .send({ issues: REJECT_ISSUES }),
       ]);
       const statuses = [a.status, b.status].sort();
       expect(statuses).toEqual([201, 409]);
@@ -537,7 +580,7 @@ describe('Admin Foundation (e2e)', () => {
       const rejected = await request(server)
         .post(`/api/v1/admin/merchants/${merchantId}/verification/reject`)
         .set('Authorization', `Bearer ${adminToken}`)
-        .send({});
+        .send({ issues: REJECT_ISSUES });
       expect(rejected.status).toBe(201);
       expect(rejected.body).toMatchObject({
         id: merchantId,

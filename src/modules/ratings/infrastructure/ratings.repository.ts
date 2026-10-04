@@ -317,6 +317,38 @@ export class RatingsRepository {
     return Boolean(row);
   }
 
+  async listExistingMerchantIds(merchantIds: string[]): Promise<string[]> {
+    if (merchantIds.length === 0) {
+      return [];
+    }
+    const rows = await orm(this.db())
+      .Merchant.where((merchant) => merchant.id.in(merchantIds))
+      .all();
+    return rows.map((row) => String(row.id).toLowerCase());
+  }
+
+  async aggregateMerchantRatingsMany(
+    merchantIds: string[],
+  ): Promise<Map<string, { count: number; sum: number }>> {
+    const totals = new Map<string, { count: number; sum: number }>();
+    for (const id of merchantIds) {
+      totals.set(id, { count: 0, sum: 0 });
+    }
+    if (merchantIds.length === 0) {
+      return totals;
+    }
+    const rows = await orm(this.db())
+      .MerchantRating.where((rating) => rating.merchantId.in(merchantIds))
+      .all();
+    for (const row of rows) {
+      const current = totals.get(row.merchantId) ?? { count: 0, sum: 0 };
+      current.count += 1;
+      current.sum += Number(row.score);
+      totals.set(row.merchantId, current);
+    }
+    return totals;
+  }
+
   async driverExists(driverId: string): Promise<boolean> {
     const row = await orm(this.db())
       .DriverProfile.where({ id: driverId })

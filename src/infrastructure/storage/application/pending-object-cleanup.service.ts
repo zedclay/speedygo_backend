@@ -14,7 +14,8 @@ import {
 
 /**
  * Deletes expired pending/ objects using ObjectStorage listing (not Redis).
- * Never touches permanent/. Cleanup failure never affects bound documents.
+ * Never touches permanent/, covers/, logos/, or product-images/. Cleanup failure never
+ * affects bound verification documents, storefront covers, or product photos.
  */
 @Injectable()
 export class PendingObjectCleanupService
@@ -67,7 +68,12 @@ export class PendingObjectCleanupService
         if (!key.startsWith(PENDING_LIST_PREFIX) || key.includes('..')) {
           continue;
         }
-        if (key.startsWith('permanent/')) {
+        if (
+          key.startsWith('permanent/') ||
+          key.startsWith('covers/') ||
+          key.startsWith('logos/') ||
+          key.startsWith('product-images/')
+        ) {
           continue;
         }
         await this.objects.deleteObject(key);

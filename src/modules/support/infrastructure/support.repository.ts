@@ -16,9 +16,11 @@ import type {
   AdminSupportListFilters,
   CreateSupportTicketInput,
   SupportInternalNoteRecord,
+  SupportFaqArticleRecord,
   SupportMessageRecord,
   SupportOrderContext,
   SupportTicketRecord,
+  SupportTopicRecord,
 } from '../domain/support.types';
 import {
   initialTicketPriority,
@@ -45,6 +47,8 @@ function toTicket(row: {
   status: string;
   priority: string;
   assignedAdminId: string | null;
+  topicCode: string | null;
+  subject: string | null;
   createdAt: string;
   updatedAt: string;
 }): SupportTicketRecord {
@@ -65,8 +69,52 @@ function toTicket(row: {
     status,
     priority,
     assignedAdminId: row.assignedAdminId,
+    topicCode: row.topicCode ?? null,
+    subject: row.subject ?? null,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
+  };
+}
+
+function toTopic(row: {
+  id: string;
+  code: string;
+  labelFr: string;
+  audience: string;
+  sortOrder: number;
+  active: boolean;
+}): SupportTopicRecord {
+  return {
+    id: row.id,
+    code: String(row.code),
+    labelFr: String(row.labelFr),
+    audience: String(row.audience),
+    sortOrder: Number(row.sortOrder),
+    active: Boolean(row.active),
+  };
+}
+
+function toFaq(row: {
+  id: string;
+  audience: string;
+  slug: string;
+  titleFr: string;
+  bodyFr: string;
+  version: string;
+  sortOrder: number;
+  active: boolean;
+  publishedAt: string;
+}): SupportFaqArticleRecord {
+  return {
+    id: row.id,
+    audience: String(row.audience),
+    slug: String(row.slug),
+    titleFr: String(row.titleFr),
+    bodyFr: row.bodyFr,
+    version: String(row.version),
+    sortOrder: Number(row.sortOrder),
+    active: Boolean(row.active),
+    publishedAt: row.publishedAt,
   };
 }
 
@@ -141,6 +189,111 @@ export class SupportRepository {
   ): Promise<SupportTicketRecord | null> {
     const row = await orm(client).SupportTicket.where({ id: ticketId }).first();
     return row ? toTicket(row) : null;
+  }
+
+  async countTopicsForAudience(audience: string): Promise<number> {
+    const result = await orm(this.db())
+      .SupportTopic.where({ audience: pgVarchar<32>(audience) })
+      .aggregate((agg) => ({ total: agg.count() }));
+    return Number(result.total);
+  }
+
+  async listActiveTopics(audiences: string[]): Promise<SupportTopicRecord[]> {
+    const rows = await orm(this.db())
+      .SupportTopic.where({ active: true })
+      .where((topic) =>
+        topic.audience.in(audiences.map((value) => pgVarchar<32>(value))),
+      )
+      .all();
+    return rows
+      .map(toTopic)
+      .sort(
+        (a, b) => a.sortOrder - b.sortOrder || a.code.localeCompare(b.code),
+      );
+  }
+
+  async findActiveTopicByCode(
+    code: string,
+    audiences: string[],
+  ): Promise<SupportTopicRecord | null> {
+    const row = await orm(this.db())
+      .SupportTopic.where({ code: pgVarchar<64>(code), active: true })
+      .first();
+    if (!row || !audiences.includes(String(row.audience))) {
+      return null;
+    }
+    return toTopic(row);
+  }
+
+  async findTopicByCode(code: string): Promise<SupportTopicRecord | null> {
+    const row = await orm(this.db())
+      .SupportTopic.where({ code: pgVarchar<64>(code) })
+      .first();
+    return row ? toTopic(row) : null;
+  }
+
+  async createTopic(input: {
+    code: string;
+    labelFr: string;
+    audience: string;
+    sortOrder: number;
+  }): Promise<void> {
+    const now = pgNow();
+    await orm(this.db()).SupportTopic.create({
+      id: createUuidV7(),
+      code: pgVarchar<64>(input.code),
+      labelFr: pgVarchar<255>(input.labelFr),
+      audience: pgVarchar<32>(input.audience),
+      sortOrder: input.sortOrder,
+      active: true,
+      createdAt: now,
+      updatedAt: now,
+    });
+  }
+
+  async countFaqForAudience(audience: string): Promise<number> {
+    const result = await orm(this.db())
+      .SupportFaqArticle.where({ audience: pgVarchar<32>(audience) })
+      .aggregate((agg) => ({ total: agg.count() }));
+    return Number(result.total);
+  }
+
+  async listActiveFaq(audience: string): Promise<SupportFaqArticleRecord[]> {
+    const rows = await orm(this.db())
+      .SupportFaqArticle.where({
+        audience: pgVarchar<32>(audience),
+        active: true,
+      })
+      .all();
+    return rows
+      .map(toFaq)
+      .sort(
+        (a, b) => a.sortOrder - b.sortOrder || a.slug.localeCompare(b.slug),
+      );
+  }
+
+  async createFaqArticle(input: {
+    audience: string;
+    slug: string;
+    titleFr: string;
+    bodyFr: string;
+    version: string;
+    sortOrder: number;
+  }): Promise<void> {
+    const now = pgNow();
+    await orm(this.db()).SupportFaqArticle.create({
+      id: createUuidV7(),
+      audience: pgVarchar<32>(input.audience),
+      slug: pgVarchar<64>(input.slug),
+      titleFr: pgVarchar<255>(input.titleFr),
+      bodyFr: input.bodyFr,
+      version: pgVarchar<32>(input.version),
+      sortOrder: input.sortOrder,
+      active: true,
+      publishedAt: now,
+      createdAt: now,
+      updatedAt: now,
+    });
   }
 
   async findCustomerProfileByAccountId(
@@ -238,6 +391,8 @@ export class SupportRepository {
       status: pgVarchar<64>(status),
       priority: pgVarchar<32>(priority),
       assignedAdminId: null,
+      topicCode: input.topicCode ? pgVarchar<64>(input.topicCode) : null,
+      subject: input.subject ? pgVarchar<255>(input.subject) : null,
       createdAt: now,
       updatedAt: now,
     });
