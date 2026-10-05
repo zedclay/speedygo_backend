@@ -55,6 +55,8 @@ import { PickupHandoffService } from './pickup-handoff.service';
 
 export type DriverCurrentDeliveryView = {
   assignmentId: string;
+  /** Optimistic concurrency token for confirm-pickup when a PENDING handoff exists. */
+  assignmentVersion: number;
   deliveryId: string;
   orderId: string;
   deliveryStatus: string;
@@ -94,6 +96,7 @@ export class DriverDeliveryService {
     }
     return {
       assignmentId: context.assignmentId,
+      assignmentVersion: context.assignmentVersion,
       deliveryId: context.deliveryId,
       orderId: context.orderId,
       deliveryStatus: detail.status,
@@ -254,6 +257,7 @@ export class DriverDeliveryService {
     context: {
       driverId: string;
       assignmentId: string;
+      assignmentVersion: number;
       deliveryId: string;
       orderId: string;
     },
@@ -393,6 +397,7 @@ export class DriverDeliveryService {
     });
     return {
       assignmentId: context.assignmentId,
+      assignmentVersion: context.assignmentVersion,
       deliveryId: context.deliveryId,
       orderId: context.orderId,
       deliveryStatus: detail.status,

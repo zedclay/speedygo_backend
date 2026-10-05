@@ -4,6 +4,13 @@ export class DriverCurrentDeliveryResponseDto {
   @ApiProperty()
   assignmentId!: string;
 
+  @ApiProperty({
+    description:
+      'DriverAssignment.version — required on confirm-pickup when a PENDING pickup handoff exists.',
+    minimum: 1,
+  })
+  assignmentVersion!: number;
+
   @ApiProperty()
   deliveryId!: string;
 
