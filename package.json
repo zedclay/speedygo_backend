@@ -1,7 +1,7 @@
 {
   "name": "speedygo-backend",
   "version": "0.0.1",
-  "description": "SpeedyGo backend — NestJS modular monolith",
+  "description": "SpeedyGo backend \u2014 NestJS modular monolith",
   "author": "",
   "private": true,
   "license": "UNLICENSED",
@@ -20,11 +20,18 @@
     "test:e2e": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand",
     "contract:emit": "prisma contract emit",
     "prisma:db:init": "prisma db init",
-    "prisma:migrate:plan": "prisma migration plan",
-    "prisma:migrate": "prisma db migrate",
+    "prisma:migrate:plan": "node scripts/prisma-dual-column-guard.mjs plan",
+    "prisma:migrate": "node scripts/prisma-dual-column-guard.mjs migrate",
     "prisma:verify": "prisma db verify",
     "prisma:schema": "prisma db schema",
-    "geo:import-algeria": "node scripts/geo-import-algeria.mjs"
+    "geo:import-algeria": "node scripts/geo-import-algeria.mjs",
+    "lint:check": "eslint \"{src,apps,libs,test}/**/*.ts\"",
+    "ci:prepare": "node scripts/prisma-ci-prepare.mjs",
+    "ci:contract": "node scripts/ci-contract-check.mjs",
+    "test:isolated-db": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-isolated-db.json --runInBand --testPathPatterns=session-audience.schema.db-spec --testPathPatterns=admin-rbac-lockout.db-spec",
+    "test:e2e:ci": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand test/app.e2e-spec.ts test/auth.e2e-spec.ts test/auth-audience.e2e-spec.ts test/auth-audience-compat.e2e-spec.ts test/cors-configuration.e2e-spec.ts",
+    "contract:emit:dzd": "prisma contract emit --config prisma.config.dzd.ts --output-path /tmp/speedygo-dzd-emit",
+    "prisma:verify:dzd": "prisma db verify --config prisma.config.dzd.ts --schema-only"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.1127.0",

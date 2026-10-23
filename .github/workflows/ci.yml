@@ -1,0 +1,103 @@
+# SpeedyGo Backend CI — lives in speedygo_backend.git so GitHub Actions can find it.
+# Never targets speedygo_dev, FX, rehearsal, or production.
+name: Backend CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: backend-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_ENV: test
+  OTP_TRANSPORT: test
+  PAYMENT_PROVIDER: test
+  JWT_ACCESS_SECRET: ci-jwt-access-secret-at-least-32-chars
+  OTP_HMAC_SECRET: ci-otp-hmac-secret-at-least-32-ch
+  CORS_ALLOWED_ORIGINS: http://127.0.0.1:5173
+  E2E_DATABASE_URL: postgresql://speedygo:speedygo@127.0.0.1:5433/speedygo_test?schema=public
+  E2E_REDIS_URL: redis://127.0.0.1:6381/15
+  DATABASE_URL: postgresql://speedygo:speedygo@127.0.0.1:5433/speedygo_test?schema=public
+  # Omit MONEY_PRISMA_DECIMAL and AUTH_AUDIENCE_PRISMA — CI is BigInt speedygo_test only.
+
+jobs:
+  unit:
+    name: contract-build-unit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Dual-column flags must stay unset
+        run: |
+          test -z "${MONEY_PRISMA_DECIMAL:-}"
+          test -z "${AUTH_AUDIENCE_PRISMA:-}"
+      - name: Isolated BigInt and DZD contract emits
+        run: pnpm ci:contract
+      - run: pnpm build
+      - run: pnpm test
+
+  isolated:
+    name: isolated-postgres-redis
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.5
+        env:
+          POSTGRES_USER: speedygo
+          POSTGRES_PASSWORD: speedygo
+          POSTGRES_DB: speedygo_test
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U speedygo -d speedygo_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 12
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6381:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - name: PostgreSQL client for migrate guard
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+      - run: pnpm install --frozen-lockfile
+      - name: Dual-column flags must stay unset
+        run: |
+          test -z "${MONEY_PRISMA_DECIMAL:-}"
+          test -z "${AUTH_AUDIENCE_PRISMA:-}"
+      - name: Generate Prisma skills from pinned CLI
+        run: pnpm ci:prepare
+      - name: Apply BigInt migrations to disposable speedygo_test
+        run: pnpm prisma:migrate -- --db "$DATABASE_URL"
+      - name: Verify migrated marker matches contract
+        run: pnpm prisma:verify
+      - name: Isolated db-specs (speedygo_test only; not FX)
+        run: pnpm test:isolated-db
+      - name: Isolated auth/bootstrap e2e
+        run: pnpm test:e2e:ci
