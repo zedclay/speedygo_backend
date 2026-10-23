@@ -46,7 +46,7 @@ scripts talk to the already-running API (`http://127.0.0.1:3000/api/v1`).
 | MinIO API | 9000 |
 | MinIO console | 9001 |
 
-Health: `GET /health` (also available under the global prefix as `GET /api/v1`).
+Health: `GET /health` is process liveness (`{"status":"ok","service":"speedygo-backend"}`). Dependency readiness is `GET /ready` (200 when PostgreSQL and Redis answer; 503 `status:unavailable` with `checks.postgres` / `checks.redis`). Chargily and other optional integrations are not probed. Existing `/health` consumers keep the liveness contract.
 
 Auth architecture: [AUTHENTICATION.md](../../docs/architecture/AUTHENTICATION.md).
 
