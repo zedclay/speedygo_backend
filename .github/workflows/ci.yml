@@ -95,5 +95,9 @@ jobs:
         run: pnpm prisma:verify
       - name: Isolated db-specs (speedygo_test only; not FX)
         run: pnpm test:isolated-db
+      - name: Isolated Redis queue probes
+        env:
+          RUN_ISOLATED_REDIS_PROBES: '1'
+        run: pnpm test:isolated-redis
       - name: Isolated auth/bootstrap e2e
         run: pnpm test:e2e:ci

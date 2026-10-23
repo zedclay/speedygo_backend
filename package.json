@@ -29,6 +29,7 @@
     "ci:prepare": "node scripts/prisma-ci-prepare.mjs",
     "ci:contract": "node scripts/ci-contract-check.mjs",
     "test:isolated-db": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-isolated-db.json --runInBand --testPathPatterns=session-audience.schema.db-spec --testPathPatterns=admin-rbac-lockout.db-spec",
+    "test:isolated-redis": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --runInBand --testPathPatterns=bull-job-id.spec --testPathPatterns=notification-queue.service.spec --testPathPatterns=matching-queue.service.spec",
     "test:e2e:ci": "node --experimental-vm-modules ./node_modules/jest/bin/jest.js --config ./test/jest-e2e.json --runInBand test/app.e2e-spec.ts test/auth.e2e-spec.ts test/auth-audience.e2e-spec.ts test/auth-audience-compat.e2e-spec.ts test/cors-configuration.e2e-spec.ts",
     "contract:emit:dzd": "prisma contract emit --config prisma.config.dzd.ts --output-path /tmp/speedygo-dzd-emit",
     "prisma:verify:dzd": "prisma db verify --config prisma.config.dzd.ts --schema-only"

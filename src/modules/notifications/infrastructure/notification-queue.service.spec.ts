@@ -1,16 +1,19 @@
 import { Queue, QueueEvents, Worker } from 'bullmq';
+import {
+  bullmqIsolatedRedisConnection,
+  isolatedRedisProbesEnabled,
+  pingIsolatedRedis,
+} from '../../../config/e2e-redis-safety';
 import { NOTIFICATIONS_RECOVERY_JOB_ID } from '../../../infrastructure/queue/bull-job-id';
 import { NOTIFICATION_JOB_RECOVERY } from '../domain/notification.jobs';
 import { NotificationQueueService } from './notification-queue.service';
 
-describe('NotificationQueueService (isolated Redis probe)', () => {
-  const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6381';
-  const parsed = new URL(redisUrl);
-  const connection = {
-    host: parsed.hostname,
-    port: Number.parseInt(parsed.port || '6379', 10),
-    maxRetriesPerRequest: null,
-  };
+const describeIsolatedRedis = isolatedRedisProbesEnabled()
+  ? describe
+  : describe.skip;
+
+describeIsolatedRedis('NotificationQueueService (isolated Redis probe)', () => {
+  const connection = bullmqIsolatedRedisConnection();
   const prefix = 'bull:notif-queue-probe';
   const name = `probe-${Date.now()}`;
   let queue: Queue;
@@ -20,7 +23,8 @@ describe('NotificationQueueService (isolated Redis probe)', () => {
       get: (key: string, fallback: number) => values[key] ?? fallback,
     }) as never;
 
-  beforeAll(() => {
+  beforeAll(async () => {
+    await pingIsolatedRedis();
     queue = new Queue(name, { connection, prefix });
   });
 
