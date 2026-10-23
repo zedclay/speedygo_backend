@@ -306,6 +306,11 @@ describe('DriverService', () => {
         readDurableContent: jest.fn(),
         readBoundContent: jest.fn(),
       } as never,
+      {
+        notifyAdminDriverVerificationSubmitted: jest
+          .fn()
+          .mockResolvedValue(undefined),
+      } as never,
     );
     review = new DriverReviewService(repo as never);
   });

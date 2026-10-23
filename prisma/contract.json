@@ -60,6 +60,10 @@
       "model": "Commune",
       "namespace": "public"
     },
+    "customer_internal_notes": {
+      "model": "CustomerInternalNote",
+      "namespace": "public"
+    },
     "customer_profiles": {
       "model": "CustomerProfile",
       "namespace": "public"
@@ -577,6 +581,10 @@
               {
                 "name": "LATE_PAYMENT_SUCCESS",
                 "value": "LATE_PAYMENT_SUCCESS"
+              },
+              {
+                "name": "ADMIN_ORDER_CANCELLATION",
+                "value": "ADMIN_ORDER_CANCELLATION"
               }
             ]
           },
@@ -985,6 +993,16 @@
                   "kind": "scalar"
                 }
               },
+              "preferredLocale": {
+                "nullable": false,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 8
+                  }
+                }
+              },
               "roleId": {
                 "nullable": false,
                 "type": {
@@ -1055,6 +1073,9 @@
                 },
                 "id": {
                   "column": "id"
+                },
+                "preferredLocale": {
+                  "column": "preferred_locale"
                 },
                 "roleId": {
                   "column": "role_id"
@@ -2420,6 +2441,114 @@
               },
               "namespaceId": "public",
               "table": "communes"
+            }
+          },
+          "CustomerInternalNote": {
+            "fields": {
+              "adminId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "body": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "category": {
+                "nullable": false,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 32
+                  }
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 6
+                  }
+                }
+              },
+              "customerId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "admin": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "adminId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "AdminProfile",
+                  "namespace": "public"
+                }
+              },
+              "customer": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "customerId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "CustomerProfile",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "adminId": {
+                  "column": "admin_id"
+                },
+                "body": {
+                  "column": "body"
+                },
+                "category": {
+                  "column": "category"
+                },
+                "createdAt": {
+                  "column": "created_at"
+                },
+                "customerId": {
+                  "column": "customer_id"
+                },
+                "id": {
+                  "column": "id"
+                }
+              },
+              "namespaceId": "public",
+              "table": "customer_internal_notes"
             }
           },
           "CustomerProfile": {
@@ -10808,6 +10937,16 @@
                   "kind": "scalar"
                 }
               },
+              "authAudience": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 16
+                  }
+                }
+              },
               "createdAt": {
                 "nullable": false,
                 "type": {
@@ -10906,6 +11045,9 @@
               "fields": {
                 "accountId": {
                   "column": "account_id"
+                },
+                "authAudience": {
+                  "column": "auth_audience"
                 },
                 "createdAt": {
                   "column": "created_at"
@@ -12100,6 +12242,18 @@
                   "codecId": "pg/uuid@1",
                   "nativeType": "uuid",
                   "nullable": false
+                },
+                "preferred_locale": {
+                  "codecId": "sql/varchar@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": "fr"
+                  },
+                  "nativeType": "character varying",
+                  "nullable": false,
+                  "typeParams": {
+                    "length": 8
+                  }
                 },
                 "role_id": {
                   "codecId": "pg/uuid@1",
@@ -13478,6 +13632,119 @@
                   ],
                   "name": "communes_wilaya_426d9809",
                   "prefix": "communes_wilaya",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
+            "customer_internal_notes": {
+              "columns": {
+                "admin_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "body": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "category": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": false,
+                  "typeParams": {
+                    "length": 32
+                  }
+                },
+                "created_at": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 6
+                  }
+                },
+                "customer_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "onDelete": "restrict",
+                  "source": {
+                    "columns": [
+                      "customer_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "customer_internal_notes"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "customer_profiles"
+                  }
+                },
+                {
+                  "onDelete": "restrict",
+                  "source": {
+                    "columns": [
+                      "admin_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "customer_internal_notes"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "admin_profiles"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "admin_id"
+                  ],
+                  "name": "customer_internal_notes_admin_id_idx_78cc3551",
+                  "prefix": "customer_internal_notes_admin_id_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "customer_id",
+                    "created_at"
+                  ],
+                  "name": "customer_internal_notes_customer_created_cd59c338",
+                  "prefix": "customer_internal_notes_customer_created",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "customer_id"
+                  ],
+                  "name": "customer_internal_notes_customer_id_idx_e16dfa6b",
+                  "prefix": "customer_internal_notes_customer_id_idx",
                   "unique": false
                 }
               ],
@@ -21109,8 +21376,8 @@
                   "prefix": "refunds_refund_method_check"
                 },
                 {
-                  "expression": "\"request_origin\" IN ('ADMIN', 'CUSTOMER_CANCELLATION', 'MERCHANT_REJECTION', 'LATE_PAYMENT_SUCCESS')",
-                  "name": "refunds_request_origin_check_85f8868a",
+                  "expression": "\"request_origin\" IN ('ADMIN', 'CUSTOMER_CANCELLATION', 'MERCHANT_REJECTION', 'LATE_PAYMENT_SUCCESS', 'ADMIN_ORDER_CANCELLATION')",
+                  "name": "refunds_request_origin_check_8ebf7837",
                   "prefix": "refunds_request_origin_check"
                 },
                 {
@@ -21459,6 +21726,14 @@
                   "codecId": "pg/uuid@1",
                   "nativeType": "uuid",
                   "nullable": false
+                },
+                "auth_audience": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 16
+                  }
                 },
                 "created_at": {
                   "codecId": "pg/timestamptz-string@1",
@@ -22549,7 +22824,8 @@
                 "ADMIN",
                 "CUSTOMER_CANCELLATION",
                 "MERCHANT_REJECTION",
-                "LATE_PAYMENT_SUCCESS"
+                "LATE_PAYMENT_SUCCESS",
+                "ADMIN_ORDER_CANCELLATION"
               ]
             },
             "RefundStatus": {
@@ -22587,7 +22863,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "5f360a13b93c119514de0e1f92b556619f18b913fe69a50dda41fe5ca498a718"
+    "storageHash": "9264a4ca379452b2d144241308d978ae56185d5688f82ca99bfeca30a3d68cb9"
   },
   "capabilities": {
     "postgres": {

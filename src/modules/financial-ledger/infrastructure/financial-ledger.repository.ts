@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
+import { loadStoredCentimes } from '../../../common/money/prisma-money-decimal';
 import { createUuidV7 } from '../../../common/utils/uuid-v7';
 import {
   PrismaService,
@@ -254,7 +255,7 @@ export class FinancialLedgerRepository {
       })
       .all();
     return rows.reduce(
-      (sum, row) => sum + BigInt(row.amountMinor as bigint | number | string),
+      (sum, row) => sum + loadStoredCentimes(row.amountMinor),
       0n,
     );
   }
@@ -273,7 +274,7 @@ export class FinancialLedgerRepository {
       })
       .all();
     return rows.reduce(
-      (sum, row) => sum + BigInt(row.amountMinor as bigint | number | string),
+      (sum, row) => sum + loadStoredCentimes(row.amountMinor),
       0n,
     );
   }
@@ -319,7 +320,7 @@ export class FinancialLedgerRepository {
     return rows.map((row) => ({
       paymentId: row.payment_id,
       orderId: row.order_id,
-      amountMinor: BigInt(row.amount_minor),
+      amountMinor: loadStoredCentimes(row.amount_minor),
       currency: String(row.currency),
     }));
   }
@@ -364,7 +365,7 @@ export class FinancialLedgerRepository {
       collectionId: row.collection_id,
       orderId: row.order_id,
       driverId: row.driver_id,
-      amountMinor: BigInt(row.collected_amount_minor),
+      amountMinor: loadStoredCentimes(row.collected_amount_minor),
     }));
   }
 
@@ -404,7 +405,7 @@ export class FinancialLedgerRepository {
     return rows.map((row) => ({
       remittanceId: row.remittance_id,
       driverId: row.driver_id,
-      amountMinor: BigInt(row.confirmed_amount_minor),
+      amountMinor: loadStoredCentimes(row.confirmed_amount_minor),
     }));
   }
 
@@ -453,7 +454,7 @@ export class FinancialLedgerRepository {
       deliveryId: row.delivery_id,
       driverId: row.driver_id,
       orderId: row.order_id,
-      amountMinor: BigInt(row.net_earning_minor),
+      amountMinor: loadStoredCentimes(row.net_earning_minor),
     }));
   }
 
@@ -493,7 +494,7 @@ export class FinancialLedgerRepository {
     return rows.map((row) => ({
       refundId: row.refund_id,
       orderId: row.order_id,
-      amountMinor: BigInt(row.amount_minor),
+      amountMinor: loadStoredCentimes(row.amount_minor),
     }));
   }
 
@@ -535,7 +536,7 @@ export class FinancialLedgerRepository {
     return rows.map((row) => ({
       settlementId: row.settlement_id,
       merchantId: row.merchant_id,
-      netPayableMinor: BigInt(row.net_payable_minor),
+      netPayableMinor: loadStoredCentimes(row.net_payable_minor),
     }));
   }
 

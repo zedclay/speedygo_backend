@@ -1,14 +1,21 @@
-import { Body, Controller, HttpCode, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Headers,
+  HttpCode,
+  Post,
+} from '@nestjs/common';
 import {
   ApiBearerAuth,
   ApiOkResponse,
   ApiOperation,
   ApiTags,
 } from '@nestjs/swagger';
+import { resolveWriteCentimes } from '../../../../common/money/resolve-money-write';
 import type { AuthenticatedPrincipal } from '../../../auth/domain/auth.types';
 import { CurrentPrincipal } from '../../../auth/presentation/http/decorators/current-principal.decorator';
-import { CollectCodDto } from './dto/collect-cod.dto';
 import { CodFoundationService } from '../../application/cod-foundation.service';
+import { CollectCodDto } from './dto/collect-cod.dto';
 
 @ApiTags('cod')
 @ApiBearerAuth()
@@ -21,13 +28,20 @@ export class DriverCodCollectionController {
   @ApiOperation({
     summary: 'Collect COD cash at ARRIVED_CUSTOMER',
     description:
-      'Exact-only Customer cash collection. Creates one CodCollection per Order and atomically moves COD Payment PENDING → SUCCEEDED. Safe replay of the same exact amount reuses the existing collection. Does not complete Delivery.',
+      'minor-v1: collectedAmountMinor centimes. dzd-v2: collectedAmount "650.00". Response *Minor fields remain centimes.',
   })
   @ApiOkResponse({ description: 'COD collected successfully.' })
   async collectCod(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() body: CollectCodDto,
+    @Headers() headers: Record<string, unknown>,
   ) {
-    return this.cod.collectCod(principal.accountId, body.collectedAmountMinor);
+    const amountMinor = resolveWriteCentimes({
+      headers,
+      minorField: body.collectedAmountMinor,
+      dzdField: body.collectedAmount,
+      fieldLabel: 'collectedAmount',
+    });
+    return this.cod.collectCod(principal.accountId, amountMinor);
   }
 }

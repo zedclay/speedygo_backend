@@ -3,6 +3,8 @@
  * E2E must use dedicated host Redis (Compose host port 6381) and DB15 only.
  */
 
+import * as net from 'node:net';
+
 export const E2E_REDIS_DEFAULT_URL = 'redis://127.0.0.1:6381/15';
 export const E2E_REDIS_REQUIRED_HOST_PORT = 6381;
 export const E2E_REDIS_REQUIRED_DB = 15;
@@ -98,4 +100,125 @@ export function resolveE2eRedisUrl(
   const candidate = env.E2E_REDIS_URL?.trim() || E2E_REDIS_DEFAULT_URL;
   assertSafeE2eRedisUrl(candidate);
   return candidate;
+}
+
+/** Opt-in for BullMQ specs that need disposable Redis 6381/15. Unit CI leaves this unset. */
+export const ISOLATED_REDIS_PROBE_ENV = 'RUN_ISOLATED_REDIS_PROBES';
+
+export function isolatedRedisProbesEnabled(
+  env: NodeJS.ProcessEnv = process.env,
+): boolean {
+  return env[ISOLATED_REDIS_PROBE_ENV] === '1';
+}
+
+export type BullmqIsolatedRedisConnection = {
+  host: string;
+  port: number;
+  db: number;
+  maxRetriesPerRequest: null;
+  connectTimeout: number;
+};
+
+/** BullMQ connection for isolated probes. Never inherits REDIS_URL / :6379. */
+export function bullmqIsolatedRedisConnection(
+  env: NodeJS.ProcessEnv = process.env,
+): BullmqIsolatedRedisConnection {
+  const parsed = assertSafeE2eRedisUrl(resolveE2eRedisUrl(env));
+  return {
+    host: parsed.hostname === 'localhost' ? '127.0.0.1' : parsed.hostname,
+    port: parsed.port,
+    db: parsed.db,
+    maxRetriesPerRequest: null,
+    connectTimeout: 1_000,
+  };
+}
+
+/** Fail-fast TCP probe so missing Redis cannot hang BullMQ (maxRetriesPerRequest: null). */
+export function pingIsolatedRedis(
+  env: NodeJS.ProcessEnv = process.env,
+  timeoutMs = 800,
+): Promise<void> {
+  const { host, port } = bullmqIsolatedRedisConnection(env);
+  return new Promise((resolve, reject) => {
+    const socket = net.connect({ host, port });
+    const timer = setTimeout(() => {
+      socket.destroy();
+      reject(
+        new Error(
+          `isolated Redis ${host}:${port} not reachable within ${timeoutMs}ms (requires ${ISOLATED_REDIS_PROBE_ENV}=1 and host port 6381 / DB15; never :6379)`,
+        ),
+      );
+    }, timeoutMs);
+    socket.once('connect', () => {
+      clearTimeout(timer);
+      socket.end();
+      resolve();
+    });
+    socket.once('error', (err) => {
+      clearTimeout(timer);
+      reject(err);
+    });
+  });
+}
+
+/**
+ * Fail-closed preflight for destructive FLUSHDB.
+ * Timeout alone is insufficient — refuse unless the exact CLI target is
+ * loopback + host port 6381 + DB 15 (never shared :6379 / DB0).
+ */
+export function assertE2eRedisFlushTarget(target: ParsedE2eRedisUrl): void {
+  assertSafeE2eRedisUrl(
+    `redis://${target.hostname}:${target.port}/${target.db}`,
+  );
+  if (target.port !== E2E_REDIS_REQUIRED_HOST_PORT) {
+    throw new Error(
+      `E2E FLUSHDB refused: port ${target.port} is not ${E2E_REDIS_REQUIRED_HOST_PORT}`,
+    );
+  }
+  if (target.db !== E2E_REDIS_REQUIRED_DB) {
+    throw new Error(
+      `E2E FLUSHDB refused: DB ${target.db} is not ${E2E_REDIS_REQUIRED_DB}`,
+    );
+  }
+  const loopback =
+    target.hostname === '127.0.0.1' ||
+    target.hostname === 'localhost' ||
+    target.hostname === '::1';
+  if (!loopback) {
+    throw new Error(
+      `E2E FLUSHDB refused: host ${target.hostname} is not loopback`,
+    );
+  }
+}
+
+export type E2eRedisFlushResult =
+  | { ok: true; host: string; port: number; db: number }
+  | { ok: false; reason: string };
+
+/**
+ * Build redis-cli argv for E2E DB flush only after isolation is re-asserted.
+ * Callers must not invent host/port/db outside assertSafeE2eRedisUrl.
+ */
+export function buildE2eRedisFlushArgv(
+  target: ParsedE2eRedisUrl,
+): readonly string[] {
+  assertE2eRedisFlushTarget(target);
+  const host = target.hostname === 'localhost' ? '127.0.0.1' : target.hostname;
+  // Re-check argv literals cannot drift from required isolation constants.
+  if (target.port !== E2E_REDIS_REQUIRED_HOST_PORT) {
+    throw new Error('E2E FLUSHDB argv port mismatch');
+  }
+  if (target.db !== E2E_REDIS_REQUIRED_DB) {
+    throw new Error('E2E FLUSHDB argv DB mismatch');
+  }
+  return [
+    'redis-cli',
+    '-h',
+    host,
+    '-p',
+    String(E2E_REDIS_REQUIRED_HOST_PORT),
+    '-n',
+    String(E2E_REDIS_REQUIRED_DB),
+    'FLUSHDB',
+  ] as const;
 }

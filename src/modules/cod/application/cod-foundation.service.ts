@@ -44,9 +44,14 @@ import {
   COD_DISCREPANCY_STATUS_OPEN,
   COD_REMITTANCE_STATUS_CONFIRMED,
   COD_REMITTANCE_STATUS_DECLARED,
+  deriveAdminCodDriverReconciliationStatus,
   isExactCodAmount,
   isPositiveMinor,
+  type AdminCodDriverReconciliationStatus,
 } from '../domain/cod.policy';
+const ADMIN_COD_SUMMARY_DEFAULT_LIMIT = 50;
+const ADMIN_COD_SUMMARY_MAX_LIMIT = 100;
+const ADMIN_COD_SUMMARY_MAX_OFFSET = 10_000;
 
 export type OrmClient = { orm: SpeedyGoDb['orm'] };
 
@@ -72,6 +77,29 @@ export type CodDriverSummaryView = {
   collectedAmountMinor: string;
   confirmedAllocatedMinor: string;
   openDeclaredCount: number;
+};
+
+/** Admin COD Suivi — one row per driver with custody maths (not remittance rows). */
+export type AdminCodDriverSummaryView = {
+  driverId: string;
+  fullName: string;
+  collectedOrderCount: number;
+  /** SUM(COLLECTED) — Stitch “montant attendu”. */
+  collectedAmountMinor: string;
+  /** SUM(confirmed allocations) — Stitch “montant remis”. */
+  confirmedAllocatedMinor: string;
+  /** collected − confirmedAllocated — Stitch “reste à remettre”. */
+  outstandingCustodyMinor: string;
+  openDeclaredCount: number;
+  discrepancyRemittanceCount: number;
+  reconciliationStatus: AdminCodDriverReconciliationStatus;
+};
+
+export type AdminCodDriverSummariesPage = {
+  items: AdminCodDriverSummaryView[];
+  total: number;
+  limit: number;
+  offset: number;
 };
 
 export type CodRemittanceView = {
@@ -339,6 +367,64 @@ export class CodFoundationService {
     return this.toDriverSummaryView(
       await this.computeOutstandingCustody(profile.id),
     );
+  }
+
+  /**
+   * Admin Suivi COD: driver-aggregated custody rows.
+   * Totals use the same outstanding-custody definition as driver self-summary;
+   * aggregation + status filters run before pagination (never page-then-sum).
+   */
+  async listAdminCodDriverSummaries(input: {
+    limit?: number;
+    offset?: number;
+    q?: string;
+    reconciliationStatus?: AdminCodDriverReconciliationStatus;
+  }): Promise<AdminCodDriverSummariesPage> {
+    const limit = clampInt(
+      input.limit ?? ADMIN_COD_SUMMARY_DEFAULT_LIMIT,
+      1,
+      ADMIN_COD_SUMMARY_MAX_LIMIT,
+    );
+    const offset = clampInt(
+      input.offset ?? 0,
+      0,
+      ADMIN_COD_SUMMARY_MAX_OFFSET,
+    );
+    const all = await this.buildAdminCodDriverSummaries();
+    const term = (input.q ?? '').trim().toLowerCase();
+    const filtered = all.filter((row) => {
+      if (
+        input.reconciliationStatus &&
+        row.reconciliationStatus !== input.reconciliationStatus
+      ) {
+        return false;
+      }
+      if (!term) {
+        return true;
+      }
+      return (
+        row.fullName.toLowerCase().includes(term) ||
+        row.driverId.toLowerCase().includes(term)
+      );
+    });
+    return {
+      items: filtered.slice(offset, offset + limit),
+      total: filtered.length,
+      limit,
+      offset,
+    };
+  }
+
+  async getAdminCodDriverSummary(
+    driverId: string,
+  ): Promise<AdminCodDriverSummaryView> {
+    const row = (await this.buildAdminCodDriverSummaries()).find(
+      (item) => item.driverId === driverId,
+    );
+    if (!row) {
+      throw driverCodProfileNotFound();
+    }
+    return row;
   }
 
   async submitCodRemittance(
@@ -654,4 +740,94 @@ export class CodFoundationService {
       openDeclaredCount: custody.openDeclaredCount,
     };
   }
+
+  private async buildAdminCodDriverSummaries(): Promise<
+    AdminCodDriverSummaryView[]
+  > {
+    const db = { orm: this.prisma.getDb().orm };
+    const collections = await orm(db)
+      .CodCollection.where({
+        status: pgVarchar<64>(COD_COLLECTION_STATUS_COLLECTED),
+      })
+      .all();
+    const remittances = await orm(db).CodRemittance.all();
+
+    const driverIds = new Set<string>();
+    const collectedOrderCountByDriver = new Map<string, number>();
+    for (const row of collections) {
+      driverIds.add(row.driverId);
+      collectedOrderCountByDriver.set(
+        row.driverId,
+        (collectedOrderCountByDriver.get(row.driverId) ?? 0) + 1,
+      );
+    }
+    for (const row of remittances) {
+      driverIds.add(row.driverId);
+    }
+
+    const discrepancyByDriver = new Map<string, number>();
+    for (const row of remittances) {
+      if (row.status !== COD_REMITTANCE_STATUS_CONFIRMED) {
+        continue;
+      }
+      const submitted = parseMinorUnits(row.submittedAmountMinor);
+      const confirmed = parseMinorUnits(row.confirmedAmountMinor);
+      if (submitted === confirmed) {
+        continue;
+      }
+      discrepancyByDriver.set(
+        row.driverId,
+        (discrepancyByDriver.get(row.driverId) ?? 0) + 1,
+      );
+    }
+
+    const items: AdminCodDriverSummaryView[] = [];
+    for (const driverId of driverIds) {
+      const profile = await orm(db).DriverProfile.where({ id: driverId }).first();
+      if (!profile) {
+        continue;
+      }
+      const custody = await this.computeOutstandingCustody(driverId, db);
+      const discrepancyRemittanceCount =
+        discrepancyByDriver.get(driverId) ?? 0;
+      items.push({
+        driverId,
+        fullName: profile.fullName,
+        collectedOrderCount: collectedOrderCountByDriver.get(driverId) ?? 0,
+        collectedAmountMinor: moneyMinorToDecimalString(
+          custody.collectedAmountMinor,
+        ),
+        confirmedAllocatedMinor: moneyMinorToDecimalString(
+          custody.confirmedAllocatedMinor,
+        ),
+        outstandingCustodyMinor: moneyMinorToDecimalString(
+          custody.outstandingCustodyMinor,
+        ),
+        openDeclaredCount: custody.openDeclaredCount,
+        discrepancyRemittanceCount,
+        reconciliationStatus: deriveAdminCodDriverReconciliationStatus({
+          collectedAmountMinor: custody.collectedAmountMinor,
+          confirmedAllocatedMinor: custody.confirmedAllocatedMinor,
+          discrepancyRemittanceCount,
+        }),
+      });
+    }
+
+    items.sort((a, b) => {
+      const aOut = parseMinorUnits(a.outstandingCustodyMinor);
+      const bOut = parseMinorUnits(b.outstandingCustodyMinor);
+      if (bOut !== aOut) {
+        return bOut - aOut;
+      }
+      return a.fullName.localeCompare(b.fullName);
+    });
+    return items;
+  }
+}
+
+function clampInt(value: number, min: number, max: number): number {
+  if (!Number.isFinite(value)) {
+    return min;
+  }
+  return Math.min(max, Math.max(min, Math.trunc(value)));
 }

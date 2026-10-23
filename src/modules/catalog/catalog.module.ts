@@ -3,6 +3,7 @@ import {
   CHECKOUT_CLOCK,
   SystemCheckoutClock,
 } from '../checkout/domain/checkout.clock';
+import { GeoModule } from '../geo/geo.module';
 import { MerchantsModule } from '../merchants/merchants.module';
 import { CatalogService } from './application/catalog.service';
 import { CustomerCatalogService } from './application/customer-catalog.service';
@@ -20,7 +21,7 @@ import { ProductDuplicationService } from './application/product-duplication.ser
 import { ProductDuplicationRepository } from './infrastructure/product-duplication.repository';
 
 @Module({
-  imports: [MerchantsModule],
+  imports: [MerchantsModule, GeoModule],
   controllers: [
     MerchantBranchClassificationController,
     CatalogController,

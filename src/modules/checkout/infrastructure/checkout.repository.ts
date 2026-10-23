@@ -69,6 +69,8 @@ export class CheckoutRepository {
     merchantVerifiedAt: string | null;
     merchantName: string;
     branchOperationalStatus: string;
+    latitude: number;
+    longitude: number;
   } | null> {
     const branch = await orm(this.db())
       .MerchantBranch.where({ id: branchId })
@@ -88,6 +90,8 @@ export class CheckoutRepository {
       merchantVerifiedAt: merchant.verifiedAt,
       merchantName: merchant.name,
       branchOperationalStatus: branch.operationalStatus,
+      latitude: parseCoordinate(branch.latitude),
+      longitude: parseCoordinate(branch.longitude),
     };
   }
 

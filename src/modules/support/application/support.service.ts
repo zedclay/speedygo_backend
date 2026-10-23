@@ -5,6 +5,7 @@ import {
   parseMerchantMemberRole,
 } from '../../merchants/domain/merchant.policy';
 import { MerchantAccessService } from '../../merchants/application/merchant-access.service';
+import { NotificationService } from '../../notifications/application/notification.service';
 import {
   supportForbidden,
   supportInvalidInput,
@@ -51,7 +52,20 @@ export class SupportService {
   constructor(
     private readonly support: SupportRepository,
     private readonly merchantAccess: MerchantAccessService,
+    private readonly notifications: NotificationService,
   ) {}
+
+  private async emitAdminTicketCreated(ticket: {
+    id: string;
+    publicReference: string;
+    subject: string | null;
+  }): Promise<void> {
+    await this.notifications.notifyAdminSupportTicketCreated({
+      ticketId: ticket.id,
+      publicReference: ticket.publicReference,
+      subject: ticket.subject,
+    });
+  }
 
   private mapMessage(
     message: {
@@ -140,6 +154,7 @@ export class SupportService {
     const order = created.ticket.orderId
       ? await this.support.findOrderSafeContext(created.ticket.orderId)
       : null;
+    await this.emitAdminTicketCreated(created.ticket);
     return toUserTicketDetail(created.ticket, order, [
       this.mapMessage(created.message, false),
     ]);
@@ -248,6 +263,7 @@ export class SupportService {
     const order = created.ticket.orderId
       ? await this.support.findOrderSafeContext(created.ticket.orderId)
       : null;
+    await this.emitAdminTicketCreated(created.ticket);
     return toUserTicketDetail(created.ticket, order, [
       this.mapMessage(created.message, false),
     ]);
@@ -403,6 +419,7 @@ export class SupportService {
     const order = created.ticket.orderId
       ? await this.support.findOrderSafeContext(created.ticket.orderId)
       : null;
+    await this.emitAdminTicketCreated(created.ticket);
     return toUserTicketDetail(created.ticket, order, [
       this.mapMessage(created.message, false),
     ]);

@@ -1,0 +1,128 @@
+[
+  {
+    "id": "dropCheckConstraint.refunds.refunds_request_origin_check_85f8868a",
+    "label": "Drop check constraint \"refunds_request_origin_check_85f8868a\" on \"refunds\"",
+    "operationClass": "destructive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "refunds_request_origin_check_85f8868a",
+        "table": "refunds"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"refunds_request_origin_check_85f8868a\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "refunds_request_origin_check_85f8868a",
+          "public",
+          "\"public\".\"refunds\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "drop check constraint \"refunds_request_origin_check_85f8868a\"",
+        "sql": "ALTER TABLE \"public\".\"refunds\" DROP CONSTRAINT \"refunds_request_origin_check_85f8868a\""
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"refunds_request_origin_check_85f8868a\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "refunds_request_origin_check_85f8868a",
+          "public",
+          "\"public\".\"refunds\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.sessions.auth_audience",
+    "label": "Add column \"auth_audience\" to \"sessions\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "auth_audience",
+        "table": "sessions"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"auth_audience\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "sessions",
+          "auth_audience"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"auth_audience\"",
+        "sql": "ALTER TABLE \"public\".\"sessions\" ADD COLUMN \"auth_audience\" character varying(16)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"auth_audience\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "sessions",
+          "auth_audience"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "checkConstraint.refunds.refunds_request_origin_check_8ebf7837",
+    "label": "Add check constraint \"refunds_request_origin_check_8ebf7837\" on \"refunds\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "checkConstraint",
+        "name": "refunds_request_origin_check_8ebf7837",
+        "table": "refunds"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure constraint \"refunds_request_origin_check_8ebf7837\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "refunds_request_origin_check_8ebf7837",
+          "public",
+          "\"public\".\"refunds\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add check constraint \"refunds_request_origin_check_8ebf7837\"",
+        "sql": "ALTER TABLE \"public\".\"refunds\" ADD CONSTRAINT \"refunds_request_origin_check_8ebf7837\" CHECK (\"request_origin\" IN ('ADMIN', 'CUSTOMER_CANCELLATION', 'MERCHANT_REJECTION', 'LATE_PAYMENT_SUCCESS', 'ADMIN_ORDER_CANCELLATION'))"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify constraint \"refunds_request_origin_check_8ebf7837\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "refunds_request_origin_check_8ebf7837",
+          "public",
+          "\"public\".\"refunds\""
+        ]
+      }
+    ]
+  }
+]

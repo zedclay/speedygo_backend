@@ -19,6 +19,7 @@ import { NotificationService } from '../../notifications/application/notificatio
 import {
   deliveryAlreadyAssigned,
   deliveryNotSearchingDriver,
+  driverAlreadyAssigned,
   driverAssignmentExpired,
   driverAssignmentInvalidState,
   driverAssignmentNotFound,
@@ -355,6 +356,95 @@ export class MatchingService {
       );
     });
     return expired ?? (await this.assignments.findById(assignmentId));
+  }
+
+  /**
+   * Admin Order Operations v1.0 — offer-only assign to a chosen Driver.
+   * Waives GEO/freshness at offer time; never auto-accepts.
+   * Supersedes an open OFFERED by releasing it as EXPIRED first.
+   */
+  async adminCreateOfferForOrder(
+    orderId: string,
+    driverId: string,
+  ): Promise<{
+    orderId: string;
+    deliveryId: string;
+    assignment: AssignmentRecord;
+    deliveryStatus: string;
+    supersededPreviousOffer: boolean;
+  }> {
+    const deliveryId =
+      await this.deliveryRows.findDeliveryIdByOrderId(orderId);
+    if (!deliveryId) {
+      throw deliveryNotSearchingDriver();
+    }
+
+    let supersededPreviousOffer = false;
+    const assignment = await this.assignments.runInTransaction(async (tx) => {
+      const locked = await this.deliveryRows.lockDelivery(deliveryId, tx);
+      if (!locked) {
+        throw deliveryNotSearchingDriver();
+      }
+      if (locked.status !== DELIVERY_STATUS_SEARCHING_DRIVER) {
+        if (
+          locked.status === DELIVERY_STATUS_CANCELLED ||
+          locked.status === DELIVERY_STATUS_FAILED
+        ) {
+          throw deliveryNotSearchingDriver();
+        }
+        throw deliveryAlreadyAssigned();
+      }
+
+      const open = await this.assignments.findOpenByDelivery(deliveryId, tx);
+      if (open && isAcceptedAssignment(open.status, open.releasedAt)) {
+        throw deliveryAlreadyAssigned();
+      }
+      if (open && isOpenOffer(open.status, open.releasedAt)) {
+        if (open.driverId === driverId) {
+          return open;
+        }
+        const released = await this.assignments.releaseIfOffered(
+          open.id,
+          ASSIGNMENT_STATUS_EXPIRED,
+          tx,
+        );
+        if (!released) {
+          throw driverAssignmentInvalidState();
+        }
+        supersededPreviousOffer = true;
+      }
+
+      if (!(await this.isMatchable(driverId))) {
+        throw driverNotMatchingEligible();
+      }
+      await this.driverRows.lockProfile(driverId, tx);
+      const openDriver = await this.assignments.findOpenByDriver(driverId, tx);
+      if (openDriver) {
+        throw driverAlreadyAssigned();
+      }
+
+      return this.assignments.createOffer(deliveryId, driverId, tx);
+    });
+
+    const result: MatchingStartResult = {
+      deliveryId,
+      deliveryStatus: DELIVERY_STATUS_SEARCHING_DRIVER,
+      assignment,
+      offered: true,
+    };
+    await this.safeSchedule(result);
+    await this.notifications.notifyMatchOffer({
+      assignmentId: assignment.id,
+      driverId: assignment.driverId,
+    });
+
+    return {
+      orderId,
+      deliveryId,
+      assignment,
+      deliveryStatus: DELIVERY_STATUS_SEARCHING_DRIVER,
+      supersededPreviousOffer,
+    };
   }
 
   async expireAndContinue(

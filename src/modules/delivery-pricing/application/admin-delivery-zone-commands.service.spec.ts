@@ -28,6 +28,7 @@ const ADMIN_CTX: CurrentAdminContext = {
   roleId: 'role-1',
   roleName: 'superadmin',
   permissions: [],
+  preferredLocale: 'fr',
 };
 
 const MOCK_ZONE: DeliveryZoneRecord = {

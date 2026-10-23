@@ -1,5 +1,10 @@
 import { Job, Queue } from 'bullmq';
 import {
+  bullmqIsolatedRedisConnection,
+  isolatedRedisProbesEnabled,
+  pingIsolatedRedis,
+} from '../../config/e2e-redis-safety';
+import {
   MATCHING_RECOVERY_JOB_ID,
   NOTIFICATIONS_RECOVERY_JOB_ID,
   bullCustomJobId,
@@ -7,6 +12,10 @@ import {
   matchingStartJobId,
   matchingTimeoutJobId,
 } from './bull-job-id';
+
+const describeIsolatedRedis = isolatedRedisProbesEnabled()
+  ? describe
+  : describe.skip;
 
 /** Mirror of BullMQ 6.3 custom jobId colon rule (job.js validateOptions). */
 function assertBullMqJobIdAccepted(jobId: string): void {
@@ -64,20 +73,50 @@ describe('bullCustomJobId', () => {
       expect(jobId.includes(':')).toBe(false);
     }
   });
+
+  it('Job.validateOptions rejects two-segment colon ids', () => {
+    const fakeQueue = {
+      toKey: (name: string) => name,
+      opts: {},
+      keys: {},
+      qualifiedName: 'q',
+    };
+    const bad = new Job(
+      fakeQueue as never,
+      'recovery',
+      {},
+      { jobId: 'matching:recovery' },
+      'matching:recovery',
+    );
+    expect(() =>
+      (bad as unknown as { validateOptions: (d: unknown) => void }).validateOptions(
+        { data: '{}' },
+      ),
+    ).toThrow(/Custom Id cannot contain :/);
+
+    const good = new Job(
+      fakeQueue as never,
+      'recovery',
+      {},
+      { jobId: MATCHING_RECOVERY_JOB_ID },
+      MATCHING_RECOVERY_JOB_ID,
+    );
+    expect(() =>
+      (
+        good as unknown as { validateOptions: (d: unknown) => void }
+      ).validateOptions({ data: '{}' }),
+    ).not.toThrow();
+  });
 });
 
-describe('bullCustomJobId against BullMQ Queue (isolated Redis probe)', () => {
-  const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6381';
+describeIsolatedRedis('bullCustomJobId against BullMQ Queue (isolated Redis probe)', () => {
+  const connection = bullmqIsolatedRedisConnection();
   let queue: Queue | undefined;
 
-  beforeAll(() => {
-    const parsed = new URL(redisUrl);
+  beforeAll(async () => {
+    await pingIsolatedRedis();
     queue = new Queue('bull-job-id-probe', {
-      connection: {
-        host: parsed.hostname,
-        port: Number.parseInt(parsed.port || '6379', 10),
-        maxRetriesPerRequest: null,
-      },
+      connection,
       // Dedicated prefix — does not flush matching/notification queues.
       prefix: 'bull:jobid-probe',
     });
@@ -123,39 +162,5 @@ describe('bullCustomJobId against BullMQ Queue (isolated Redis probe)', () => {
     await expect(
       queue.add('probe', {}, { jobId: `matching:recovery` }),
     ).rejects.toThrow(/Custom Id cannot contain :/);
-  });
-
-  it('Job.validateOptions rejects two-segment colon ids', () => {
-    const fakeQueue = {
-      toKey: (name: string) => name,
-      opts: {},
-      keys: {},
-      qualifiedName: 'q',
-    };
-    const bad = new Job(
-      fakeQueue as never,
-      'recovery',
-      {},
-      { jobId: 'matching:recovery' },
-      'matching:recovery',
-    );
-    expect(() =>
-      (bad as unknown as { validateOptions: (d: unknown) => void }).validateOptions(
-        { data: '{}' },
-      ),
-    ).toThrow(/Custom Id cannot contain :/);
-
-    const good = new Job(
-      fakeQueue as never,
-      'recovery',
-      {},
-      { jobId: MATCHING_RECOVERY_JOB_ID },
-      MATCHING_RECOVERY_JOB_ID,
-    );
-    expect(() =>
-      (
-        good as unknown as { validateOptions: (d: unknown) => void }
-      ).validateOptions({ data: '{}' }),
-    ).not.toThrow();
   });
 });

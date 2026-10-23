@@ -239,5 +239,7 @@ describe('createHttpCorsOptions', () => {
     expect(options.methods).toEqual([...CORS_ALLOWED_METHODS]);
     expect(options.allowedHeaders).toEqual([...CORS_ALLOWED_REQUEST_HEADERS]);
     expect(options.exposedHeaders).toEqual([...CORS_EXPOSED_RESPONSE_HEADERS]);
+    expect(options.allowedHeaders).toContain('X-SpeedyGo-Money-Contract');
+    expect(options.allowedHeaders).toContain('X-SpeedyGo-App');
   });
 });

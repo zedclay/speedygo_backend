@@ -32,6 +32,7 @@ describe('CustomerCatalogService.search', () => {
       { listActive: jest.fn(), findById: jest.fn() } as never,
       { readCustomerCover: jest.fn() } as never,
       { readCustomerImage: jest.fn() } as never,
+      { listCommunes: jest.fn() } as never,
     );
 
     for (const q of ['%%', '__', '%_%', ' % _ ', 'a%', '%']) {
@@ -60,6 +61,7 @@ describe('CustomerCatalogService.search', () => {
       { listActive: jest.fn(), findById: jest.fn() } as never,
       { readCustomerCover: jest.fn() } as never,
       { readCustomerImage: jest.fn() } as never,
+      { listCommunes: jest.fn() } as never,
     );
 
     await service.search('account-1', { q: '  ab%%  ' });
@@ -69,6 +71,90 @@ describe('CustomerCatalogService.search', () => {
       limit: 50,
       offset: 0,
     });
+  });
+});
+
+describe('CustomerCatalogService.listStorefronts coverage', () => {
+  function serviceWith(
+    catalog: Record<string, unknown>,
+    geo: Record<string, unknown> = { listCommunes: jest.fn() },
+  ) {
+    return new CustomerCatalogService(
+      {
+        findProfileIdByAccountId: jest.fn().mockResolvedValue('profile-1'),
+        listStorefronts: jest.fn().mockResolvedValue({
+          items: [],
+          total: 0,
+          limit: 50,
+          offset: 0,
+        }),
+        ...catalog,
+      } as never,
+      openingHoursStub() as never,
+      clockStub(),
+      { listActive: jest.fn(), findById: jest.fn() } as never,
+      { readCustomerCover: jest.fn() } as never,
+      { readCustomerImage: jest.fn() } as never,
+      geo as never,
+    );
+  }
+
+  it('returns empty OUTSIDE coverage without listing when the pin is uncovered', async () => {
+    const listStorefronts = jest.fn();
+    const service = serviceWith({
+      findOwnedAddress: jest.fn().mockResolvedValue({
+        id: 'addr-1',
+        latitude: 36.365,
+        longitude: 6.614,
+      }),
+      findCoveringZones: jest.fn().mockResolvedValue([]),
+      listStorefronts,
+    });
+    const page = await service.listStorefronts('account-1', {
+      addressId: 'addr-1',
+    });
+    expect(page.items).toEqual([]);
+    expect(page.coverage).toEqual({
+      inCoverage: false,
+      zoneCount: 0,
+      reason: 'OUTSIDE',
+    });
+    expect(listStorefronts).not.toHaveBeenCalled();
+  });
+
+  it('filters listed storefronts to the covering zone and optional wilaya', async () => {
+    const listStorefronts = jest.fn().mockResolvedValue({
+      items: [],
+      total: 0,
+      limit: 50,
+      offset: 0,
+    });
+    const listCommunes = jest.fn().mockResolvedValue({ communes: [] });
+    const service = serviceWith(
+      {
+        findOwnedAddress: jest.fn().mockResolvedValue({
+          id: 'addr-1',
+          latitude: 35.1939,
+          longitude: -0.6417,
+        }),
+        findCoveringZones: jest
+          .fn()
+          .mockResolvedValue([{ id: 'zone-sba', name: 'West' }]),
+        listStorefronts,
+      },
+      { listCommunes },
+    );
+    await service.listStorefronts('account-1', {
+      addressId: 'addr-1',
+      wilayaCode: '22',
+    });
+    expect(listCommunes).toHaveBeenCalledWith('22');
+    expect(listStorefronts).toHaveBeenCalledWith(
+      expect.objectContaining({
+        coverageZoneId: 'zone-sba',
+        wilayaCode: '22',
+      }),
+    );
   });
 });
 
@@ -102,6 +188,7 @@ describe('CustomerCatalogService.listStorefronts openNow', () => {
       verticals as never,
       { readCustomerCover: jest.fn() } as never,
       { readCustomerImage: jest.fn() } as never,
+      { listCommunes: jest.fn() } as never,
     );
 
     await service.listStorefronts('account-1', {

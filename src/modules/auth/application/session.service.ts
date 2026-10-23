@@ -4,12 +4,14 @@ import { RedisService } from '../../../infrastructure/cache/redis.service';
 import type { SpeedyGoDb } from '../../../infrastructure/database/database.module';
 import {
   authAccountBlocked,
+  authAudienceLegacyRejected,
   authInvalidToken,
   authSessionExpired,
   authSessionRevoked,
 } from '../domain/auth.errors';
 import type { AuthenticatedPrincipal } from '../domain/auth.types';
 import { AccountRepository } from '../../identity/account.repository';
+import { SessionAudienceStore } from '../infrastructure/session-audience.store';
 import { TokenService } from '../infrastructure/token/token.service';
 import { AuthSecurityLogger } from './auth-security.logger';
 import { timingSafeEqualText } from '../../../common/utils/timing-safe';
@@ -33,6 +35,7 @@ export class SessionService {
     private readonly redis: RedisService,
     private readonly config: ConfigService,
     private readonly security: AuthSecurityLogger,
+    private readonly audiences: SessionAudienceStore,
   ) {}
 
   private cacheKey(sessionId: string): string {
@@ -79,7 +82,8 @@ export class SessionService {
       throw authInvalidToken();
     }
     this.assertUsableAccount(account.status);
-    return { accountId, sessionId };
+    const audience = await this.audiences.read(sessionId);
+    return { accountId, sessionId, audience };
   }
 
   async refresh(refreshToken: string) {
@@ -111,6 +115,11 @@ export class SessionService {
     }
     this.assertUsableAccount(account.status);
 
+    const audience = await this.audiences.read(session.id);
+    if (this.audiences.enforce() && !audience) {
+      throw authAudienceLegacyRejected();
+    }
+
     const next = this.tokens.issueRefreshToken(session.id);
     const rotated = await this.accounts.rotateRefreshHash({
       sessionId: session.id,
@@ -131,12 +140,17 @@ export class SessionService {
     this.security.emit('session_refreshed', {
       accountId: session.accountId,
       sessionId: session.id,
+      audience: audience ?? undefined,
     });
     return {
       accountId: session.accountId,
       sessionId: session.id,
       refreshToken: next.token,
-      accessToken: this.tokens.signAccessToken(session.accountId, session.id),
+      accessToken: this.tokens.signAccessToken(
+        session.accountId,
+        session.id,
+        audience,
+      ),
       expiresIn: this.tokens.accessTtlSeconds(),
     };
   }

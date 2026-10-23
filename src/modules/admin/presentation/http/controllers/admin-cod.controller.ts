@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   ParseUUIDPipe,
   Post,
@@ -10,6 +11,8 @@ import {
 } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../../../../authorization/require-permissions.decorator';
+import { resolveWriteCentimes } from '../../../../../common/money/resolve-money-write';
+import { CodFoundationService } from '../../../../cod/application/cod-foundation.service';
 import { AdminCodCommandsService } from '../../../application/admin-cod-commands.service';
 import { ADMIN_PERMISSIONS } from '../../../domain/admin-permissions';
 import type { CurrentAdminContext } from '../../../domain/admin.types';
@@ -17,6 +20,7 @@ import { AdminQueryRepository } from '../../../infrastructure/admin-query.reposi
 import { CurrentAdmin } from '../../decorators/current-admin.decorator';
 import { AdminGuard } from '../../guards/admin.guard';
 import {
+  AdminCodDriverSummaryListQueryDto,
   AdminCodRemittanceListQueryDto,
   ConfirmCodRemittanceDto,
 } from '../dto/admin.dto';
@@ -29,7 +33,26 @@ export class AdminCodController {
   constructor(
     private readonly queries: AdminQueryRepository,
     private readonly commands: AdminCodCommandsService,
+    private readonly cod: CodFoundationService,
   ) {}
+
+  @Get('driver-summaries')
+  @RequirePermissions(ADMIN_PERMISSIONS.COD_READ)
+  @ApiOperation({
+    summary: 'List COD custody summaries per driver',
+    description:
+      'Authoritative outstanding custody = SUM(COLLECTED) − SUM(confirmed allocations). Aggregated before pagination.',
+  })
+  listDriverSummaries(@Query() query: AdminCodDriverSummaryListQueryDto) {
+    return this.cod.listAdminCodDriverSummaries(query);
+  }
+
+  @Get('driver-summaries/:driverId')
+  @RequirePermissions(ADMIN_PERMISSIONS.COD_READ)
+  @ApiOperation({ summary: 'COD custody summary for one driver' })
+  getDriverSummary(@Param('driverId', ParseUUIDPipe) driverId: string) {
+    return this.cod.getAdminCodDriverSummary(driverId);
+  }
 
   @Get('remittances')
   @RequirePermissions(ADMIN_PERMISSIONS.COD_READ)
@@ -55,11 +78,14 @@ export class AdminCodController {
     @CurrentAdmin() admin: CurrentAdminContext,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: ConfirmCodRemittanceDto,
+    @Headers() headers: Record<string, unknown>,
   ) {
-    return this.commands.confirmRemittance(
-      admin,
-      id,
-      body.confirmedAmountMinor,
-    );
+    const confirmedAmountMinor = resolveWriteCentimes({
+      headers,
+      minorField: body.confirmedAmountMinor,
+      dzdField: body.confirmedAmount,
+      fieldLabel: 'confirmedAmount',
+    });
+    return this.commands.confirmRemittance(admin, id, confirmedAmountMinor);
   }
 }

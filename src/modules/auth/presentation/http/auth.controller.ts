@@ -13,6 +13,10 @@ import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import type { Request } from 'express';
 import { AuthService } from '../../application/auth.service';
 import { SessionService } from '../../application/session.service';
+import {
+  parseAuthAudience,
+  readAuthAudienceHeader,
+} from '../../domain/auth-audience';
 import { CurrentPrincipal } from './decorators/current-principal.decorator';
 import { Public } from './decorators/public.decorator';
 import { OtpRequestDto } from './dto/otp-request.dto';
@@ -41,6 +45,7 @@ export class AuthController {
       identifier: body.identifier,
       purpose: body.purpose,
       ip: clientIp(request),
+      audience: parseAuthAudience(readAuthAudienceHeader(request.headers)),
     });
   }
 
@@ -61,6 +66,7 @@ export class AuthController {
         deviceName: body.deviceName,
       },
       ip: clientIp(request),
+      audience: parseAuthAudience(readAuthAudienceHeader(request.headers)),
     });
   }
 

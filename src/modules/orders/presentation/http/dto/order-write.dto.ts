@@ -8,6 +8,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import {
   ORDER_EXPECTED_MINOR_MAX,
@@ -33,44 +34,98 @@ export class CreateOrderDto {
   @IsString()
   paymentMethod!: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
-      'Customer-confirmed merchandise subtotal from the latest Checkout Preview (merchandiseSubtotalMinor). Comparison-only. The Backend recalculates live Product and Option prices and never uses this as price authority.',
+      'minor-v1: Customer-confirmed merchandise subtotal in integer centimes from Checkout Preview. Comparison-only.',
     minimum: 0,
     maximum: ORDER_EXPECTED_MINOR_MAX,
     example: 1200,
   })
+  @ValidateIf(
+    (o) =>
+      o.expectedMerchandiseSubtotal === undefined ||
+      o.expectedMerchandiseSubtotal === null,
+  )
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(ORDER_EXPECTED_MINOR_MAX)
-  expectedMerchandiseSubtotalMinor!: number;
+  expectedMerchandiseSubtotalMinor?: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
-      'Customer-confirmed Delivery Fee from the latest Checkout Preview (deliveryFeeMinor). Comparison-only. Checkout Preview does not reserve the fee. The Backend recalculates the live DeliveryPricingRule.',
+      'dzd-v2: Customer-confirmed merchandise subtotal as DZD majors e.g. "12.00". Comparison-only.',
+    example: '12.00',
+  })
+  @ValidateIf(
+    (o) =>
+      o.expectedMerchandiseSubtotalMinor === undefined ||
+      o.expectedMerchandiseSubtotalMinor === null,
+  )
+  @IsOptional()
+  @IsString()
+  expectedMerchandiseSubtotal?: string;
+
+  @ApiPropertyOptional({
+    description:
+      'minor-v1: Customer-confirmed Delivery Fee in integer centimes. Comparison-only.',
     minimum: 0,
     maximum: ORDER_EXPECTED_MINOR_MAX,
     example: 500,
   })
+  @ValidateIf(
+    (o) =>
+      o.expectedDeliveryFee === undefined || o.expectedDeliveryFee === null,
+  )
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(ORDER_EXPECTED_MINOR_MAX)
-  expectedDeliveryFeeMinor!: number;
+  expectedDeliveryFeeMinor?: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    description: 'dzd-v2: Customer-confirmed Delivery Fee as DZD majors e.g. "5.00".',
+    example: '5.00',
+  })
+  @ValidateIf(
+    (o) =>
+      o.expectedDeliveryFeeMinor === undefined ||
+      o.expectedDeliveryFeeMinor === null,
+  )
+  @IsOptional()
+  @IsString()
+  expectedDeliveryFee?: string;
+
+  @ApiPropertyOptional({
     description:
-      'Customer-confirmed total from the latest Checkout Preview (customerTotalMinor = merchandise − discount + delivery). Maps to internal customerPayableMinor for comparison only. Never used as Payment.amountMinor authority.',
+      'minor-v1: Customer-confirmed total in integer centimes (maps to customerPayableMinor for comparison only).',
     minimum: 0,
     maximum: ORDER_EXPECTED_MINOR_MAX,
     example: 1700,
   })
+  @ValidateIf(
+    (o) =>
+      o.expectedCustomerTotal === undefined || o.expectedCustomerTotal === null,
+  )
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(ORDER_EXPECTED_MINOR_MAX)
-  expectedCustomerTotalMinor!: number;
+  expectedCustomerTotalMinor?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'dzd-v2: Customer-confirmed total as DZD majors e.g. "17.00". Never Payment authority.',
+    example: '17.00',
+  })
+  @ValidateIf(
+    (o) =>
+      o.expectedCustomerTotalMinor === undefined ||
+      o.expectedCustomerTotalMinor === null,
+  )
+  @IsOptional()
+  @IsString()
+  expectedCustomerTotal?: string;
 
   @ApiPropertyOptional({
     description:

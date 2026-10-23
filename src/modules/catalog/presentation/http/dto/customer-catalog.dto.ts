@@ -6,6 +6,7 @@ import {
   IsOptional,
   IsString,
   IsUUID,
+  Matches,
   Max,
   MaxLength,
   Min,
@@ -92,6 +93,25 @@ export class CustomerStorefrontListQueryDto extends CustomerCatalogPaginationQue
   @Transform(({ value }) => toOptionalBoolean(value))
   @IsBoolean()
   openNow?: boolean;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Owned Customer Address. When set, storefronts are limited to branches ST_Covers by the same active DeliveryZone as this pin. Wilaya cannot override that. Outside/ambiguous coverage returns an empty page with coverage.reason.',
+  })
+  @IsOptional()
+  @IsUUID()
+  addressId?: string;
+
+  @ApiPropertyOptional({
+    example: '22',
+    description:
+      'Optional wilaya catalogue filter for discovery. Does not enable delivery across the administrative territory. Applied together with addressId coverage when both are present.',
+  })
+  @IsOptional()
+  @IsString()
+  @Matches(/^\d{2}$/)
+  wilayaCode?: string;
 }
 
 export class CustomerCommerceVerticalResponseDto {
@@ -229,6 +249,19 @@ export class CustomerStorefrontDetailResponseDto extends CustomerStorefrontRespo
   days!: CustomerStorefrontOpeningDayDto[];
 }
 
+export class CustomerDeliveryCoverageDto {
+  @ApiProperty()
+  inCoverage!: boolean;
+
+  @ApiProperty()
+  zoneCount!: number;
+
+  @ApiProperty({
+    enum: ['UNFILTERED', 'INSIDE', 'OUTSIDE', 'AMBIGUOUS'],
+  })
+  reason!: 'UNFILTERED' | 'INSIDE' | 'OUTSIDE' | 'AMBIGUOUS';
+}
+
 export class CustomerStorefrontListResponseDto {
   @ApiProperty({ type: [CustomerStorefrontResponseDto] })
   items!: CustomerStorefrontResponseDto[];
@@ -241,6 +274,9 @@ export class CustomerStorefrontListResponseDto {
 
   @ApiProperty()
   total!: number;
+
+  @ApiPropertyOptional({ type: CustomerDeliveryCoverageDto })
+  coverage?: CustomerDeliveryCoverageDto;
 }
 
 export class CustomerCategoryResponseDto {

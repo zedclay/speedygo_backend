@@ -1,5 +1,6 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
 import { pgNow } from '../../../infrastructure/database/pg-values';
 import { DriverRepository } from '../../drivers/infrastructure/driver.repository';
 import { CodCollectionRepository } from '../../cod/infrastructure/cod-collection.repository';
@@ -67,6 +68,11 @@ export type DriverCurrentDeliveryView = {
   pickedUpAt: string | null;
   arrivedCustomerAt: string | null;
   deliveredAt: string | null;
+  /**
+   * COD Payment.amountMinor as exact decimal string when method is COD.
+   * Null for electronic / missing payment. UI converts to DZD for display only.
+   */
+  expectedCodAmountMinor: string | null;
 };
 
 @Injectable()
@@ -94,20 +100,7 @@ export class DriverDeliveryService {
     if (!detail) {
       return null;
     }
-    return {
-      assignmentId: context.assignmentId,
-      assignmentVersion: context.assignmentVersion,
-      deliveryId: context.deliveryId,
-      orderId: context.orderId,
-      deliveryStatus: detail.status,
-      orderStatus: detail.orderStatus,
-      fulfillmentStatus: detail.fulfillmentStatus,
-      assignmentStatus: context.assignmentStatus,
-      allowedActions: allowedActionsForStatus(detail.status),
-      pickedUpAt: detail.pickedUpAt,
-      arrivedCustomerAt: detail.arrivedCustomerAt,
-      deliveredAt: detail.deliveredAt,
-    };
+    return this.toCurrentView(context, detail);
   }
 
   async performAction(
@@ -260,6 +253,7 @@ export class DriverDeliveryService {
       assignmentVersion: number;
       deliveryId: string;
       orderId: string;
+      assignmentStatus: string;
     },
     transition: ReturnType<typeof transitionForAction>,
   ): Promise<DriverCurrentDeliveryView> {
@@ -395,6 +389,38 @@ export class DriverDeliveryService {
       earningId: earning.id,
       driverId: context.driverId,
     });
+    return this.toCurrentView(context, detail, {
+      assignmentStatus: 'RELEASED',
+      allowedActions: [],
+    });
+  }
+
+  private async toCurrentView(
+    context: {
+      assignmentId: string;
+      assignmentVersion: number;
+      deliveryId: string;
+      orderId: string;
+      assignmentStatus: string;
+    },
+    detail: {
+      status: string;
+      orderStatus: string;
+      fulfillmentStatus: string;
+      pickedUpAt: string | null;
+      arrivedCustomerAt: string | null;
+      deliveredAt: string | null;
+    },
+    overrides?: {
+      assignmentStatus?: string;
+      allowedActions?: DriverDeliveryAction[];
+    },
+  ): Promise<DriverCurrentDeliveryView> {
+    const payment = await this.deliveries.findPaymentSummary(context.orderId);
+    const expectedCodAmountMinor =
+      payment?.method === ORDER_PAYMENT_METHOD_COD
+        ? moneyMinorToDecimalString(payment.amountMinor)
+        : null;
     return {
       assignmentId: context.assignmentId,
       assignmentVersion: context.assignmentVersion,
@@ -403,11 +429,13 @@ export class DriverDeliveryService {
       deliveryStatus: detail.status,
       orderStatus: detail.orderStatus,
       fulfillmentStatus: detail.fulfillmentStatus,
-      assignmentStatus: 'RELEASED',
-      allowedActions: [],
+      assignmentStatus: overrides?.assignmentStatus ?? context.assignmentStatus,
+      allowedActions:
+        overrides?.allowedActions ?? allowedActionsForStatus(detail.status),
       pickedUpAt: detail.pickedUpAt,
       arrivedCustomerAt: detail.arrivedCustomerAt,
       deliveredAt: detail.deliveredAt,
+      expectedCodAmountMinor,
     };
   }
 

@@ -2,13 +2,19 @@ import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { createUuidV7 } from '../../../common/utils/uuid-v7';
 import { AccountRepository } from '../../identity/account.repository';
-import { authAccountBlocked, authInvalidToken } from '../domain/auth.errors';
+import type { AuthAudience } from '../domain/auth-audience';
+import {
+  authAccountBlocked,
+  authAppAudienceRequired,
+  authInvalidToken,
+} from '../domain/auth.errors';
 import type {
   AuthChannel,
   DeviceMetadata,
   OtpPurpose,
   TokenPair,
 } from '../domain/auth.types';
+import { SessionAudienceStore } from '../infrastructure/session-audience.store';
 import { TokenService } from '../infrastructure/token/token.service';
 import { AuthSecurityLogger } from './auth-security.logger';
 import { OtpService } from './otp.service';
@@ -23,15 +29,34 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly config: ConfigService,
     private readonly security: AuthSecurityLogger,
+    private readonly audiences: SessionAudienceStore,
   ) {}
+
+  private enforceAudience(): boolean {
+    return this.audiences.enforce();
+  }
+
+  private requireAudience(
+    audience: AuthAudience | null | undefined,
+  ): AuthAudience | null {
+    if (audience) {
+      return audience;
+    }
+    if (this.enforceAudience()) {
+      throw authAppAudienceRequired();
+    }
+    return null;
+  }
 
   async requestOtp(input: {
     channel: AuthChannel;
     identifier: string;
     purpose: OtpPurpose;
     ip: string;
+    audience?: AuthAudience | null;
   }): Promise<{ accepted: true }> {
-    await this.otp.request(input);
+    const audience = this.requireAudience(input.audience);
+    await this.otp.request({ ...input, audience });
     return { accepted: true };
   }
 
@@ -42,8 +67,10 @@ export class AuthService {
     code: string;
     device: DeviceMetadata;
     ip: string;
+    audience?: AuthAudience | null;
   }): Promise<TokenPair> {
-    const identifier = await this.otp.consume(input);
+    const audience = this.requireAudience(input.audience);
+    const identifier = await this.otp.consume({ ...input, audience });
     const existing = await this.accounts.findByIdentifier(
       input.channel,
       identifier,
@@ -73,12 +100,16 @@ export class AuthService {
       ipAddress: input.ip === 'unknown' ? null : input.ip,
       expiresAt,
     });
+    if (audience) {
+      await this.audiences.bind(sessionId, audience);
+    }
     this.security.emit('session_created', {
       accountId: account.id,
       sessionId,
+      audience: audience ?? undefined,
     });
     return {
-      accessToken: this.tokens.signAccessToken(account.id, sessionId),
+      accessToken: this.tokens.signAccessToken(account.id, sessionId, audience),
       refreshToken: issued.token,
       expiresIn: this.tokens.accessTtlSeconds(),
       tokenType: 'Bearer',

@@ -2,6 +2,7 @@
  * Prisma 8 brands varchar / timestamptz / inet inputs. Application strings are
  * cast at the persistence boundary after validation.
  */
+import { persistStoredMoney } from '../../common/money/prisma-money-decimal';
 
 export type PgVarchar<N extends number> = string & {
   readonly __varcharLength: N;
@@ -50,11 +51,14 @@ export function pgNumeric<P extends number, S extends number>(
   return value.toFixed(scale) as PgNumeric<P, S>;
 }
 
+/**
+ * Persistence adapter for inventoried money columns.
+ * BigInt centimes when MONEY_PRISMA_DECIMAL is unset (e2e / shared schema).
+ * NUMERIC(19,2) DZD string when MONEY_PRISMA_DECIMAL=1 (rehearsal Decimal contract).
+ * Non-money integers must not use this helper.
+ */
 export function pgBigInt(value: number | bigint | string): bigint {
-  if (typeof value === 'bigint') {
-    return value;
-  }
-  return BigInt(value);
+  return persistStoredMoney(value);
 }
 
 export type PgDate = string & {

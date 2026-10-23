@@ -42,6 +42,7 @@ function adminA(): CurrentAdminContext {
       ADMIN_PERMISSIONS.SUPPORT_READ,
       ADMIN_PERMISSIONS.SUPPORT_MANAGE,
     ],
+    preferredLocale: 'fr',
   };
 }
 

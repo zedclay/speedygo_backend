@@ -12,10 +12,12 @@ export function hmacOtp(params: {
   purpose: OtpPurpose;
   channel: AuthChannel;
   code: string;
+  audience?: string | null;
 }): string {
+  const audiencePart = params.audience ? `:${params.audience}` : '';
   return createHmac('sha256', params.secret)
     .update(
-      `${params.purpose}:${params.channel}:${params.identifier}:${params.code}`,
+      `${params.purpose}:${params.channel}:${params.identifier}:${params.code}${audiencePart}`,
       'utf8',
     )
     .digest('hex');

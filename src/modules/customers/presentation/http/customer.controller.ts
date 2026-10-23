@@ -19,6 +19,7 @@ import {
   ApiTags,
 } from '@nestjs/swagger';
 import { CurrentPrincipal } from '../../../auth/presentation/http/decorators/current-principal.decorator';
+import { RequireAuthAudience } from '../../../auth/presentation/http/decorators/require-auth-audience.decorator';
 import type { AuthenticatedPrincipal } from '../../../auth/domain/auth.types';
 import { CustomerAddressService } from '../../application/customer-address.service';
 import { CustomerProfileService } from '../../application/customer-profile.service';
@@ -39,6 +40,7 @@ import {
 
 @ApiTags('customer')
 @ApiBearerAuth()
+@RequireAuthAudience('CUSTOMER')
 @Controller('customer')
 export class CustomerController {
   constructor(

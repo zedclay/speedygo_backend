@@ -12,6 +12,7 @@ import { ConsoleOtpSender } from './infrastructure/otp/console-otp.sender';
 import { DisabledOtpSender } from './infrastructure/otp/disabled-otp.sender';
 import { TestOtpSender } from './infrastructure/otp/test-otp.sender';
 import { RedisOtpStore } from './infrastructure/redis/redis-otp.store';
+import { SessionAudienceStore } from './infrastructure/session-audience.store';
 import { TokenService } from './infrastructure/token/token.service';
 import { AuthController } from './presentation/http/auth.controller';
 import { AuthGuard } from './presentation/http/guards/auth.guard';
@@ -40,6 +41,7 @@ function otpSenderFactory(config: ConfigService) {
   providers: [
     AuthSecurityLogger,
     TokenService,
+    SessionAudienceStore,
     OtpService,
     SessionService,
     AuthService,

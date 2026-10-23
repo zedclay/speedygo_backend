@@ -9,9 +9,9 @@ import {
   pgNow,
   pgVarchar,
 } from '../../../infrastructure/database/pg-values';
+import { loadStoredCentimes } from '../../../common/money/prisma-money-decimal';
 import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import { PAYMENT_TX_SUCCEEDED } from '../../payments/domain/payment.policy';
-import { parseRefundAmountMinor } from '../domain/refund.policy';
 import {
   REFUND_CURRENCY_DZD,
   REFUND_REQUEST_ORIGINS,
@@ -62,7 +62,7 @@ function toRefund(row: {
     orderId: row.orderId,
     paymentTransactionId: row.paymentTransactionId,
     refundMethod: row.refundMethod,
-    amountMinor: parseRefundAmountMinor(row.amountMinor),
+    amountMinor: loadStoredCentimes(row.amountMinor),
     status: row.status,
     reason: row.reason,
     internalNote: row.internalNote,
@@ -124,11 +124,9 @@ export class RefundRepository {
       paymentId: payment.id,
       paymentMethod: payment.method,
       paymentStatus: payment.status,
-      paymentAmountMinor: parseRefundAmountMinor(payment.amountMinor),
+      paymentAmountMinor: loadStoredCentimes(payment.amountMinor),
       paymentCurrency: payment.currency,
-      snapshotPayableMinor: parseRefundAmountMinor(
-        snapshot.customerPayableMinor,
-      ),
+      snapshotPayableMinor: loadStoredCentimes(snapshot.customerPayableMinor),
       snapshotCurrency: snapshot.currency,
     };
   }
@@ -156,7 +154,7 @@ export class RefundRepository {
       orderId: row.orderId,
       method: row.method,
       status: row.status,
-      amountMinor: parseRefundAmountMinor(row.amountMinor),
+      amountMinor: loadStoredCentimes(row.amountMinor),
       currency: row.currency,
     };
   }
@@ -170,7 +168,7 @@ export class RefundRepository {
       let reservedRefundMinor = 0n;
       let successfulRefundMinor = 0n;
       for (const row of rows) {
-        const amount = parseRefundAmountMinor(row.amountMinor);
+        const amount = loadStoredCentimes(row.amountMinor);
         if (
           row.status === 'REQUESTED' ||
           row.status === 'UNDER_REVIEW' ||
@@ -223,10 +221,8 @@ export class RefundRepository {
     }
     const row = rows[0];
     return {
-      reservedRefundMinor: parseRefundAmountMinor(
-        row?.reserved_refund_minor ?? 0n,
-      ),
-      successfulRefundMinor: parseRefundAmountMinor(
+      reservedRefundMinor: loadStoredCentimes(row?.reserved_refund_minor ?? 0n),
+      successfulRefundMinor: loadStoredCentimes(
         row?.successful_refund_minor ?? 0n,
       ),
     };

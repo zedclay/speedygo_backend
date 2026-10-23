@@ -14,6 +14,7 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
 } from 'class-validator';
 import {
   ADMIN_LIST_DEFAULT_LIMIT,
@@ -232,29 +233,61 @@ export class CreateAdminDeliveryPricingRuleDto {
   @Matches(TIME_LOCAL_PATTERN)
   endLocalTime?: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     minimum: 0,
     maximum: MONEY_MINOR_MAX,
     description:
-      'Customer delivery fee in minor units (integer). Must be >= driverRemunerationMinor.',
+      'minor-v1: Customer delivery fee in integer centimes. Must be >= driver remuneration.',
   })
+  @ValidateIf(
+    (o) => o.customerDeliveryFee === undefined || o.customerDeliveryFee === null,
+  )
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(MONEY_MINOR_MAX)
-  customerDeliveryFeeMinor!: number;
+  customerDeliveryFeeMinor?: number;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
+    description: 'dzd-v2: Customer delivery fee as DZD majors e.g. "5.00".',
+    example: '5.00',
+  })
+  @ValidateIf(
+    (o) =>
+      o.customerDeliveryFeeMinor === undefined ||
+      o.customerDeliveryFeeMinor === null,
+  )
+  @IsOptional()
+  @IsString()
+  customerDeliveryFee?: string;
+
+  @ApiPropertyOptional({
     minimum: 0,
     maximum: MONEY_MINOR_MAX,
     description:
-      'Driver remuneration in minor units (integer). Must be <= customerDeliveryFeeMinor.',
+      'minor-v1: Driver remuneration in integer centimes. Must be <= customer delivery fee.',
   })
+  @ValidateIf(
+    (o) => o.driverRemuneration === undefined || o.driverRemuneration === null,
+  )
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(MONEY_MINOR_MAX)
-  driverRemunerationMinor!: number;
+  driverRemunerationMinor?: number;
+
+  @ApiPropertyOptional({
+    description: 'dzd-v2: Driver remuneration as DZD majors e.g. "1.50".',
+    example: '1.50',
+  })
+  @ValidateIf(
+    (o) =>
+      o.driverRemunerationMinor === undefined ||
+      o.driverRemunerationMinor === null,
+  )
+  @IsOptional()
+  @IsString()
+  driverRemuneration?: string;
 
   @ApiProperty({
     description: 'ISO 8601 timestamp from which the rule is effective.',

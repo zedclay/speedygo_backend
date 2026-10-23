@@ -121,14 +121,13 @@ export class DeliveryRepository {
     };
   }
 
-  async lockPayment(
+  async findPaymentSummary(
     orderId: string,
-    client: OrmClient,
+    client?: OrmClient,
   ): Promise<{ method: string; status: string; amountMinor: number } | null> {
-    await orm(client).Payment.where({ orderId }).update({
-      updatedAt: pgNow(),
-    });
-    const row = await orm(client).Payment.where({ orderId }).first();
+    const row = await orm(client ?? this.db())
+      .Payment.where({ orderId })
+      .first();
     if (!row) {
       return null;
     }
@@ -137,6 +136,16 @@ export class DeliveryRepository {
       status: row.status,
       amountMinor: parseMinorUnits(row.amountMinor),
     };
+  }
+
+  async lockPayment(
+    orderId: string,
+    client: OrmClient,
+  ): Promise<{ method: string; status: string; amountMinor: number } | null> {
+    await orm(client).Payment.where({ orderId }).update({
+      updatedAt: pgNow(),
+    });
+    return this.findPaymentSummary(orderId, client);
   }
 
   async findSnapshotCustomerPayable(

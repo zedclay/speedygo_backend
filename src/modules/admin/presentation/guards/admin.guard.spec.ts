@@ -37,6 +37,7 @@ describe('AdminGuard', () => {
       roleId: 'r1',
       roleName: 'ops',
       permissions: ['merchants.read'],
+      preferredLocale: 'fr',
     };
     profiles.resolveCurrentAdmin.mockResolvedValue(admin);
     const guard = new AdminGuard(profiles as never);

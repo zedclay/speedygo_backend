@@ -1,0 +1,44 @@
+[
+  {
+    "id": "column.public.admin_profiles.preferred_locale",
+    "label": "Add column \"preferred_locale\" to \"admin_profiles\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "preferred_locale",
+        "table": "admin_profiles"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"preferred_locale\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "admin_profiles",
+          "preferred_locale"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"preferred_locale\"",
+        "sql": "ALTER TABLE \"public\".\"admin_profiles\" ADD COLUMN \"preferred_locale\" character varying(8) DEFAULT 'fr' NOT NULL"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"preferred_locale\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "admin_profiles",
+          "preferred_locale"
+        ]
+      }
+    ]
+  }
+]

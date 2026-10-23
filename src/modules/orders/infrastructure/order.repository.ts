@@ -44,6 +44,10 @@ import {
   uniqueSortedIds,
 } from '../domain/order.policy';
 import { ORDER_STATUS_EVENT_CUSTOMER_CANCELLED } from '../domain/customer-order-cancellation.policy';
+import {
+  ORDER_STATUS_EVENT_ACTOR_ADMIN,
+  ORDER_STATUS_EVENT_ADMIN_CANCELLED,
+} from '../domain/admin-order-cancellation.policy';
 import type {
   MerchantOrderDetailView,
   MerchantOrderListQuery,
@@ -104,6 +108,20 @@ export class OrderRepository {
       id: row.id,
       customerId: row.customerId,
       addressText: row.addressText,
+      latitude: parseCoordinate(row.latitude),
+      longitude: parseCoordinate(row.longitude),
+    };
+  }
+
+  async findBranchCoordinates(
+    branchId: string,
+    client: OrmClient,
+  ): Promise<{ latitude: number; longitude: number } | null> {
+    const row = await orm(client).MerchantBranch.where({ id: branchId }).first();
+    if (!row) {
+      return null;
+    }
+    return {
       latitude: parseCoordinate(row.latitude),
       longitude: parseCoordinate(row.longitude),
     };
@@ -848,6 +866,68 @@ export class OrderRepository {
       orderId,
       eventType: pgVarchar<64>(ORDER_STATUS_EVENT_CUSTOMER_CANCELLED),
       actorType: pgVarchar<32>(ORDER_STATUS_EVENT_ACTOR_CUSTOMER),
+      actorId: actorAccountId,
+      fromStatus: pgVarchar<32>(ORDER_STATUS_CREATED),
+      toStatus: pgVarchar<32>(ORDER_STATUS_CANCELLED),
+      occurredAt: now,
+      metadataJson: null,
+    });
+    return 'APPLIED';
+  }
+
+  /**
+   * Admin early-window cancel (Admin Order Operations v1.0).
+   * Same Order/Payment writers as Customer cancel; event actor is ADMIN.
+   */
+  async applyAdminCancel(
+    orderId: string,
+    actorAccountId: string,
+    reason: string,
+    expectedUpdatedAt: string,
+    client: OrmClient,
+  ): Promise<'APPLIED' | 'NOT_APPLIED'> {
+    const now = pgNow();
+    await orm(client)
+      .Order.where({
+        id: orderId,
+        status: ORDER_STATUS_CREATED,
+        fulfillmentStatus: ORDER_FULFILLMENT_PENDING_ACCEPTANCE,
+        updatedAt: pgTimestamptz(expectedUpdatedAt),
+      })
+      .update({
+        status: ORDER_STATUS_CANCELLED,
+        updatedAt: now,
+      });
+    const row = await orm(client).Order.where({ id: orderId }).first();
+    if (
+      !row ||
+      row.status !== ORDER_STATUS_CANCELLED ||
+      row.fulfillmentStatus !== ORDER_FULFILLMENT_PENDING_ACCEPTANCE
+    ) {
+      return 'NOT_APPLIED';
+    }
+    await orm(client).OrderCancellation.create({
+      id: createUuidV7(),
+      orderId,
+      reason: pgVarchar<255>(reason),
+      internalNote: null,
+      cancelledByAccountId: actorAccountId,
+      cancelledAt: now,
+    });
+    await orm(client)
+      .Payment.where({
+        orderId,
+        status: PAYMENT_STATUS_PENDING,
+      })
+      .update({
+        status: PAYMENT_STATUS_CANCELLED,
+        updatedAt: now,
+      });
+    await orm(client).OrderStatusEvent.create({
+      id: createUuidV7(),
+      orderId,
+      eventType: pgVarchar<64>(ORDER_STATUS_EVENT_ADMIN_CANCELLED),
+      actorType: pgVarchar<32>(ORDER_STATUS_EVENT_ACTOR_ADMIN),
       actorId: actorAccountId,
       fromStatus: pgVarchar<32>(ORDER_STATUS_CREATED),
       toStatus: pgVarchar<32>(ORDER_STATUS_CANCELLED),

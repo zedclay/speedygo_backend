@@ -19,6 +19,8 @@ describe('NotificationRecoveryService', () => {
     listMissingDriverEarnings: jest.Mock;
     listOpenMatchOffers: jest.Mock;
     listPendingPushNotificationIds: jest.Mock;
+    listMissingAdminMerchantVerifications: jest.Mock;
+    listMissingAdminDriverVerifications: jest.Mock;
   };
   let jobs: { ensureRecoverySchedule: jest.Mock; enqueuePushSend: jest.Mock };
   let notifications: {
@@ -33,6 +35,8 @@ describe('NotificationRecoveryService', () => {
     notifySettlementFinalized: jest.Mock;
     notifyDriverEarningCreated: jest.Mock;
     notifyMatchOffer: jest.Mock;
+    notifyAdminMerchantVerificationSubmitted: jest.Mock;
+    notifyAdminDriverVerificationSubmitted: jest.Mock;
   };
   let service: NotificationRecoveryService;
 
@@ -47,6 +51,8 @@ describe('NotificationRecoveryService', () => {
       listMissingDriverEarnings: jest.fn().mockResolvedValue([]),
       listOpenMatchOffers: jest.fn().mockResolvedValue([]),
       listPendingPushNotificationIds: jest.fn().mockResolvedValue([]),
+      listMissingAdminMerchantVerifications: jest.fn().mockResolvedValue([]),
+      listMissingAdminDriverVerifications: jest.fn().mockResolvedValue([]),
     };
     jobs = {
       ensureRecoverySchedule: jest.fn(),
@@ -64,6 +70,12 @@ describe('NotificationRecoveryService', () => {
       notifySettlementFinalized: jest.fn().mockResolvedValue(undefined),
       notifyDriverEarningCreated: jest.fn().mockResolvedValue(undefined),
       notifyMatchOffer: jest.fn().mockResolvedValue(undefined),
+      notifyAdminMerchantVerificationSubmitted: jest
+        .fn()
+        .mockResolvedValue(undefined),
+      notifyAdminDriverVerificationSubmitted: jest
+        .fn()
+        .mockResolvedValue(undefined),
     };
     service = new NotificationRecoveryService(
       recoveryRows as never,

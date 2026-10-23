@@ -3,7 +3,12 @@ import {
   CHECKOUT_CLOCK,
   type CheckoutClock,
 } from '../../checkout/domain/checkout.clock';
-import { customerProfileNotFound } from '../../customers/domain/customer.errors';
+import {
+  customerAddressNotFound,
+  customerProfileNotFound,
+} from '../../customers/domain/customer.errors';
+import { hasValidCoordinates } from '../../customers/domain/customer.types';
+import { GeoService } from '../../geo/application/geo.service';
 import { MerchantProductImageService } from './merchant-product-image.service';
 import { MerchantBranchCoverService } from '../../merchants/application/merchant-branch-cover.service';
 import { OpeningHoursService } from '../../merchants/application/opening-hours.service';
@@ -32,6 +37,7 @@ import type {
   CustomerProductSummary,
   CustomerStorefrontDetail,
   CustomerStorefrontSummary,
+  DeliveryCoverage,
 } from '../domain/customer-catalog.types';
 import { CommerceVerticalRepository } from '../infrastructure/commerce-vertical.repository';
 import { CustomerCatalogRepository } from '../infrastructure/customer-catalog.repository';
@@ -45,6 +51,7 @@ export class CustomerCatalogService {
     private readonly verticals: CommerceVerticalRepository,
     private readonly covers: MerchantBranchCoverService,
     private readonly productImages: MerchantProductImageService,
+    private readonly geo: GeoService,
   ) {}
 
   async listCommerceVerticals(
@@ -71,9 +78,11 @@ export class CustomerCatalogService {
       sort?: string;
       verticalId?: string;
       openNow?: boolean;
+      addressId?: string;
+      wilayaCode?: string;
     },
   ): Promise<CustomerCatalogPage<CustomerStorefrontSummary>> {
-    await this.requireCustomerProfile(accountId);
+    const profileId = await this.requireCustomerProfile(accountId);
     resolveCustomerCatalogSort(query.sort);
     const page = normalizeCustomerCatalogPagination(query);
     if (query.verticalId) {
@@ -85,6 +94,62 @@ export class CustomerCatalogService {
         throw commerceVerticalInactive();
       }
     }
+    if (query.wilayaCode) {
+      await this.geo.listCommunes(query.wilayaCode);
+    }
+    let coverage: DeliveryCoverage = {
+      inCoverage: true,
+      zoneCount: 0,
+      reason: 'UNFILTERED',
+    };
+    let coverageZoneId: string | undefined;
+    if (query.addressId) {
+      const address = await this.catalog.findOwnedAddress(
+        profileId,
+        query.addressId,
+      );
+      if (!address) {
+        throw customerAddressNotFound();
+      }
+      if (!hasValidCoordinates(address.latitude, address.longitude)) {
+        coverage = { inCoverage: false, zoneCount: 0, reason: 'OUTSIDE' };
+        return {
+          items: [],
+          limit: page.limit,
+          offset: page.offset,
+          total: 0,
+          coverage,
+        };
+      }
+      const zones = await this.catalog.findCoveringZones(
+        address.latitude,
+        address.longitude,
+      );
+      if (zones.length === 0) {
+        return {
+          items: [],
+          limit: page.limit,
+          offset: page.offset,
+          total: 0,
+          coverage: { inCoverage: false, zoneCount: 0, reason: 'OUTSIDE' },
+        };
+      }
+      if (zones.length > 1) {
+        return {
+          items: [],
+          limit: page.limit,
+          offset: page.offset,
+          total: 0,
+          coverage: {
+            inCoverage: false,
+            zoneCount: zones.length,
+            reason: 'AMBIGUOUS',
+          },
+        };
+      }
+      coverageZoneId = zones[0].id;
+      coverage = { inCoverage: true, zoneCount: 1, reason: 'INSIDE' };
+    }
     // One captured "now" for openNow SQL filter + hours enrichment so totals agree.
     const now = this.clock.now();
     const openNowLocal =
@@ -93,6 +158,8 @@ export class CustomerCatalogService {
       ...page,
       verticalId: query.verticalId,
       openNowLocal,
+      coverageZoneId,
+      wilayaCode: query.wilayaCode,
     });
     const hours = await this.openingHours.evaluateBranches(
       result.items.map((item) => item.branchId),
@@ -100,6 +167,7 @@ export class CustomerCatalogService {
     );
     return {
       ...result,
+      coverage,
       items: result.items.map((item) =>
         this.mergeHours(item, hours.get(item.branchId)),
       ),

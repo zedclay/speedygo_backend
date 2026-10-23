@@ -1,9 +1,12 @@
 import { timingSafeEqual } from 'node:crypto';
+import { PAYMENT_ERROR_CODES } from '../../domain/payment.errors';
 import {
   ChargilyPaymentProvider,
   CHARGILY_LIVE_BASE_URL,
+  CHARGILY_PAY_V2_AMOUNT_UNIT,
   CHARGILY_TEST_BASE_URL,
   chargilyBaseUrl,
+  refuseUnverifiedChargilyCheckoutAmount,
   signChargilyWebhook,
 } from './chargily-payment.provider';
 
@@ -47,48 +50,51 @@ describe('ChargilyPaymentProvider', () => {
     expect(chargilyBaseUrl('test')).toBe(CHARGILY_TEST_BASE_URL);
   });
 
-  it('creates a checkout from Payment amount with merchant fee allocation', async () => {
-    http.request.mockResolvedValue({
-      status: 200,
-      json: checkoutPayload(),
+  it('marks Chargily Pay v2 amount unit UNVERIFIED until official docs/SDK name it', () => {
+    expect(CHARGILY_PAY_V2_AMOUNT_UNIT).toBe('UNVERIFIED');
+  });
+
+  it('refuses checkout create while Pay v2 amount unit is UNVERIFIED', async () => {
+    expect(CHARGILY_PAY_V2_AMOUNT_UNIT).toBe('UNVERIFIED');
+    try {
+      refuseUnverifiedChargilyCheckoutAmount();
+      throw new Error('expected throw');
+    } catch (err) {
+      expect(err).toMatchObject({
+        code: PAYMENT_ERROR_CODES.PAYMENT_PROVIDER_AMOUNT_UNIT_UNVERIFIED,
+      });
+    }
+    await expect(
+      provider.createPayment({
+        amountMinor: 65000,
+        currency: 'DZD',
+        idempotencyKey: `init:${PAYMENT_ID}:${ATTEMPT_ID}`,
+        returnUrl: 'https://app.example/return',
+        cancelUrl: 'https://app.example/cancel',
+        webhookUrl: 'https://api.example/api/v1/payments/webhooks/chargily',
+        paymentId: PAYMENT_ID,
+        attemptId: ATTEMPT_ID,
+      }),
+    ).rejects.toMatchObject({
+      code: PAYMENT_ERROR_CODES.PAYMENT_PROVIDER_AMOUNT_UNIT_UNVERIFIED,
     });
-    const session = await provider.createPayment({
-      amountMinor: 1700,
-      currency: 'DZD',
-      idempotencyKey: `init:${PAYMENT_ID}:${ATTEMPT_ID}`,
-      returnUrl: 'https://app.example/return',
-      cancelUrl: 'https://app.example/cancel',
-      webhookUrl: 'https://api.example/api/v1/payments/webhooks/chargily',
-      paymentId: PAYMENT_ID,
-      attemptId: ATTEMPT_ID,
-    });
-    expect(http.request).toHaveBeenCalledWith({
-      method: 'POST',
-      path: '/checkouts',
-      body: {
-        amount: 1700,
-        currency: 'dzd',
-        success_url: 'https://app.example/return',
-        failure_url: 'https://app.example/cancel',
-        webhook_endpoint:
-          'https://api.example/api/v1/payments/webhooks/chargily',
-        locale: 'ar',
-        chargily_pay_fees_allocation: 'merchant',
-        metadata: {
-          speedygoPaymentId: PAYMENT_ID,
-          speedygoAttemptId: ATTEMPT_ID,
-        },
-      },
-    });
-    expect(session.providerReference).toBe('chk_1');
-    expect(session.checkoutUrl).toBe(
-      'https://pay.chargily.net/test/checkouts/chk_1/pay',
-    );
-    const createCalls = http.request.mock.calls as Array<
-      [{ body: Record<string, unknown> }]
-    >;
-    expect(createCalls[0][0].body).not.toHaveProperty('idempotency_key');
-    expect(createCalls[0][0].body).not.toHaveProperty('payment_method');
+    expect(http.request).not.toHaveBeenCalled();
+  });
+
+  it('does not send assumed centimes or DZD majors to Chargily', async () => {
+    await expect(
+      provider.createPayment({
+        amountMinor: 65050,
+        currency: 'DZD',
+        idempotencyKey: `init:${PAYMENT_ID}:${ATTEMPT_ID}`,
+        returnUrl: 'https://app.example/return',
+        cancelUrl: 'https://app.example/cancel',
+        webhookUrl: 'https://api.example/api/v1/payments/webhooks/chargily',
+        paymentId: PAYMENT_ID,
+        attemptId: ATTEMPT_ID,
+      }),
+    ).rejects.toBeDefined();
+    expect(http.request).not.toHaveBeenCalled();
   });
 
   it('retrieves checkout status and URL from the provider response', async () => {
@@ -197,6 +203,43 @@ describe('ChargilyPaymentProvider', () => {
       }),
     );
     expect(provider.parseWebhook(unknown).status).toBe('UNSUPPORTED');
+  });
+
+  it('keeps stub webhook integers opaque (not a SpeedyGo unit proof)', () => {
+    const paid650 = Buffer.from(
+      JSON.stringify({
+        id: 'evt-paid-650',
+        type: 'checkout.paid',
+        data: {
+          id: 'chk_650',
+          amount: 65000,
+          currency: 'dzd',
+          status: 'paid',
+        },
+      }),
+    );
+    const signature = signChargilyWebhook(SECRET, paid650);
+    expect(provider.verifyWebhook(paid650, signature)).toBe(true);
+    expect(provider.parseWebhook(paid650)).toMatchObject({
+      eventType: 'checkout.paid',
+      status: 'SUCCEEDED',
+      amountMinor: 65000,
+      currency: 'DZD',
+    });
+
+    const paidFractional = Buffer.from(
+      JSON.stringify({
+        id: 'evt-paid-65050',
+        type: 'checkout.paid',
+        data: {
+          id: 'chk_65050',
+          amount: 65050,
+          currency: 'dzd',
+          status: 'paid',
+        },
+      }),
+    );
+    expect(provider.parseWebhook(paidFractional).amountMinor).toBe(65050);
   });
 
   it('does not treat provider fees as the Payment amount', async () => {

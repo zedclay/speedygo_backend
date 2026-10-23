@@ -7,6 +7,10 @@ export const ADMIN_AUDIT_ACTIONS = Object.freeze({
   DRIVER_VERIFICATION_REJECT: 'driver.verification.reject',
   DRIVER_SUSPEND: 'driver.suspend',
   DRIVER_DOCUMENT_READ: 'driver.document.read',
+  /** Customer Account.status lifecycle (Account-wide). */
+  CUSTOMER_ACCOUNT_SUSPEND: 'customer.account.suspend',
+  CUSTOMER_ACCOUNT_REACTIVATE: 'customer.account.reactivate',
+  CUSTOMER_INTERNAL_NOTE: 'customer.internal_note',
   MERCHANT_DOCUMENT_READ: 'merchant.document.read',
   REFUND_CREATE: 'refund.create',
   REFUND_APPROVE: 'refund.approve',
@@ -23,6 +27,7 @@ export const ADMIN_AUDIT_ACTIONS = Object.freeze({
   PROMOTION_PUBLISH_DISCOVERY: 'promotion.publish_discovery',
   PROMOTION_HIDE_DISCOVERY: 'promotion.hide_discovery',
   PROMOTION_UPDATE_PRESENTATION: 'promotion.update_presentation',
+  PROMOTION_UPDATE_VALUE: 'promotion.update_value',
   SUPPORT_ASSIGN: 'support.assign',
   SUPPORT_STATUS_CHANGE: 'support.status_change',
   SUPPORT_PRIORITY_CHANGE: 'support.priority_change',
@@ -49,6 +54,19 @@ export const ADMIN_AUDIT_ACTIONS = Object.freeze({
   STOREFRONT_COVER_DELETE: 'storefront.cover.delete',
   PRODUCT_IMAGE_BIND: 'product.image.bind',
   PRODUCT_IMAGE_DELETE: 'product.image.delete',
+  /** Admin RBAC Management v1.0. */
+  ADMIN_PROFILE_CREATE: 'admin.profile.create',
+  ADMIN_PROFILE_UPDATE: 'admin.profile.update',
+  ADMIN_PROFILE_ACCOUNT_STATUS: 'admin.profile.account_status',
+  ADMIN_ROLE_CREATE: 'admin.role.create',
+  ADMIN_ROLE_UPDATE: 'admin.role.update',
+  ADMIN_ROLE_PERMISSIONS_REPLACE: 'admin.role.permissions.replace',
+  /** Admin notification templates (A087). */
+  NOTIFICATION_TEMPLATE_UPDATE: 'notification.template.update',
+  /** Admin Order Operations v1.0 — offer-only assign. */
+  ORDER_ASSIGN_OFFER: 'order.assign_offer',
+  /** Admin Order Operations v1.0 — early-window cancel. */
+  ORDER_CANCEL: 'order.cancel',
 } as const);
 
 export type AdminAuditAction =
@@ -58,6 +76,7 @@ export type AdminAuditAction =
 export const ADMIN_AUDIT_TARGET_TYPES = Object.freeze({
   MERCHANT: 'Merchant',
   DRIVER: 'DriverProfile',
+  CUSTOMER: 'CustomerProfile',
   REFUND: 'Refund',
   COD_REMITTANCE: 'CodRemittance',
   MERCHANT_SETTLEMENT: 'MerchantSettlement',
@@ -70,6 +89,10 @@ export const ADMIN_AUDIT_TARGET_TYPES = Object.freeze({
   COMMERCE_VERTICAL: 'CommerceVertical',
   MERCHANT_BRANCH: 'MerchantBranch',
   PRODUCT: 'Product',
+  ADMIN_PROFILE: 'AdminProfile',
+  ROLE: 'Role',
+  NOTIFICATION_TEMPLATE: 'NotificationTemplate',
+  ORDER: 'Order',
 } as const);
 
 export type AdminAuditTargetType =

@@ -2,6 +2,8 @@ import { createHash, randomBytes } from 'node:crypto';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import jwt from 'jsonwebtoken';
+import { isAuthAudience } from '../../domain/auth-audience';
+import type { AuthAudience } from '../../domain/auth-audience';
 import { authInvalidToken } from '../../domain/auth.errors';
 import type { AccessTokenClaims } from '../../domain/auth.types';
 
@@ -20,8 +22,19 @@ export class TokenService {
     return this.config.get<number>('auth.jwtAccessTtlSeconds', 900);
   }
 
-  signAccessToken(accountId: string, sessionId: string): string {
-    return jwt.sign({ sid: sessionId, typ: 'access' }, this.accessSecret(), {
+  signAccessToken(
+    accountId: string,
+    sessionId: string,
+    audience?: AuthAudience | null,
+  ): string {
+    const payload: Record<string, string> = {
+      sid: sessionId,
+      typ: 'access',
+    };
+    if (audience) {
+      payload.aud = audience;
+    }
+    return jwt.sign(payload, this.accessSecret(), {
       subject: accountId,
       expiresIn: this.accessTtlSeconds(),
     } as jwt.SignOptions);
@@ -36,6 +49,7 @@ export class TokenService {
       const sub = payload.sub;
       const sid = (payload as { sid?: unknown }).sid;
       const typ = (payload as { typ?: unknown }).typ;
+      const audRaw = (payload as { aud?: unknown }).aud;
       if (
         typeof sub !== 'string' ||
         typeof sid !== 'string' ||
@@ -45,7 +59,18 @@ export class TokenService {
       ) {
         throw authInvalidToken();
       }
-      return { sub, sid, typ: 'access', iat: payload.iat, exp: payload.exp };
+      const aud = isAuthAudience(audRaw) ? audRaw : undefined;
+      if (audRaw !== undefined && aud === undefined) {
+        throw authInvalidToken();
+      }
+      return {
+        sub,
+        sid,
+        typ: 'access',
+        iat: payload.iat,
+        exp: payload.exp,
+        aud,
+      };
     } catch (error) {
       if (error instanceof Error && error.name === 'AuthError') {
         throw error;

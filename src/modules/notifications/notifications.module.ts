@@ -30,6 +30,10 @@ import { NotificationController } from './presentation/http/notification.control
     PushDispatchService,
     NotificationProcessor,
   ],
-  exports: [NotificationService, NotificationRecoveryService],
+  exports: [
+    NotificationService,
+    NotificationRecoveryService,
+    NotificationRepository,
+  ],
 })
 export class NotificationsModule {}

@@ -12,6 +12,7 @@ const admin: CurrentAdminContext = {
   roleId: 'role',
   roleName: 'ops',
   permissions: ['merchants.verify', 'refunds.manage', 'drivers.verify'],
+  preferredLocale: 'fr',
 };
 
 function mockPrisma(tx: unknown = {}) {

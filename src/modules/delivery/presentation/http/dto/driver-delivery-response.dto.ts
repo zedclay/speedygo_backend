@@ -40,6 +40,14 @@ export class DriverCurrentDeliveryResponseDto {
 
   @ApiPropertyOptional({ nullable: true, type: String })
   deliveredAt!: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    type: String,
+    description:
+      'COD Payment.amountMinor as exact integer decimal string when method is COD; null otherwise.',
+  })
+  expectedCodAmountMinor!: string | null;
 }
 
 export class CurrentDriverDeliveryResponseDto {

@@ -72,6 +72,20 @@ export class PromotionService {
     );
   }
 
+  async updatePromotionValueInTx(
+    tx: OrmClient,
+    promotionId: string,
+    value: number,
+  ): Promise<PromotionRecord> {
+    const existing = await this.promotions.findById(promotionId, tx);
+    if (!existing) {
+      throw promotionNotFound();
+    }
+    const parsed = parsePromotionType(existing.type);
+    requirePromotionValue(parsed.kind, value);
+    return this.promotions.updatePromotionValue(promotionId, value, tx);
+  }
+
   async setPromotionActive(
     promotionId: string,
     active: boolean,

@@ -28,6 +28,7 @@ export default () => ({
     otpTransport: process.env.OTP_TRANSPORT ?? 'disabled',
     trustProxy: process.env.AUTH_TRUST_PROXY === 'true',
     redisKeyPrefix: process.env.AUTH_REDIS_PREFIX ?? 'auth:',
+    audienceEnforce: process.env.AUTH_AUDIENCE_ENFORCE === 'true',
     sessionCacheTtlSeconds: int(process.env.AUTH_SESSION_CACHE_TTL_SECONDS, 15),
     permissionCacheTtlSeconds: int(
       process.env.AUTH_PERMISSION_CACHE_TTL_SECONDS,
@@ -158,5 +159,8 @@ export default () => ({
       forcePathStyle:
         (process.env.STORAGE_S3_FORCE_PATH_STYLE ?? 'true') !== 'false',
     },
+  },
+  maps: {
+    googleApiKey: process.env.GOOGLE_MAPS_API_KEY ?? '',
   },
 });
