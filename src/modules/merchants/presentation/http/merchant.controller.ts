@@ -30,6 +30,7 @@ import {
 import type { Response } from 'express';
 import type { AuthenticatedPrincipal } from '../../../auth/domain/auth.types';
 import { CurrentPrincipal } from '../../../auth/presentation/http/decorators/current-principal.decorator';
+import { RequireAuthAudience } from '../../../auth/presentation/http/decorators/require-auth-audience.decorator';
 import {
   COVER_MAX_BYTES,
   LOGO_MAX_BYTES,
@@ -85,6 +86,7 @@ import {
 
 @ApiTags('merchant')
 @ApiBearerAuth()
+@RequireAuthAudience('MERCHANT')
 @Controller('merchant')
 export class MerchantController {
   constructor(

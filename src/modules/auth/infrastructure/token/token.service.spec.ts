@@ -1,4 +1,5 @@
 import { ConfigService } from '@nestjs/config';
+import jwt from 'jsonwebtoken';
 import { TokenService } from './token.service';
 
 function tokens() {
@@ -20,7 +21,25 @@ describe('TokenService', () => {
     expect(claims.sub).toBe('acct-1');
     expect(claims.sid).toBe('sess-1');
     expect(claims.typ).toBe('access');
+    expect(claims.aud).toBeUndefined();
     expect(claims.exp - claims.iat).toBe(900);
+  });
+
+  it('binds an optional audience claim without granting privileges', () => {
+    const service = tokens();
+    const jwt = service.signAccessToken('acct-1', 'sess-1', 'DRIVER');
+    const claims = service.verifyAccessToken(jwt);
+    expect(claims.aud).toBe('DRIVER');
+  });
+
+  it('rejects a non-canonical audience claim', () => {
+    const service = tokens();
+    const forged = jwt.sign(
+      { sid: 'sess-1', typ: 'access', aud: 'HACKER' },
+      'unit-jwt-access-secret-32-chars!!',
+      { subject: 'acct-1', expiresIn: 900 },
+    );
+    expect(() => service.verifyAccessToken(forged)).toThrow();
   });
 
   it('issues opaque refresh tokens and hashes them', () => {

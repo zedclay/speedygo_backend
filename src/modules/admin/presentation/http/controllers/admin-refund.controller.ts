@@ -2,12 +2,14 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { resolveWriteCentimes } from '../../../../../common/money/resolve-money-write';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../../../../authorization/require-permissions.decorator';
 import { AdminRefundCommandsService } from '../../../application/admin-refund-commands.service';
@@ -59,10 +61,16 @@ export class AdminRefundController {
   create(
     @CurrentAdmin() admin: CurrentAdminContext,
     @Body() body: CreateAdminRefundDto,
+    @Headers() headers: Record<string, unknown>,
   ) {
     return this.commands.create(admin, {
       orderId: body.orderId,
-      amountMinor: body.amountMinor,
+      amountMinor: resolveWriteCentimes({
+        headers,
+        minorField: body.amountMinor,
+        dzdField: body.amount,
+        fieldLabel: 'amount',
+      }),
       reason: body.reason,
       refundMethod: body.method,
       internalNote: body.internalNote,

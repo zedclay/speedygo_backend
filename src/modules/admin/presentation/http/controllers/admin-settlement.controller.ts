@@ -2,12 +2,14 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { resolveWriteCentimes } from '../../../../../common/money/resolve-money-write';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../../../../authorization/require-permissions.decorator';
 import { AdminSettlementCommandsService } from '../../../application/admin-settlement-commands.service';
@@ -78,11 +80,17 @@ export class AdminSettlementController {
     @CurrentAdmin() admin: CurrentAdminContext,
     @Param('id', ParseUUIDPipe) id: string,
     @Body() body: AttachSettlementRefundLiabilityDto,
+    @Headers() headers: Record<string, unknown>,
   ) {
     return this.commands.attachRefundLiability(admin, {
       settlementId: id,
       refundId: body.refundId,
-      merchantLiabilityMinor: body.merchantLiabilityMinor,
+      merchantLiabilityMinor: resolveWriteCentimes({
+        headers,
+        minorField: body.merchantLiabilityMinor,
+        dzdField: body.merchantLiability,
+        fieldLabel: 'merchantLiability',
+      }),
     });
   }
 

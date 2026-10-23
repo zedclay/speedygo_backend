@@ -13,6 +13,7 @@ import {
   type OtpSenderPort,
 } from '../domain/ports/otp-sender.port';
 import { OTP_STORE, type OtpStorePort } from '../domain/ports/otp-store.port';
+import type { AuthAudience } from '../domain/auth-audience';
 import type { AuthChannel, OtpPurpose } from '../domain/auth.types';
 import { generateNumericOtp, hmacOtp } from '../infrastructure/otp/otp-hash';
 import { AuthSecurityLogger } from './auth-security.logger';
@@ -43,6 +44,7 @@ export class OtpService {
     identifier: string;
     purpose: OtpPurpose;
     ip: string;
+    audience?: AuthAudience | null;
   }): Promise<void> {
     const identifier = this.normalize(input.channel, input.identifier);
     const hash = identifierHash(identifier);
@@ -86,6 +88,7 @@ export class OtpService {
       purpose: input.purpose,
       channel: input.channel,
       code,
+      audience: input.audience,
     });
 
     await this.store.saveChallenge(
@@ -122,6 +125,7 @@ export class OtpService {
     identifier: string;
     purpose: OtpPurpose;
     code: string;
+    audience?: AuthAudience | null;
   }): Promise<string> {
     const identifier = this.normalize(input.channel, input.identifier);
     const hash = identifierHash(identifier);
@@ -131,6 +135,7 @@ export class OtpService {
       purpose: input.purpose,
       channel: input.channel,
       code: input.code,
+      audience: input.audience,
     });
     const maxAttempts = this.config.get<number>('auth.otpMaxAttempts', 5);
     const result = await this.store.consumeIfMatch(

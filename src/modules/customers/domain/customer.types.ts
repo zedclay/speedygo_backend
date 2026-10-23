@@ -110,12 +110,19 @@ export function hasValidCoordinates(
   latitude: number,
   longitude: number,
 ): boolean {
-  return (
-    Number.isFinite(latitude) &&
-    latitude >= -90 &&
-    latitude <= 90 &&
-    Number.isFinite(longitude) &&
-    longitude >= -180 &&
-    longitude <= 180
-  );
+  if (
+    !Number.isFinite(latitude) ||
+    latitude < -90 ||
+    latitude > 90 ||
+    !Number.isFinite(longitude) ||
+    longitude < -180 ||
+    longitude > 180
+  ) {
+    return false;
+  }
+  // Never persist or accept the null-island substitute (0,0).
+  if (latitude === 0 && longitude === 0) {
+    return false;
+  }
+  return true;
 }

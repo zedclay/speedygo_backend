@@ -1,3 +1,5 @@
+import type { AuthAudience } from './auth-audience';
+
 export const OTP_PURPOSES = ['AUTHENTICATE'] as const;
 export type OtpPurpose = (typeof OTP_PURPOSES)[number];
 
@@ -13,6 +15,7 @@ export type DevicePlatform = (typeof DEVICE_PLATFORMS)[number];
 export type AuthenticatedPrincipal = {
   accountId: string;
   sessionId: string;
+  audience?: AuthAudience | null;
 };
 
 export type OtpChallenge = {
@@ -45,4 +48,5 @@ export type AccessTokenClaims = {
   typ: 'access';
   iat: number;
   exp: number;
+  aud?: AuthAudience;
 };

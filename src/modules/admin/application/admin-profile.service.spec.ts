@@ -50,7 +50,12 @@ describe('AdminProfileService', () => {
   it('throws ADMIN_ROLE_INACTIVE when role.active is false', async () => {
     const service = new AdminProfileService(
       buildPrisma({
-        profile: { id: 'a1', roleId: 'r1', displayName: 'Ops' },
+        profile: {
+          id: 'a1',
+          roleId: 'r1',
+          displayName: 'Ops',
+          preferredLocale: 'fr',
+        },
         role: { id: 'r1', name: 'ops', active: false },
       }) as never,
       permissions as never,
@@ -67,7 +72,12 @@ describe('AdminProfileService', () => {
     permissions.codesForAccount.mockResolvedValue(['merchants.read']);
     const service = new AdminProfileService(
       buildPrisma({
-        profile: { id: 'a1', roleId: 'r1', displayName: 'Ops' },
+        profile: {
+          id: 'a1',
+          roleId: 'r1',
+          displayName: 'Ops',
+          preferredLocale: 'ar',
+        },
         role: { id: 'r1', name: 'ops', active: true },
       }) as never,
       permissions as never,
@@ -80,6 +90,7 @@ describe('AdminProfileService', () => {
       roleId: 'r1',
       roleName: 'ops',
       permissions: ['merchants.read'],
+      preferredLocale: 'ar',
     });
   });
 });

@@ -16,7 +16,10 @@ describe('AuthService account resolution', () => {
             : fallback,
   } as ConfigService);
 
-  function build(existing: { id: string; status: string } | null) {
+  function build(
+    existing: { id: string; status: string } | null,
+    opts?: { enforce?: boolean },
+  ) {
     const created = {
       id: 'new-account',
       status: 'ACTIVE',
@@ -42,8 +45,10 @@ describe('AuthService account resolution', () => {
         }),
     };
     const otp = {
-      consume: () => Promise.resolve('+213550123456'),
+      consume: jest.fn(() => Promise.resolve('+213550123456')),
+      request: jest.fn(() => Promise.resolve()),
     };
+    const bind = jest.fn(() => Promise.resolve());
     const service = new AuthService(
       otp as never,
       {} as never,
@@ -53,8 +58,13 @@ describe('AuthService account resolution', () => {
         get: (_k: string, fb?: unknown) => fb ?? 30,
       } as ConfigService,
       new AuthSecurityLogger(),
+      {
+        enforce: () => opts?.enforce === true,
+        bind,
+        read: jest.fn(() => Promise.resolve(null)),
+      } as never,
     );
-    return { service, accounts };
+    return { service, accounts, bind, otp };
   }
 
   const verifyInput = {
@@ -95,5 +105,32 @@ describe('AuthService account resolution', () => {
     await expect(service.verifyOtp(verifyInput)).rejects.toMatchObject({
       code: AUTH_ERROR_CODES.AUTH_ACCOUNT_DISABLED,
     });
+  });
+
+  it('requires a requested audience when enforcement is on', async () => {
+    const { service, otp } = build(null, { enforce: true });
+    await expect(
+      service.requestOtp({
+        channel: 'PHONE',
+        identifier: '0550123456',
+        purpose: 'AUTHENTICATE',
+        ip: '127.0.0.1',
+      }),
+    ).rejects.toMatchObject({
+      code: AUTH_ERROR_CODES.AUTH_APP_AUDIENCE_REQUIRED,
+    });
+    expect(otp.request).not.toHaveBeenCalled();
+  });
+
+  it('binds session audience on verify without creating profiles', async () => {
+    const { service, accounts, bind } = build(null);
+    const pair = await service.verifyOtp({
+      ...verifyInput,
+      audience: 'CUSTOMER',
+    });
+    expect(bind).toHaveBeenCalled();
+    expect(accounts.createMinimal).toHaveBeenCalled();
+    const claims = tokens.verifyAccessToken(pair.accessToken);
+    expect(claims.aud).toBe('CUSTOMER');
   });
 });

@@ -67,6 +67,11 @@ describe('SessionService.assertPrincipal revocation (P1-G)', () => {
       redis as never,
       config(),
       new AuthSecurityLogger(),
+      {
+        enforce: () => false,
+        bind: () => Promise.resolve(),
+        read: () => Promise.resolve(null),
+      } as never,
     );
     return service;
   }
@@ -88,6 +93,6 @@ describe('SessionService.assertPrincipal revocation (P1-G)', () => {
     const service = build(null);
     await expect(
       service.assertPrincipal(accountId, sessionId),
-    ).resolves.toEqual({ accountId, sessionId });
+    ).resolves.toEqual({ accountId, sessionId, audience: null });
   });
 });

@@ -72,6 +72,17 @@ export class AdminMerchantController {
     return this.queries.getMerchant(id);
   }
 
+  @Get(':id/branches')
+  @RequirePermissions(ADMIN_PERMISSIONS.MERCHANTS_READ)
+  @ApiOperation({
+    summary: 'Merchant branches storefront / availability read',
+    description:
+      'Branch operationalStatus and live opening evaluation are distinct from Merchant.status. Mutations are not exposed here.',
+  })
+  listBranches(@Param('id', ParseUUIDPipe) id: string) {
+    return this.queries.listMerchantBranchesStore(id);
+  }
+
   @Get(':id/verification')
   @RequirePermissions(ADMIN_PERMISSIONS.MERCHANTS_VERIFY)
   @ApiOperation({
