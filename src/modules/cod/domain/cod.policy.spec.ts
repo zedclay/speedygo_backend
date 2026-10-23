@@ -1,4 +1,5 @@
 import {
+  deriveAdminCodDriverReconciliationStatus,
   deriveCollectionReconciliation,
   isExactCodAmount,
   isPositiveMinor,
@@ -40,5 +41,22 @@ describe('cod.policy', () => {
     expect(deriveCollectionReconciliation(4000, 0)).toBe('OUTSTANDING');
     expect(deriveCollectionReconciliation(4000, 2000)).toBe('PARTIAL');
     expect(deriveCollectionReconciliation(4000, 4000)).toBe('RECONCILED');
+  });
+
+  it('overlays remittance discrepancy on admin driver status', () => {
+    expect(
+      deriveAdminCodDriverReconciliationStatus({
+        collectedAmountMinor: 4000,
+        confirmedAllocatedMinor: 4000,
+        discrepancyRemittanceCount: 1,
+      }),
+    ).toBe('DISCREPANCY');
+    expect(
+      deriveAdminCodDriverReconciliationStatus({
+        collectedAmountMinor: 4000,
+        confirmedAllocatedMinor: 0,
+        discrepancyRemittanceCount: 0,
+      }),
+    ).toBe('OUTSTANDING');
   });
 });

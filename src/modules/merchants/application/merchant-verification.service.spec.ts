@@ -403,6 +403,11 @@ describe('MerchantVerificationService + MerchantReviewService', () => {
         readDurableContent: jest.fn(),
         readBoundContent: jest.fn(),
       } as never,
+      {
+        notifyAdminMerchantVerificationSubmitted: jest
+          .fn()
+          .mockResolvedValue(undefined),
+      } as never,
     );
     review = new MerchantReviewService(repo as unknown as MerchantRepository);
   });

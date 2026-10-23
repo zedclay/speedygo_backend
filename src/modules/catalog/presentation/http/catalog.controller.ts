@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   Param,
   ParseUUIDPipe,
@@ -11,6 +12,10 @@ import {
   Query,
   Res,
 } from '@nestjs/common';
+import {
+  resolveWriteCentimes,
+  resolveWriteCentimesOptional,
+} from '../../../../common/money/resolve-money-write';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -247,6 +252,7 @@ export class CatalogController {
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
     @Body() body: CreateCatalogProductDto,
+    @Headers() headers: Record<string, unknown>,
   ) {
     return this.catalog.createProduct(
       principal.accountId,
@@ -256,7 +262,12 @@ export class CatalogController {
         categoryId: body.categoryId,
         name: body.name,
         description: body.description,
-        priceMinor: body.priceMinor,
+        priceMinor: resolveWriteCentimes({
+          headers,
+          minorField: body.priceMinor,
+          dzdField: body.price,
+          fieldLabel: 'price',
+        }),
         available: body.available,
         sellingUnitCode: body.sellingUnitCode,
         sellingUnitLabelFr: body.sellingUnitLabelFr,
@@ -276,6 +287,7 @@ export class CatalogController {
     @Param('merchantId', new ParseUUIDPipe()) merchantId: string,
     @Param('productId', new ParseUUIDPipe()) productId: string,
     @Body() body: UpdateCatalogProductDto,
+    @Headers() headers: Record<string, unknown>,
   ) {
     return this.catalog.updateProduct(
       principal.accountId,
@@ -285,7 +297,12 @@ export class CatalogController {
         categoryId: body.categoryId,
         name: body.name,
         description: body.description,
-        priceMinor: body.priceMinor,
+        priceMinor: resolveWriteCentimesOptional({
+          headers,
+          minorField: body.priceMinor,
+          dzdField: body.price,
+          fieldLabel: 'price',
+        }),
         available: body.available,
         sellingUnitCode: body.sellingUnitCode,
         sellingUnitLabelFr: body.sellingUnitLabelFr,
@@ -465,6 +482,7 @@ export class CatalogController {
     @Param('productId', new ParseUUIDPipe()) productId: string,
     @Param('groupId', new ParseUUIDPipe()) groupId: string,
     @Body() body: CreateCatalogOptionDto,
+    @Headers() headers: Record<string, unknown>,
   ) {
     return this.catalog.createOption(
       principal.accountId,
@@ -473,7 +491,12 @@ export class CatalogController {
       groupId,
       {
         name: body.name,
-        additionalPriceMinor: body.additionalPriceMinor,
+        additionalPriceMinor: resolveWriteCentimes({
+          headers,
+          minorField: body.additionalPriceMinor,
+          dzdField: body.additionalPrice,
+          fieldLabel: 'additionalPrice',
+        }),
         available: body.available,
       },
     );
@@ -493,6 +516,7 @@ export class CatalogController {
     @Param('groupId', new ParseUUIDPipe()) groupId: string,
     @Param('optionId', new ParseUUIDPipe()) optionId: string,
     @Body() body: UpdateCatalogOptionDto,
+    @Headers() headers: Record<string, unknown>,
   ) {
     return this.catalog.updateOption(
       principal.accountId,
@@ -502,7 +526,12 @@ export class CatalogController {
       optionId,
       {
         name: body.name,
-        additionalPriceMinor: body.additionalPriceMinor,
+        additionalPriceMinor: resolveWriteCentimesOptional({
+          headers,
+          minorField: body.additionalPriceMinor,
+          dzdField: body.additionalPrice,
+          fieldLabel: 'additionalPrice',
+        }),
         available: body.available,
       },
     );

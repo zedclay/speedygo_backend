@@ -235,6 +235,10 @@ describe('OrderService.createOrder', () => {
       ),
       lockAddress: jest.fn().mockResolvedValue(address()),
       lockProductOption: jest.fn().mockResolvedValue(true),
+      findBranchCoordinates: jest.fn().mockResolvedValue({
+        latitude: 36.75,
+        longitude: 3.05,
+      }),
       findCoveringZones: jest
         .fn()
         .mockResolvedValue([{ id: 'zone-1', name: 'Algiers' }]),

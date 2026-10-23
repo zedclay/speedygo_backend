@@ -26,6 +26,7 @@ describe('DriverDeliveryService', () => {
     lockDelivery: jest.Mock;
     lockOrder: jest.Mock;
     lockPayment: jest.Mock;
+    findPaymentSummary: jest.Mock;
     findSnapshotCustomerPayable: jest.Mock;
     transitionIfStatus: jest.Mock;
     releaseAcceptedAssignment: jest.Mock;
@@ -69,6 +70,11 @@ describe('DriverDeliveryService', () => {
         fulfillmentStatus: 'READY',
       }),
       lockPayment: jest.fn().mockResolvedValue({
+        method: 'ELECTRONIC',
+        status: 'SUCCEEDED',
+        amountMinor: 1700,
+      }),
+      findPaymentSummary: jest.fn().mockResolvedValue({
         method: 'ELECTRONIC',
         status: 'SUCCEEDED',
         amountMinor: 1700,

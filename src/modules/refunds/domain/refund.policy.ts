@@ -81,7 +81,9 @@ export function requirePositiveRefundAmount(amountMinor: number): number {
 
 /**
  * Exact refund minor-unit parse. No JS Number conversion and no catalog price cap.
- * Persistence CHECK is amount_minor > 0; aggregates may exceed MAX_SAFE_INTEGER.
+ * Persistence CHECK: shared BIGINT `amount_minor > 0`; Decimal NUMERIC `amount > 0`.
+ * Prisma field name `amountMinor` is domain centimes; isolated column is DZD majors.
+ * Aggregates may exceed MAX_SAFE_INTEGER.
  */
 export function parseRefundAmountMinor(value: unknown): bigint {
   if (typeof value === 'bigint') {

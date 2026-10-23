@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   Param,
   ParseUUIDPipe,
@@ -9,6 +10,7 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { resolveWriteCentimes } from '../../../../../common/money/resolve-money-write';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { moneyMinorToDecimalString } from '../../../../../common/money/money-minor';
 import { RequirePermissions } from '../../../../authorization/require-permissions.decorator';
@@ -98,6 +100,7 @@ export class AdminDeliveryPricingRuleController {
   async create(
     @CurrentAdmin() admin: CurrentAdminContext,
     @Body() body: CreateAdminDeliveryPricingRuleDto,
+    @Headers() headers: Record<string, unknown>,
   ) {
     const rule = await this.commands.create(admin, {
       zoneId: body.zoneId,
@@ -105,8 +108,22 @@ export class AdminDeliveryPricingRuleController {
       timeBand: body.timeBand as DeliveryTimeBand,
       startLocalTime: body.startLocalTime ?? null,
       endLocalTime: body.endLocalTime ?? null,
-      customerDeliveryFeeMinor: BigInt(body.customerDeliveryFeeMinor),
-      driverRemunerationMinor: BigInt(body.driverRemunerationMinor),
+      customerDeliveryFeeMinor: BigInt(
+        resolveWriteCentimes({
+          headers,
+          minorField: body.customerDeliveryFeeMinor,
+          dzdField: body.customerDeliveryFee,
+          fieldLabel: 'customerDeliveryFee',
+        }),
+      ),
+      driverRemunerationMinor: BigInt(
+        resolveWriteCentimes({
+          headers,
+          minorField: body.driverRemunerationMinor,
+          dzdField: body.driverRemuneration,
+          fieldLabel: 'driverRemuneration',
+        }),
+      ),
       effectiveFrom: body.effectiveFrom,
       effectiveTo: body.effectiveTo ?? null,
     });

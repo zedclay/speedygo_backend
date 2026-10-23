@@ -19,6 +19,7 @@ import {
   checkoutBranchClosed,
   checkoutBranchHoursNotConfigured,
   checkoutBranchNotOperational,
+  checkoutBranchOutsideZone,
   checkoutCartNotReady,
   checkoutCartRequired,
   checkoutDeliveryZoneAmbiguous,
@@ -127,6 +128,21 @@ export class CheckoutService {
       throw checkoutDeliveryZoneAmbiguous();
     }
     const zone = zones[0];
+    if (
+      !hasValidCoordinates(
+        branchMerchant.latitude,
+        branchMerchant.longitude,
+      )
+    ) {
+      throw checkoutBranchOutsideZone();
+    }
+    const branchZones = await this.checkout.findCoveringZones(
+      branchMerchant.latitude,
+      branchMerchant.longitude,
+    );
+    if (!branchZones.some((candidate) => candidate.id === zone.id)) {
+      throw checkoutBranchOutsideZone();
+    }
 
     const applicable = selectApplicablePricingRules(
       await this.checkout.listActivePricingRules(zone.id),

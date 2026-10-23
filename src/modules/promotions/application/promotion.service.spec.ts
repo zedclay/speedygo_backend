@@ -24,6 +24,7 @@ describe('PromotionService', () => {
       findByNormalizedCode: jest.fn(),
       findById: jest.fn(),
       createPromotion: jest.fn(),
+      updatePromotionValue: jest.fn(),
       setActive: jest.fn(),
       setCustomerDiscovery: jest.fn(),
       listDiscoverableCandidates: jest.fn().mockResolvedValue([]),

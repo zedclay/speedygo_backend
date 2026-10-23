@@ -24,6 +24,8 @@ export const CORS_ALLOWED_REQUEST_HEADERS = [
   'Authorization',
   'Content-Type',
   'Accept',
+  'X-SpeedyGo-Money-Contract',
+  'X-SpeedyGo-App',
 ] as const;
 
 /** Admin document downloads expose Content-Disposition to browser clients. */

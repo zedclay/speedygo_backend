@@ -41,7 +41,9 @@ describe('SupportService ownership and transitions', () => {
       requireMembership: jest.fn(),
     };
     return {
-      service: new SupportService(repo as never, merchantAccess as never),
+      service: new SupportService(repo as never, merchantAccess as never, {
+        notifyAdminSupportTicketCreated: jest.fn().mockResolvedValue(undefined),
+      } as never),
       merchantAccess,
     };
   }

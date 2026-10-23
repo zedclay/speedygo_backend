@@ -10,6 +10,7 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
 import {
   CATALOG_DESCRIPTION_MAX_LENGTH,
@@ -174,17 +175,28 @@ export class CreateCatalogProductDto {
   @MaxLength(CATALOG_DESCRIPTION_MAX_LENGTH)
   description?: string;
 
-  @ApiProperty({
-    description: 'Integer minor units. Zero is allowed. Floats are rejected.',
+  @ApiPropertyOptional({
+    description:
+      'minor-v1 only: integer centimes. Rejected under dzd-v2 (use price).',
     example: 1099,
     minimum: 0,
     maximum: CATALOG_PRICE_MINOR_MAX,
   })
+  @ValidateIf((o) => o.price === undefined || o.price === null)
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(CATALOG_PRICE_MINOR_MAX)
-  priceMinor!: number;
+  priceMinor?: number;
+
+  @ApiPropertyOptional({
+    description: 'dzd-v2 only: DZD majors string e.g. "10.99". Currency DZD.',
+    example: '10.99',
+  })
+  @ValidateIf((o) => o.priceMinor === undefined || o.priceMinor === null)
+  @IsOptional()
+  @IsString()
+  price?: string;
 
   @ApiPropertyOptional({
     description:
@@ -244,7 +256,7 @@ export class UpdateCatalogProductDto {
   description?: string | null;
 
   @ApiPropertyOptional({
-    description: 'Integer minor units. Zero is allowed. Floats are rejected.',
+    description: 'minor-v1 only: integer centimes.',
     minimum: 0,
     maximum: CATALOG_PRICE_MINOR_MAX,
   })
@@ -254,6 +266,14 @@ export class UpdateCatalogProductDto {
   @Min(0)
   @Max(CATALOG_PRICE_MINOR_MAX)
   priceMinor?: number;
+
+  @ApiPropertyOptional({
+    description: 'dzd-v2 only: DZD majors string e.g. "10.99".',
+    example: '10.99',
+  })
+  @IsOptional()
+  @IsString()
+  price?: string;
 
   @ApiPropertyOptional({
     description:
@@ -370,18 +390,33 @@ export class CreateCatalogOptionDto {
   @MaxLength(CATALOG_NAME_MAX_LENGTH)
   name!: string;
 
-  @ApiProperty({
+  @ApiPropertyOptional({
     description:
-      'Integer minor units added to the product price. Zero is allowed. Negative values are rejected.',
+      'minor-v1 only: integer centimes added to the product price.',
     example: 200,
     minimum: 0,
     maximum: CATALOG_PRICE_MINOR_MAX,
   })
+  @ValidateIf(
+    (o) => o.additionalPrice === undefined || o.additionalPrice === null,
+  )
   @Type(() => Number)
   @IsInt()
   @Min(0)
   @Max(CATALOG_PRICE_MINOR_MAX)
-  additionalPriceMinor!: number;
+  additionalPriceMinor?: number;
+
+  @ApiPropertyOptional({
+    description: 'dzd-v2 only: DZD majors string e.g. "2.00".',
+    example: '2.00',
+  })
+  @ValidateIf(
+    (o) =>
+      o.additionalPriceMinor === undefined || o.additionalPriceMinor === null,
+  )
+  @IsOptional()
+  @IsString()
+  additionalPrice?: string;
 
   @ApiPropertyOptional({
     description:
@@ -402,8 +437,7 @@ export class UpdateCatalogOptionDto {
   name?: string;
 
   @ApiPropertyOptional({
-    description:
-      'Integer minor units added to the product price. Zero is allowed. Negative values are rejected.',
+    description: 'minor-v1 only: integer centimes added to the product price.',
     minimum: 0,
     maximum: CATALOG_PRICE_MINOR_MAX,
   })
@@ -413,6 +447,13 @@ export class UpdateCatalogOptionDto {
   @Min(0)
   @Max(CATALOG_PRICE_MINOR_MAX)
   additionalPriceMinor?: number;
+
+  @ApiPropertyOptional({
+    description: 'dzd-v2 only: DZD majors string e.g. "2.00".',
+  })
+  @IsOptional()
+  @IsString()
+  additionalPrice?: string;
 
   @ApiPropertyOptional({
     description:

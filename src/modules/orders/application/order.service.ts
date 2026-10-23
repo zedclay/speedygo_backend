@@ -38,6 +38,7 @@ import {
   orderBranchClosed,
   orderBranchHoursNotConfigured,
   orderBranchNotOperational,
+  orderBranchOutsideZone,
   orderCancellationCodCollected,
   orderCancellationConflict,
   orderCancellationFulfillmentActive,
@@ -217,6 +218,23 @@ export class OrderService {
         throw orderDeliveryZoneAmbiguous();
       }
       const zone = zones[0];
+      const branchPoint = await this.orders.findBranchCoordinates(
+        cart.merchantBranchId,
+        tx,
+      );
+      if (
+        !branchPoint ||
+        !hasValidCoordinates(branchPoint.latitude, branchPoint.longitude)
+      ) {
+        throw orderBranchOutsideZone();
+      }
+      const branchZones = await this.orders.findCoveringZones(
+        branchPoint.latitude,
+        branchPoint.longitude,
+      );
+      if (!branchZones.some((candidate) => candidate.id === zone.id)) {
+        throw orderBranchOutsideZone();
+      }
       const pricingInstant = decisionAt;
       const pricingRule = selectOrderPricingRule(
         await this.orders.listActivePricingRules(zone.id, tx),

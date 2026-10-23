@@ -68,6 +68,12 @@ export const NOTIFICATION_TYPE_DRIVER_EARNING_CREATED =
   'DRIVER_EARNING_CREATED';
 export const NOTIFICATION_TYPE_MERCHANT_ORDER_CREATED =
   'MERCHANT_ORDER_CREATED';
+/** Admin inbox (A006) — Driver verification submitted for review. */
+export const NOTIFICATION_TYPE_ADMIN_DRIVER_VERIF = 'ADMIN_DRIVER_VERIF';
+/** Admin inbox (A006) — Merchant verification formally submitted. */
+export const NOTIFICATION_TYPE_ADMIN_MERCHANT_VERIF = 'ADMIN_MERCHANT_VERIF';
+/** Admin inbox (A006) — Support ticket created. */
+export const NOTIFICATION_TYPE_ADMIN_SUPPORT_TICKET = 'ADMIN_SUPPORT_TICKET';
 
 export const NOTIFICATION_TYPES_V1 = [
   NOTIFICATION_TYPE_ORDER_ACCEPTED,
@@ -82,7 +88,21 @@ export const NOTIFICATION_TYPES_V1 = [
   NOTIFICATION_TYPE_SETTLEMENT_FINALIZED,
   NOTIFICATION_TYPE_DRIVER_EARNING_CREATED,
   NOTIFICATION_TYPE_MERCHANT_ORDER_CREATED,
+  NOTIFICATION_TYPE_ADMIN_DRIVER_VERIF,
+  NOTIFICATION_TYPE_ADMIN_MERCHANT_VERIF,
+  NOTIFICATION_TYPE_ADMIN_SUPPORT_TICKET,
 ] as const;
+
+/** Admin operational types only — see ADMIN_OPERATIONAL_NOTIFICATIONS.md. */
+export const NOTIFICATION_TYPES_ADMIN_V1 = [
+  NOTIFICATION_TYPE_ADMIN_DRIVER_VERIF,
+  NOTIFICATION_TYPE_ADMIN_MERCHANT_VERIF,
+  NOTIFICATION_TYPE_ADMIN_SUPPORT_TICKET,
+] as const;
+
+export type NotificationTypeAdminV1 =
+  (typeof NOTIFICATION_TYPES_ADMIN_V1)[number];
+
 
 export type NotificationTypeV1 = (typeof NOTIFICATION_TYPES_V1)[number];
 
@@ -136,6 +156,8 @@ export type EmitNotificationInput = {
   accountId: string;
   title: string;
   body: string;
+  /** When set, stored on newly created Notification rows only (never rewrites). */
+  templateId?: string | null;
 };
 
 export type NotificationView = {

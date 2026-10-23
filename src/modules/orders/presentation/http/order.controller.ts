@@ -2,12 +2,14 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
   Query,
 } from '@nestjs/common';
+import { resolveWriteCentimes } from '../../../../common/money/resolve-money-write';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -72,6 +74,7 @@ export class OrderController {
       ORDER_ERROR_CODES.ORDER_PRICING_CONFIGURATION_INVALID,
       ORDER_ERROR_CODES.ORDER_MERCHANT_NOT_OPERATIONAL,
       ORDER_ERROR_CODES.ORDER_BRANCH_NOT_OPERATIONAL,
+      ORDER_ERROR_CODES.ORDER_BRANCH_OUTSIDE_ZONE,
       ORDER_ERROR_CODES.ORDER_ALREADY_CREATED,
       ORDER_ERROR_CODES.ORDER_FINANCIAL_CONFIGURATION_INVALID,
       ORDER_ERROR_CODES.ORDER_RECONFIRMATION_REQUIRED,
@@ -86,13 +89,29 @@ export class OrderController {
   create(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() body: CreateOrderDto,
+    @Headers() headers: Record<string, unknown>,
   ) {
     return this.orders.createOrder(principal.accountId, {
       addressId: body.addressId,
       paymentMethod: body.paymentMethod,
-      expectedMerchandiseSubtotalMinor: body.expectedMerchandiseSubtotalMinor,
-      expectedDeliveryFeeMinor: body.expectedDeliveryFeeMinor,
-      expectedCustomerTotalMinor: body.expectedCustomerTotalMinor,
+      expectedMerchandiseSubtotalMinor: resolveWriteCentimes({
+        headers,
+        minorField: body.expectedMerchandiseSubtotalMinor,
+        dzdField: body.expectedMerchandiseSubtotal,
+        fieldLabel: 'expectedMerchandiseSubtotal',
+      }),
+      expectedDeliveryFeeMinor: resolveWriteCentimes({
+        headers,
+        minorField: body.expectedDeliveryFeeMinor,
+        dzdField: body.expectedDeliveryFee,
+        fieldLabel: 'expectedDeliveryFee',
+      }),
+      expectedCustomerTotalMinor: resolveWriteCentimes({
+        headers,
+        minorField: body.expectedCustomerTotalMinor,
+        dzdField: body.expectedCustomerTotal,
+        fieldLabel: 'expectedCustomerTotal',
+      }),
       promoCode: body.promoCode,
     });
   }

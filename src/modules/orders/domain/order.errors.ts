@@ -14,6 +14,7 @@ export const ORDER_ERROR_CODES = {
   ORDER_BRANCH_NOT_OPERATIONAL: 'ORDER_BRANCH_NOT_OPERATIONAL',
   ORDER_BRANCH_CLOSED: 'ORDER_BRANCH_CLOSED',
   ORDER_BRANCH_HOURS_NOT_CONFIGURED: 'ORDER_BRANCH_HOURS_NOT_CONFIGURED',
+  ORDER_BRANCH_OUTSIDE_ZONE: 'ORDER_BRANCH_OUTSIDE_ZONE',
   ORDER_ALREADY_CREATED: 'ORDER_ALREADY_CREATED',
   ORDER_NOT_FOUND: 'ORDER_NOT_FOUND',
   ORDER_PAYMENT_METHOD_INVALID: 'ORDER_PAYMENT_METHOD_INVALID',
@@ -151,6 +152,14 @@ export function orderBranchHoursNotConfigured(): OrderError {
   return new OrderError(
     ORDER_ERROR_CODES.ORDER_BRANCH_HOURS_NOT_CONFIGURED,
     'Branch opening hours are not configured',
+    409,
+  );
+}
+
+export function orderBranchOutsideZone(): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.ORDER_BRANCH_OUTSIDE_ZONE,
+    'This store cannot deliver to the selected address',
     409,
   );
 }

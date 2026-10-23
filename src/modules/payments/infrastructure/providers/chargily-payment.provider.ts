@@ -1,5 +1,6 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import {
+  paymentProviderAmountUnitUnverified,
   paymentProviderUnavailable,
   paymentWebhookInvalidSignature,
 } from '../../domain/payment.errors';
@@ -79,6 +80,7 @@ function snapshotFromCheckout(
 ): ProviderCheckoutSnapshot | null {
   const id = readString(record, 'id');
   const status = mapCheckoutStatus(readString(record, 'status'));
+  // Opaque Pay v2 integer. Not SpeedyGo centimes until the unit is official.
   const amountMinor = readAmount(record);
   if (!id || !status || amountMinor === null) {
     return null;
@@ -103,6 +105,45 @@ export function chargilyBaseUrl(mode: string): string {
   return mode === 'live' ? CHARGILY_LIVE_BASE_URL : CHARGILY_TEST_BASE_URL;
 }
 
+/**
+ * Chargily Pay™ V2 amount unit is UNVERIFIED.
+ *
+ * Official Pay v2 sources inspected (none name centimes vs DZD majors):
+ * - https://dev.chargily.com/pay-v2/api-reference/checkouts/create
+ *   `amount` integer, "The total amount of the checkout"; example `2500`.
+ * - https://dev.chargily.com/pay-v2/api-reference/checkouts/checkout-object
+ *   `amount` integer, "The total of all the items in the checkout"; example `2500`.
+ * - https://dev.chargily.com/pay-v2/api-reference/prices/price-object
+ *   `amount` integer, "The amount to be charged."; example `200`.
+ * - https://dev.chargily.com/pay-v2/the-quick-guide/create-a-checkout
+ *   example `"amount": 2000` with no unit legend.
+ * - https://dev.chargily.com/pay-v2/the-full-guide/create-a-price
+ *   example `"amount": 5000` with no unit legend.
+ * - Official JS SDK `@chargily/chargily-pay` CreateCheckoutParams.amount?: number
+ *   "The total amount of the checkout"; CreatePriceParams.amount: number
+ *   "The amount to be charged."
+ *   https://github.com/Chargily/chargily-pay-javascript/blob/main/src/types/param.ts
+ * - Official JS SDK README createPrice `{ amount: 5000, currency: 'dzd' }`
+ *   with no unit legend.
+ * - Official OpenAPI `https://dev.chargily.com/api-reference/openapi.json` → 404
+ *   (listed on https://dev.chargily.com/llms.txt but not served).
+ *
+ * Search-engine paraphrases that "2000 = 20.00 DZD / centimes" are NOT in the
+ * official Pay v2 pages or SDK. Do not treat Chargily Pro
+ * (`dev.chargily.com/pro-v1`, "Amounts are in cents") or third-party Nest
+ * wrappers as Pay v2 authority.
+ *
+ * Until Pay v2 docs/SDK name the unit, real checkout create is fail-closed.
+ * SpeedyGo does not forward centimes or DZD majors and does not assume a unit.
+ * Stub webhook/query tests may still parse provider integers as opaque values;
+ * those integers are not SpeedyGo money. Live HTTP remains deferred.
+ */
+export const CHARGILY_PAY_V2_AMOUNT_UNIT = 'UNVERIFIED' as const;
+
+export function refuseUnverifiedChargilyCheckoutAmount(): never {
+  throw paymentProviderAmountUnitUnverified();
+}
+
 export class ChargilyPaymentProvider implements PaymentProvider {
   readonly name = PAYMENT_PROVIDER_CHARGILY;
 
@@ -111,21 +152,24 @@ export class ChargilyPaymentProvider implements PaymentProvider {
     private readonly config: ChargilyProviderConfig,
   ) {}
 
-  async createPayment(input: ProviderCreateInput): Promise<ProviderSession> {
+  async createPayment(_input: ProviderCreateInput): Promise<ProviderSession> {
+    if (CHARGILY_PAY_V2_AMOUNT_UNIT === 'UNVERIFIED') {
+      refuseUnverifiedChargilyCheckoutAmount();
+    }
     const response = await this.http.request({
       method: 'POST',
       path: '/checkouts',
       body: {
-        amount: input.amountMinor,
+        // Unreachable until CHARGILY_PAY_V2_AMOUNT_UNIT is an official unit.
         currency: 'dzd',
-        success_url: this.config.returnUrl || input.returnUrl,
-        failure_url: this.config.cancelUrl || input.cancelUrl,
-        webhook_endpoint: this.config.webhookUrl || input.webhookUrl,
+        success_url: this.config.returnUrl || _input.returnUrl,
+        failure_url: this.config.cancelUrl || _input.cancelUrl,
+        webhook_endpoint: this.config.webhookUrl || _input.webhookUrl,
         locale: this.config.locale,
         chargily_pay_fees_allocation: 'merchant',
         metadata: {
-          speedygoPaymentId: input.paymentId,
-          speedygoAttemptId: input.attemptId,
+          speedygoPaymentId: _input.paymentId,
+          speedygoAttemptId: _input.attemptId,
         },
       },
     });
@@ -172,6 +216,7 @@ export class ChargilyPaymentProvider implements PaymentProvider {
     if (!event || !eventId || !eventType || !data || !checkoutId) {
       throw paymentWebhookInvalidSignature();
     }
+    // Opaque Pay v2 integer for stub tests. Not SpeedyGo money while UNVERIFIED.
     const amountMinor = readAmount(data) ?? 0;
     const currency = normalizeProviderCurrency(
       readString(data, 'currency') ?? PAYMENT_CURRENCY_DZD,

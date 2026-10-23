@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { SecureDocumentStorageService } from '../../../infrastructure/storage/application/secure-document-storage.service';
+import { NotificationService } from '../../notifications/application/notification.service';
 import {
   driverAvailabilityInvalidTransition,
   driverDocumentInvalid,
@@ -66,6 +67,7 @@ export class DriverService {
   constructor(
     private readonly drivers: DriverRepository,
     private readonly secureDocuments: SecureDocumentStorageService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async getMe(accountId: string): Promise<DriverMeView> {
@@ -310,6 +312,13 @@ export class DriverService {
         tx,
       );
     });
+    const submitted = await this.drivers.findProfileByAccountId(accountId);
+    if (submitted) {
+      await this.notifications.notifyAdminDriverVerificationSubmitted({
+        driverId: submitted.id,
+        driverFullName: submitted.fullName,
+      });
+    }
     return this.getMe(accountId);
   }
 

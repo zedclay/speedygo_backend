@@ -78,11 +78,24 @@ export type CustomerProductDetail = CustomerProductSummary & {
   optionGroups: CustomerProductOptionGroup[];
 };
 
+export type DeliveryCoverageReason =
+  | 'UNFILTERED'
+  | 'INSIDE'
+  | 'OUTSIDE'
+  | 'AMBIGUOUS';
+
+export type DeliveryCoverage = {
+  inCoverage: boolean;
+  zoneCount: number;
+  reason: DeliveryCoverageReason;
+};
+
 export type CustomerCatalogPage<T> = {
   items: T[];
   limit: number;
   offset: number;
   total: number;
+  coverage?: DeliveryCoverage;
 };
 
 export type CustomerCatalogSearchHit =

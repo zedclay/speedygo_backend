@@ -10,9 +10,18 @@ export const COD_CURRENCY_DZD = 'DZD';
 /**
  * Derived collection reconciliation (not persisted on CodCollection.status).
  * CodCollection.status remains COLLECTED after Customer cash collection.
+ *
+ * Custody math (authoritative):
+ * outstanding = SUM(COLLECTED) − SUM(confirmed allocations).
+ * Declarations (DECLARED remittances) do not reduce custody.
  */
 export type DerivedCollectionReconciliation =
   'OUTSTANDING' | 'PARTIAL' | 'RECONCILED';
+
+/** Admin driver-row presentation; DISCREPANCY overlays remittance declared≠confirmed. */
+export type AdminCodDriverReconciliationStatus =
+  | DerivedCollectionReconciliation
+  | 'DISCREPANCY';
 
 export function deriveCollectionReconciliation(
   collectedAmountMinor: number,
@@ -25,6 +34,20 @@ export function deriveCollectionReconciliation(
     return 'RECONCILED';
   }
   return 'PARTIAL';
+}
+
+export function deriveAdminCodDriverReconciliationStatus(input: {
+  collectedAmountMinor: number;
+  confirmedAllocatedMinor: number;
+  discrepancyRemittanceCount: number;
+}): AdminCodDriverReconciliationStatus {
+  if (input.discrepancyRemittanceCount > 0) {
+    return 'DISCREPANCY';
+  }
+  return deriveCollectionReconciliation(
+    input.collectedAmountMinor,
+    input.confirmedAllocatedMinor,
+  );
 }
 
 export function isExactCodAmount(input: {

@@ -5,6 +5,7 @@ export const GEO_ERROR_CODES = {
   GEO_COMMUNE_NOT_FOUND: 'GEO_COMMUNE_NOT_FOUND',
   GEO_COMMUNE_WILAYA_MISMATCH: 'GEO_COMMUNE_WILAYA_MISMATCH',
   GEO_LOCATION_INVALID: 'GEO_LOCATION_INVALID',
+  GEO_GEOCODING_NOT_CONFIGURED: 'GEO_GEOCODING_NOT_CONFIGURED',
 } as const;
 
 export type GeoErrorCode =
@@ -45,4 +46,12 @@ export function geoCommuneWilayaMismatch(): GeoError {
 
 export function geoLocationInvalid(message: string): GeoError {
   return new GeoError(GEO_ERROR_CODES.GEO_LOCATION_INVALID, message, 400);
+}
+
+export function geoGeocodingNotConfigured(): GeoError {
+  return new GeoError(
+    GEO_ERROR_CODES.GEO_GEOCODING_NOT_CONFIGURED,
+    'Address search and reverse geocoding are not configured',
+    503,
+  );
 }

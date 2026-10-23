@@ -57,11 +57,55 @@ export class CustomerCatalogRepository {
     return row?.id ?? null;
   }
 
+  async findOwnedAddress(
+    customerId: string,
+    addressId: string,
+  ): Promise<{
+    id: string;
+    latitude: number;
+    longitude: number;
+  } | null> {
+    const row = await orm(this.db())
+      .Address.where({ id: addressId, customerId })
+      .first();
+    if (!row) {
+      return null;
+    }
+    const latitude = Number(row.latitude);
+    const longitude = Number(row.longitude);
+    return { id: row.id, latitude, longitude };
+  }
+
+  async findCoveringZones(
+    latitude: number,
+    longitude: number,
+  ): Promise<Array<{ id: string; name: string }>> {
+    const client = this.db();
+    const plan = client.raw.sql`
+      SELECT id, name
+      FROM delivery_zones
+      WHERE active = true
+        AND ST_Covers(
+          geometry,
+          ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)
+        )
+    `
+      .returnsRow({
+        id: 'pg/uuid@1',
+        name: 'sql/varchar@1',
+      })
+      .build();
+    const rows = await client.runtime().query(plan);
+    return rows.map((row) => ({ id: row.id, name: String(row.name) }));
+  }
+
   async listStorefronts(input: {
     limit: number;
     offset: number;
     verticalId?: string;
     openNowLocal?: OpenNowLocalParts;
+    coverageZoneId?: string;
+    wilayaCode?: string;
   }): Promise<CustomerCatalogPage<CustomerStorefrontBase>> {
     return input.verticalId
       ? this.listStorefrontsByVertical({
@@ -69,11 +113,15 @@ export class CustomerCatalogRepository {
           offset: input.offset,
           verticalId: input.verticalId,
           openNowLocal: input.openNowLocal,
+          coverageZoneId: input.coverageZoneId,
+          wilayaCode: input.wilayaCode,
         })
       : this.listStorefrontsUnfiltered({
           limit: input.limit,
           offset: input.offset,
           openNowLocal: input.openNowLocal,
+          coverageZoneId: input.coverageZoneId,
+          wilayaCode: input.wilayaCode,
         });
   }
 
@@ -81,6 +129,8 @@ export class CustomerCatalogRepository {
     limit: number;
     offset: number;
     openNowLocal?: OpenNowLocalParts;
+    coverageZoneId?: string;
+    wilayaCode?: string;
   }): Promise<CustomerCatalogPage<CustomerStorefrontBase>> {
     const db = this.db();
     const openNowFlag = input.openNowLocal !== undefined ? 1 : 0;
@@ -90,6 +140,11 @@ export class CustomerCatalogRepository {
     const localDate = input.openNowLocal?.localDate ?? '2000-01-02';
     const previousLocalDate =
       input.openNowLocal?.previousLocalDate ?? '2000-01-01';
+    const useCoverage = input.coverageZoneId ? 1 : 0;
+    const coverageZoneId =
+      input.coverageZoneId ?? '00000000-0000-0000-0000-000000000000';
+    const useWilaya = input.wilayaCode ? 1 : 0;
+    const wilayaCode = input.wilayaCode ?? '00';
     const countPlan = db.raw.sql`
         SELECT COUNT(*)::int8 AS total
         FROM merchant_branches b
@@ -170,6 +225,22 @@ export class CustomerCatalogRepository {
                   )
               )
             )
+          )
+          AND (
+            ${useCoverage} = 0
+            OR ST_Covers(
+              (
+                SELECT z.geometry
+                FROM delivery_zones z
+                WHERE z.id = ${coverageZoneId}::uuid
+                  AND z.active = true
+              ),
+              ST_SetSRID(ST_MakePoint(b.longitude, b.latitude), 4326)
+            )
+          )
+          AND (
+            ${useWilaya} = 0
+            OR b.wilaya_code = ${wilayaCode}
           )
       `
       .returnsRow({ total: 'pg/int8@1' })
@@ -270,6 +341,22 @@ export class CustomerCatalogRepository {
                   )
               )
             )
+          )
+          AND (
+            ${useCoverage} = 0
+            OR ST_Covers(
+              (
+                SELECT z.geometry
+                FROM delivery_zones z
+                WHERE z.id = ${coverageZoneId}::uuid
+                  AND z.active = true
+              ),
+              ST_SetSRID(ST_MakePoint(b.longitude, b.latitude), 4326)
+            )
+          )
+          AND (
+            ${useWilaya} = 0
+            OR b.wilaya_code = ${wilayaCode}
           )
         ORDER BY b.name ASC, b.id ASC
         LIMIT ${input.limit} OFFSET ${input.offset}
@@ -289,6 +376,8 @@ export class CustomerCatalogRepository {
     offset: number;
     verticalId: string;
     openNowLocal?: OpenNowLocalParts;
+    coverageZoneId?: string;
+    wilayaCode?: string;
   }): Promise<CustomerCatalogPage<CustomerStorefrontBase>> {
     const db = this.db();
     const openNowFlag = input.openNowLocal !== undefined ? 1 : 0;
@@ -298,6 +387,11 @@ export class CustomerCatalogRepository {
     const localDate = input.openNowLocal?.localDate ?? '2000-01-02';
     const previousLocalDate =
       input.openNowLocal?.previousLocalDate ?? '2000-01-01';
+    const useCoverage = input.coverageZoneId ? 1 : 0;
+    const coverageZoneId =
+      input.coverageZoneId ?? '00000000-0000-0000-0000-000000000000';
+    const useWilaya = input.wilayaCode ? 1 : 0;
+    const wilayaCode = input.wilayaCode ?? '00';
     const countPlan = db.raw.sql`
         SELECT COUNT(*)::int8 AS total
         FROM merchant_branches b
@@ -382,6 +476,22 @@ export class CustomerCatalogRepository {
                   )
               )
             )
+          )
+          AND (
+            ${useCoverage} = 0
+            OR ST_Covers(
+              (
+                SELECT z.geometry
+                FROM delivery_zones z
+                WHERE z.id = ${coverageZoneId}::uuid
+                  AND z.active = true
+              ),
+              ST_SetSRID(ST_MakePoint(b.longitude, b.latitude), 4326)
+            )
+          )
+          AND (
+            ${useWilaya} = 0
+            OR b.wilaya_code = ${wilayaCode}
           )
       `
       .returnsRow({ total: 'pg/int8@1' })
@@ -486,6 +596,22 @@ export class CustomerCatalogRepository {
                   )
               )
             )
+          )
+          AND (
+            ${useCoverage} = 0
+            OR ST_Covers(
+              (
+                SELECT z.geometry
+                FROM delivery_zones z
+                WHERE z.id = ${coverageZoneId}::uuid
+                  AND z.active = true
+              ),
+              ST_SetSRID(ST_MakePoint(b.longitude, b.latitude), 4326)
+            )
+          )
+          AND (
+            ${useWilaya} = 0
+            OR b.wilaya_code = ${wilayaCode}
           )
         ORDER BY b.name ASC, b.id ASC
         LIMIT ${input.limit} OFFSET ${input.offset}

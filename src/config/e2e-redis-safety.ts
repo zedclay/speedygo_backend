@@ -99,3 +99,65 @@ export function resolveE2eRedisUrl(
   assertSafeE2eRedisUrl(candidate);
   return candidate;
 }
+
+/**
+ * Fail-closed preflight for destructive FLUSHDB.
+ * Timeout alone is insufficient — refuse unless the exact CLI target is
+ * loopback + host port 6381 + DB 15 (never shared :6379 / DB0).
+ */
+export function assertE2eRedisFlushTarget(target: ParsedE2eRedisUrl): void {
+  assertSafeE2eRedisUrl(
+    `redis://${target.hostname}:${target.port}/${target.db}`,
+  );
+  if (target.port !== E2E_REDIS_REQUIRED_HOST_PORT) {
+    throw new Error(
+      `E2E FLUSHDB refused: port ${target.port} is not ${E2E_REDIS_REQUIRED_HOST_PORT}`,
+    );
+  }
+  if (target.db !== E2E_REDIS_REQUIRED_DB) {
+    throw new Error(
+      `E2E FLUSHDB refused: DB ${target.db} is not ${E2E_REDIS_REQUIRED_DB}`,
+    );
+  }
+  const loopback =
+    target.hostname === '127.0.0.1' ||
+    target.hostname === 'localhost' ||
+    target.hostname === '::1';
+  if (!loopback) {
+    throw new Error(
+      `E2E FLUSHDB refused: host ${target.hostname} is not loopback`,
+    );
+  }
+}
+
+export type E2eRedisFlushResult =
+  | { ok: true; host: string; port: number; db: number }
+  | { ok: false; reason: string };
+
+/**
+ * Build redis-cli argv for E2E DB flush only after isolation is re-asserted.
+ * Callers must not invent host/port/db outside assertSafeE2eRedisUrl.
+ */
+export function buildE2eRedisFlushArgv(
+  target: ParsedE2eRedisUrl,
+): readonly string[] {
+  assertE2eRedisFlushTarget(target);
+  const host = target.hostname === 'localhost' ? '127.0.0.1' : target.hostname;
+  // Re-check argv literals cannot drift from required isolation constants.
+  if (target.port !== E2E_REDIS_REQUIRED_HOST_PORT) {
+    throw new Error('E2E FLUSHDB argv port mismatch');
+  }
+  if (target.db !== E2E_REDIS_REQUIRED_DB) {
+    throw new Error('E2E FLUSHDB argv DB mismatch');
+  }
+  return [
+    'redis-cli',
+    '-h',
+    host,
+    '-p',
+    String(E2E_REDIS_REQUIRED_HOST_PORT),
+    '-n',
+    String(E2E_REDIS_REQUIRED_DB),
+    'FLUSHDB',
+  ] as const;
+}

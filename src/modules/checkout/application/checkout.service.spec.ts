@@ -116,6 +116,8 @@ describe('CheckoutService.preview', () => {
         merchantVerifiedAt: '2026-01-01T00:00:00.000Z',
         merchantName: 'Cafe',
         branchOperationalStatus: 'ACTIVE',
+        latitude: 36.75,
+        longitude: 3.05,
       }),
       findCoveringZones: jest
         .fn()
@@ -310,6 +312,17 @@ describe('CheckoutService.preview', () => {
       service.preview(ACCOUNT, { addressId: ADDRESS_A }),
     ).rejects.toMatchObject({
       code: CHECKOUT_ERROR_CODES.CHECKOUT_ADDRESS_OUTSIDE_ZONE,
+    });
+  });
+
+  it('rejects a cart branch whose coordinates are outside the dropoff zone', async () => {
+    repo.findCoveringZones
+      .mockResolvedValueOnce([{ id: 'zone-1', name: 'Algiers' }])
+      .mockResolvedValueOnce([]);
+    await expect(
+      service.preview(ACCOUNT, { addressId: ADDRESS_A }),
+    ).rejects.toMatchObject({
+      code: CHECKOUT_ERROR_CODES.CHECKOUT_BRANCH_OUTSIDE_ZONE,
     });
   });
 

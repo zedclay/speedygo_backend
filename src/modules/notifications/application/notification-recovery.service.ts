@@ -39,6 +39,8 @@ export type NotificationRecoveryResult = {
   matchOffers: number;
   matchOffersSkippedStale: number;
   pushRequeued: number;
+  adminMerchantVerif: number;
+  adminDriverVerif: number;
 };
 
 @Injectable()
@@ -87,6 +89,8 @@ export class NotificationRecoveryService {
       matchOffers: 0,
       matchOffersSkippedStale: 0,
       pushRequeued: 0,
+      adminMerchantVerif: 0,
+      adminDriverVerif: 0,
     };
 
     for (const row of await this.recoveryRows.listRecentOrdersForMerchantNotify(
@@ -211,6 +215,35 @@ export class NotificationRecoveryService {
       result.matchOffers += 1;
     }
 
+    for (const row of await this.recoveryRows.listMissingAdminMerchantVerifications(
+      {
+        lookbackIso,
+        limit: batch,
+      },
+    )) {
+      await this.notifications.notifyAdminMerchantVerificationSubmitted({
+        submissionId: row.submissionId,
+        merchantId: row.merchantId,
+        merchantName: row.merchantName,
+        publicReference: row.publicReference,
+      });
+      result.adminMerchantVerif += 1;
+    }
+
+    for (const row of await this.recoveryRows.listMissingAdminDriverVerifications(
+      {
+        lookbackIso,
+        limit: batch,
+      },
+    )) {
+      await this.notifications.notifyAdminDriverVerificationSubmitted({
+        driverId: row.driverId,
+        driverFullName: row.driverFullName,
+        resurfaceIfExists: false,
+      });
+      result.adminDriverVerif += 1;
+    }
+
     // Push enqueue-gap repair: the job id dedupes against live jobs, and the
     // worker ignores logs that are no longer PENDING.
     const pushMinAgeMs = this.config.get<number>(
@@ -245,14 +278,16 @@ export class NotificationRecoveryService {
       result.refunds +
       result.settlements +
       result.earnings +
-      result.matchOffers;
+      result.matchOffers +
+      result.adminMerchantVerif +
+      result.adminDriverVerif;
     if (
       total > 0 ||
       result.matchOffersSkippedStale > 0 ||
       result.pushRequeued > 0
     ) {
       this.logger.debug(
-        `Notification recovery candidates=${total} staleMatchSkipped=${result.matchOffersSkippedStale} pushRequeued=${result.pushRequeued}`,
+        `Notification recovery candidates=${total} adminMerchant=${result.adminMerchantVerif} adminDriver=${result.adminDriverVerif} staleMatchSkipped=${result.matchOffersSkippedStale} pushRequeued=${result.pushRequeued}`,
       );
     }
     return result;

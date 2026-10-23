@@ -1,5 +1,7 @@
 import {
+  assertE2eRedisFlushTarget,
   assertSafeE2eRedisUrl,
+  buildE2eRedisFlushArgv,
   E2E_REDIS_DEFAULT_URL,
   redactRedisUrl,
   resolveE2eRedisUrl,
@@ -57,5 +59,43 @@ describe('E2E Redis safety (isolation)', () => {
     expect(
       redactRedisUrl('redis://user:secret@127.0.0.1:6381/15'),
     ).not.toContain('secret');
+  });
+
+  it('FLUSHDB argv is hard-locked to 6381 / DB15 after isolation assert', () => {
+    const target = assertSafeE2eRedisUrl('redis://127.0.0.1:6381/15');
+    expect(buildE2eRedisFlushArgv(target)).toEqual([
+      'redis-cli',
+      '-h',
+      '127.0.0.1',
+      '-p',
+      '6381',
+      '-n',
+      '15',
+      'FLUSHDB',
+    ]);
+  });
+
+  it('refuses FLUSHDB against shared or wrong DB targets', () => {
+    expect(() =>
+      assertE2eRedisFlushTarget({
+        hostname: '127.0.0.1',
+        port: 6379,
+        db: 15,
+      }),
+    ).toThrow(/6379/);
+    expect(() =>
+      assertE2eRedisFlushTarget({
+        hostname: '127.0.0.1',
+        port: 6381,
+        db: 0,
+      }),
+    ).toThrow(/DB 15/);
+    expect(() =>
+      buildE2eRedisFlushArgv({
+        hostname: '127.0.0.1',
+        port: 6381,
+        db: 0,
+      }),
+    ).toThrow();
   });
 });
