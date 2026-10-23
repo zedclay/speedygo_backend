@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { parseMoneyMinorDecimalString } from '../../../common/money/money-minor';
+import { loadStoredCentimes } from '../../../common/money/prisma-money-decimal';
 import { createUuidV7 } from '../../../common/utils/uuid-v7';
 import {
   PrismaService,
@@ -135,8 +135,8 @@ export class DriverEarningRepository {
       };
     }
     return {
-      totalEarnedMinor: parseMoneyMinorDecimalString(row.total_earned_minor),
-      unpaidEarnedMinor: parseMoneyMinorDecimalString(row.unpaid_earned_minor),
+      totalEarnedMinor: loadStoredCentimes(row.total_earned_minor),
+      unpaidEarnedMinor: loadStoredCentimes(row.unpaid_earned_minor),
       earningCount: Number(row.earning_count),
     };
   }
@@ -190,14 +190,10 @@ export class DriverEarningRepository {
         id: String(row.id),
         deliveryId: String(row.delivery_id),
         driverId: String(row.driver_id),
-        baseRemunerationMinor: parseMoneyMinorDecimalString(
-          row.base_remuneration_minor,
-        ),
-        bonusMinor: parseMoneyMinorDecimalString(row.bonus_minor),
-        adjustmentMinor: parseMoneyMinorDecimalString(row.adjustment_minor, {
-          allowNegative: true,
-        }),
-        netEarningMinor: parseMoneyMinorDecimalString(row.net_earning_minor),
+        baseRemunerationMinor: loadStoredCentimes(row.base_remuneration_minor),
+        bonusMinor: loadStoredCentimes(row.bonus_minor),
+        adjustmentMinor: loadStoredCentimes(row.adjustment_minor),
+        netEarningMinor: loadStoredCentimes(row.net_earning_minor),
         status: String(row.status),
         validatedAt: row.validated_at ? String(row.validated_at) : null,
         createdAt: String(row.created_at),
@@ -239,14 +235,10 @@ function toRecord(row: {
     id: row.id,
     deliveryId: row.deliveryId,
     driverId: row.driverId,
-    baseRemunerationMinor: parseMoneyMinorDecimalString(
-      row.baseRemunerationMinor,
-    ),
-    bonusMinor: parseMoneyMinorDecimalString(row.bonusMinor),
-    adjustmentMinor: parseMoneyMinorDecimalString(row.adjustmentMinor, {
-      allowNegative: true,
-    }),
-    netEarningMinor: parseMoneyMinorDecimalString(row.netEarningMinor),
+    baseRemunerationMinor: loadStoredCentimes(row.baseRemunerationMinor),
+    bonusMinor: loadStoredCentimes(row.bonusMinor),
+    adjustmentMinor: loadStoredCentimes(row.adjustmentMinor),
+    netEarningMinor: loadStoredCentimes(row.netEarningMinor),
     status: row.status,
     validatedAt: row.validatedAt,
     createdAt: row.createdAt,

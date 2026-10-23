@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
+import { loadStoredCentimes } from '../../../common/money/prisma-money-decimal';
 import {
   PrismaService,
   type SpeedyGoDb,
@@ -341,10 +342,7 @@ export class DriverDeliveryHistoryRepository {
     net_earning_minor: bigint | string | number;
     earned_at: string;
   }): DriverDeliveryHistoryRow {
-    const rawAmount =
-      typeof row.net_earning_minor === 'bigint'
-        ? row.net_earning_minor.toString(10)
-        : String(row.net_earning_minor);
+    const rawAmount = loadStoredCentimes(row.net_earning_minor).toString(10);
     return {
       deliveryId: String(row.delivery_id),
       orderId: String(row.order_id),
