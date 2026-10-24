@@ -11,6 +11,10 @@ export type CheckoutAddressRecord = {
   addressText: string;
   latitude: number;
   longitude: number;
+  building: string | null;
+  floor: string | null;
+  entrance: string | null;
+  landmark: string | null;
 };
 
 export type CheckoutZoneRecord = {
@@ -54,6 +58,10 @@ export type CheckoutPreviewView = {
     addressText: string;
     latitude: number;
     longitude: number;
+    building: string | null;
+    floor: string | null;
+    entrance: string | null;
+    landmark: string | null;
   };
   deliveryZone: {
     id: string;

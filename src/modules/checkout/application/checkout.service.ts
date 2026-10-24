@@ -202,6 +202,10 @@ export class CheckoutService {
         addressText: address.addressText,
         latitude: address.latitude,
         longitude: address.longitude,
+        building: address.building,
+        floor: address.floor,
+        entrance: address.entrance,
+        landmark: address.landmark,
       },
       deliveryZone: {
         id: zone.id,

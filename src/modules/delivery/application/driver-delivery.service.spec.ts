@@ -206,6 +206,73 @@ describe('DriverDeliveryService', () => {
     expect(JSON.stringify(view)).not.toContain('0550123499');
   });
 
+  it('hides captured dropoff details before pickup confirmation', async () => {
+    drivers.findOpenAcceptedAssignment.mockResolvedValue({
+      id: ASSIGNMENT_ID,
+      deliveryId: DELIVERY_ID,
+      status: 'ACCEPTED',
+      version: 7,
+    });
+    deliveries.findDeliveryDetail.mockResolvedValue({
+      id: DELIVERY_ID,
+      status: 'AT_PICKUP',
+      orderStatus: 'ACTIVE',
+      fulfillmentStatus: 'READY',
+      pickedUpAt: null,
+      arrivedCustomerAt: null,
+      deliveredAt: null,
+      pickup: { ...PICKUP, phone: '0550123499' },
+      dropoff: {
+        addressText: 'Cité 1500 Logements',
+        building: 'Bloc Z',
+        floor: '3',
+        entrance: 'A',
+        landmark: 'Mosquée',
+        instructions: null,
+      },
+    });
+    const view = await service.getCurrent(ACCOUNT);
+    expect(view).toMatchObject({
+      deliveryStatus: 'AT_PICKUP',
+      dropoffAddressText: null,
+      dropoffBuilding: null,
+      dropoffFloor: null,
+      dropoffEntrance: null,
+      dropoffLandmark: null,
+      dropoffInstructions: null,
+    });
+  });
+
+  it('exposes captured dropoff details without fabricating missing values', async () => {
+    deliveries.findDeliveryDetail.mockResolvedValue({
+      id: DELIVERY_ID,
+      status: 'IN_TRANSIT',
+      orderStatus: 'ACTIVE',
+      fulfillmentStatus: 'READY',
+      pickedUpAt: '2026-10-23T12:00:00.000Z',
+      arrivedCustomerAt: null,
+      deliveredAt: null,
+      pickup: { ...PICKUP, phone: '0550123499' },
+      dropoff: {
+        addressText: 'Cité 1500 Logements',
+        building: 'Bloc Z',
+        floor: '3',
+        entrance: '  ',
+        landmark: 'Mosquée',
+        instructions: null,
+      },
+    });
+    const view = await service.getCurrent(ACCOUNT);
+    expect(view).toMatchObject({
+      dropoffAddressText: 'Cité 1500 Logements',
+      dropoffBuilding: 'Bloc Z',
+      dropoffFloor: '3',
+      dropoffEntrance: null,
+      dropoffLandmark: 'Mosquée',
+      dropoffInstructions: null,
+    });
+  });
+
   it('confirm-pickup accepts the current assignment version when handoff verifies', async () => {
     deliveryStatus = 'AT_PICKUP';
     drivers.findOpenAcceptedAssignment.mockResolvedValue({

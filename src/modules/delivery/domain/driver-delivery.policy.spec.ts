@@ -6,6 +6,7 @@ import {
   DRIVER_DELIVERY_ACTION_START_TO_PICKUP,
   DRIVER_DELIVERY_DROPOFF_RADIUS_METERS,
   DRIVER_DELIVERY_PICKUP_RADIUS_METERS,
+  isDropoffRevealedForDriver,
   transitionForAction,
 } from './driver-delivery.policy';
 
@@ -26,6 +27,16 @@ describe('Driver Delivery policy', () => {
       DRIVER_DELIVERY_ACTION_START_TO_PICKUP,
     ]);
     expect(allowedActionsForStatus('SEARCHING_DRIVER')).toEqual([]);
+  });
+
+  it('reveals dropoff only after pickup confirmation', () => {
+    expect(isDropoffRevealedForDriver('DRIVER_ASSIGNED')).toBe(false);
+    expect(isDropoffRevealedForDriver('TO_PICKUP')).toBe(false);
+    expect(isDropoffRevealedForDriver('AT_PICKUP')).toBe(false);
+    expect(isDropoffRevealedForDriver('PICKED_UP')).toBe(true);
+    expect(isDropoffRevealedForDriver('IN_TRANSIT')).toBe(true);
+    expect(isDropoffRevealedForDriver('ARRIVED_CUSTOMER')).toBe(true);
+    expect(isDropoffRevealedForDriver('DELIVERED')).toBe(true);
   });
 
   it('freezes DeliveryEvent vocabulary for each action', () => {

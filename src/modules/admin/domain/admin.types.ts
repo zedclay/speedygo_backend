@@ -233,6 +233,10 @@ export type AdminOrderDeliveryAddress = {
   addressText: string;
   latitude: number;
   longitude: number;
+  building: string | null;
+  floor: string | null;
+  entrance: string | null;
+  landmark: string | null;
   instructions: string | null;
 };
 

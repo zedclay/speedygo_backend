@@ -280,6 +280,10 @@ model Address {
   addressText String               @map("address_text")
   latitude    Numeric(9, 6)
   longitude   Numeric(9, 6)
+  building    VarChar(64)?
+  floor       VarChar(32)?
+  entrance    VarChar(64)?
+  landmark    VarChar(128)?
   isDefault   Boolean              @default(false) @map("is_default")
   createdAt   TimestamptzString(6) @default(now()) @map("created_at")
   updatedAt   TimestamptzString(6) @default(now()) @map("updated_at")
@@ -1061,6 +1065,10 @@ model OrderDeliveryAddressSnapshot {
   addressText  String       @map("address_text")
   latitude     Numeric(9, 6)
   longitude    Numeric(9, 6)
+  building     VarChar(64)?
+  floor        VarChar(32)?
+  entrance     VarChar(64)?
+  landmark     VarChar(128)?
   instructions String?
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)

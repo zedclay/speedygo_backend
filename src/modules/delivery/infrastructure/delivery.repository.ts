@@ -10,6 +10,7 @@ import {
   type PgTimestamptz,
 } from '../../../infrastructure/database/pg-values';
 import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
+import { readAddressDetails } from '../../../common/address/address-details';
 import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import {
   ORDER_FULFILLMENT_READY,
@@ -430,6 +431,7 @@ export class DeliveryRepository {
         addressText: address.addressText,
         latitude: parseCoordinate(address.latitude),
         longitude: parseCoordinate(address.longitude),
+        ...readAddressDetails(address),
         instructions: address.instructions,
       },
       deliveryFeeMinor: financial

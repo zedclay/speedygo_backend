@@ -1,0 +1,338 @@
+[
+  {
+    "id": "column.public.addresses.building",
+    "label": "Add column \"building\" to \"addresses\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "building",
+        "table": "addresses"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"building\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "addresses",
+          "building"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"building\"",
+        "sql": "ALTER TABLE \"public\".\"addresses\" ADD COLUMN \"building\" character varying(64)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"building\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "addresses",
+          "building"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.addresses.entrance",
+    "label": "Add column \"entrance\" to \"addresses\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "entrance",
+        "table": "addresses"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"entrance\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "addresses",
+          "entrance"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"entrance\"",
+        "sql": "ALTER TABLE \"public\".\"addresses\" ADD COLUMN \"entrance\" character varying(64)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"entrance\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "addresses",
+          "entrance"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.addresses.floor",
+    "label": "Add column \"floor\" to \"addresses\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "floor",
+        "table": "addresses"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"floor\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "addresses",
+          "floor"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"floor\"",
+        "sql": "ALTER TABLE \"public\".\"addresses\" ADD COLUMN \"floor\" character varying(32)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"floor\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "addresses",
+          "floor"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.addresses.landmark",
+    "label": "Add column \"landmark\" to \"addresses\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "landmark",
+        "table": "addresses"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"landmark\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "addresses",
+          "landmark"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"landmark\"",
+        "sql": "ALTER TABLE \"public\".\"addresses\" ADD COLUMN \"landmark\" character varying(128)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"landmark\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "addresses",
+          "landmark"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.order_delivery_address_snapshots.building",
+    "label": "Add column \"building\" to \"order_delivery_address_snapshots\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "building",
+        "table": "order_delivery_address_snapshots"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"building\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "order_delivery_address_snapshots",
+          "building"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"building\"",
+        "sql": "ALTER TABLE \"public\".\"order_delivery_address_snapshots\" ADD COLUMN \"building\" character varying(64)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"building\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "order_delivery_address_snapshots",
+          "building"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.order_delivery_address_snapshots.entrance",
+    "label": "Add column \"entrance\" to \"order_delivery_address_snapshots\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "entrance",
+        "table": "order_delivery_address_snapshots"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"entrance\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "order_delivery_address_snapshots",
+          "entrance"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"entrance\"",
+        "sql": "ALTER TABLE \"public\".\"order_delivery_address_snapshots\" ADD COLUMN \"entrance\" character varying(64)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"entrance\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "order_delivery_address_snapshots",
+          "entrance"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.order_delivery_address_snapshots.floor",
+    "label": "Add column \"floor\" to \"order_delivery_address_snapshots\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "floor",
+        "table": "order_delivery_address_snapshots"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"floor\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "order_delivery_address_snapshots",
+          "floor"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"floor\"",
+        "sql": "ALTER TABLE \"public\".\"order_delivery_address_snapshots\" ADD COLUMN \"floor\" character varying(32)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"floor\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "order_delivery_address_snapshots",
+          "floor"
+        ]
+      }
+    ]
+  },
+  {
+    "id": "column.public.order_delivery_address_snapshots.landmark",
+    "label": "Add column \"landmark\" to \"order_delivery_address_snapshots\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "column",
+        "name": "landmark",
+        "table": "order_delivery_address_snapshots"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure column \"landmark\" is missing",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "order_delivery_address_snapshots",
+          "landmark"
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add column \"landmark\"",
+        "sql": "ALTER TABLE \"public\".\"order_delivery_address_snapshots\" ADD COLUMN \"landmark\" character varying(128)"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify column \"landmark\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"information_schema\".\"columns\" WHERE (\"table_schema\" = $1 AND \"table_name\" = $2 AND \"column_name\" = $3)) AS \"result\"",
+        "params": [
+          "public",
+          "order_delivery_address_snapshots",
+          "landmark"
+        ]
+      }
+    ]
+  }
+]
