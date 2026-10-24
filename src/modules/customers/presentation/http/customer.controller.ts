@@ -118,7 +118,7 @@ export class CustomerController {
   @ApiOperation({
     summary: 'Create an address for the authenticated Customer',
     description:
-      'The first address is always default, even if isDefault=false is sent. Later addresses never replace the current default; switch with PUT /addresses/:addressId/default. Coordinates are validated globally, not against an Algeria bounding box.',
+      'The first address is always default, even if isDefault=false is sent. Later addresses never replace the current default; switch with PUT /addresses/:addressId/default. Coordinates are validated globally, not against an Algeria bounding box. Optional building, floor, entrance, and landmark persist as columns; addressText remains street text.',
   })
   @ApiCreatedResponse({ type: CustomerAddressResponseDto })
   @ApiResponse({
@@ -134,6 +134,10 @@ export class CustomerController {
       addressText: body.addressText,
       latitude: body.latitude,
       longitude: body.longitude,
+      building: body.building,
+      floor: body.floor,
+      entrance: body.entrance,
+      landmark: body.landmark,
     });
   }
 
@@ -141,7 +145,7 @@ export class CustomerController {
   @ApiOperation({
     summary: 'Partial update of an owned address',
     description:
-      'isDefault is not writable here. Use PUT /addresses/:addressId/default. Cross-account ids return CUSTOMER_ADDRESS_NOT_FOUND.',
+      'isDefault is not writable here. Use PUT /addresses/:addressId/default. Cross-account ids return CUSTOMER_ADDRESS_NOT_FOUND. Omitted structured fields stay unchanged; null or blank clears them. addressText is street text only.',
   })
   @ApiOkResponse({ type: CustomerAddressResponseDto })
   @ApiResponse({
@@ -158,6 +162,10 @@ export class CustomerController {
       addressText: body.addressText,
       latitude: body.latitude,
       longitude: body.longitude,
+      building: body.building,
+      floor: body.floor,
+      entrance: body.entrance,
+      landmark: body.landmark,
     });
   }
 

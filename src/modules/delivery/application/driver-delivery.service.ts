@@ -1,6 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
+import { blankToNull } from '../../../common/address/address-details';
 import { pgNow } from '../../../infrastructure/database/pg-values';
 import { DriverRepository } from '../../drivers/infrastructure/driver.repository';
 import { CodCollectionRepository } from '../../cod/infrastructure/cod-collection.repository';
@@ -45,6 +46,7 @@ import {
   DRIVER_DELIVERY_ACTION_COMPLETE_DELIVERY,
   DRIVER_DELIVERY_DROPOFF_RADIUS_METERS,
   DRIVER_DELIVERY_PICKUP_RADIUS_METERS,
+  isDropoffRevealedForDriver,
   transitionForAction,
   type DriverDeliveryAction,
 } from '../domain/driver-delivery.policy';
@@ -73,6 +75,12 @@ export type DriverCurrentDeliveryView = {
    * Null for electronic / missing payment. UI converts to DZD for display only.
    */
   expectedCodAmountMinor: string | null;
+  dropoffAddressText: string | null;
+  dropoffBuilding: string | null;
+  dropoffFloor: string | null;
+  dropoffEntrance: string | null;
+  dropoffLandmark: string | null;
+  dropoffInstructions: string | null;
 };
 
 @Injectable()
@@ -410,6 +418,14 @@ export class DriverDeliveryService {
       pickedUpAt: string | null;
       arrivedCustomerAt: string | null;
       deliveredAt: string | null;
+      dropoff?: {
+        addressText?: string | null;
+        building?: string | null;
+        floor?: string | null;
+        entrance?: string | null;
+        landmark?: string | null;
+        instructions?: string | null;
+      } | null;
     },
     overrides?: {
       assignmentStatus?: string;
@@ -421,6 +437,7 @@ export class DriverDeliveryService {
       payment?.method === ORDER_PAYMENT_METHOD_COD
         ? moneyMinorToDecimalString(payment.amountMinor)
         : null;
+    const revealDropoff = isDropoffRevealedForDriver(detail.status);
     return {
       assignmentId: context.assignmentId,
       assignmentVersion: context.assignmentVersion,
@@ -436,6 +453,22 @@ export class DriverDeliveryService {
       arrivedCustomerAt: detail.arrivedCustomerAt,
       deliveredAt: detail.deliveredAt,
       expectedCodAmountMinor,
+      dropoffAddressText: revealDropoff
+        ? blankToNull(detail.dropoff?.addressText)
+        : null,
+      dropoffBuilding: revealDropoff
+        ? blankToNull(detail.dropoff?.building)
+        : null,
+      dropoffFloor: revealDropoff ? blankToNull(detail.dropoff?.floor) : null,
+      dropoffEntrance: revealDropoff
+        ? blankToNull(detail.dropoff?.entrance)
+        : null,
+      dropoffLandmark: revealDropoff
+        ? blankToNull(detail.dropoff?.landmark)
+        : null,
+      dropoffInstructions: revealDropoff
+        ? blankToNull(detail.dropoff?.instructions)
+        : null,
     };
   }
 

@@ -92,6 +92,10 @@ function address(
     addressText: 'Street 1',
     latitude: 36.75,
     longitude: 3.05,
+    building: null,
+    floor: null,
+    entrance: null,
+    landmark: null,
     ...overrides,
   };
 }
@@ -204,6 +208,10 @@ describe('OrderService.createOrder', () => {
         addressText: payload.address.addressText,
         latitude: payload.address.latitude,
         longitude: payload.address.longitude,
+        building: payload.address.building,
+        floor: payload.address.floor,
+        entrance: payload.address.entrance,
+        landmark: payload.address.landmark,
         instructions: null,
       },
     };
@@ -314,6 +322,8 @@ describe('OrderService.createOrder', () => {
     expect(created.items[0].unitPriceMinor).toBe('1200');
     expect(created.items[0].productNameSnapshot).toBe('Coffee');
     expect(created.deliveryAddress.instructions).toBeNull();
+    expect(created.deliveryAddress.building).toBeNull();
+    expect(persisted?.address.building).toBeNull();
     expect(persisted?.financial.merchantCommissionAmountMinor).toBe(84);
     expect(persisted?.financial.commissionBaseMinor).toBe(1200);
     expect(persisted?.financial.merchantNetAmountMinor).toBe(1116);
@@ -323,6 +333,33 @@ describe('OrderService.createOrder', () => {
     expect(persisted?.paymentMethod).toBe('COD');
     expect(persisted?.lines[0].unitPriceMinor).not.toBe(9999);
     expect(orders.persistCreatedOrder).toHaveBeenCalledTimes(1);
+  });
+
+  it('copies structured address details into the order snapshot payload', async () => {
+    orders.lockAddress.mockResolvedValue(
+      address({
+        building: 'Bloc Z',
+        floor: '3',
+        entrance: 'B',
+        landmark: 'Mosquée',
+      }),
+    );
+    const created = await service.createOrder(ACCOUNT, matchingCod());
+    expect(persisted?.address).toMatchObject({
+      addressText: 'Street 1',
+      building: 'Bloc Z',
+      floor: '3',
+      entrance: 'B',
+      landmark: 'Mosquée',
+    });
+    expect(created.deliveryAddress).toMatchObject({
+      addressText: 'Street 1',
+      building: 'Bloc Z',
+      floor: '3',
+      entrance: 'B',
+      landmark: 'Mosquée',
+      instructions: null,
+    });
   });
 
   it('requires CustomerProfile', async () => {
@@ -751,6 +788,10 @@ describe('OrderService reads', () => {
           addressText: 'Street 1',
           latitude: 36.75,
           longitude: 3.05,
+          building: null,
+          floor: null,
+          entrance: null,
+          landmark: null,
           instructions: null,
         },
       }),

@@ -66,6 +66,10 @@ function address(
     addressText: 'Street 1',
     latitude: 36.75,
     longitude: 3.05,
+    building: null,
+    floor: null,
+    entrance: null,
+    landmark: null,
     ...overrides,
   };
 }

@@ -13,6 +13,10 @@ import {
   pgVarchar,
 } from '../../../infrastructure/database/pg-values';
 import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
+import {
+  blankToNull,
+  readAddressDetails,
+} from '../../../common/address/address-details';
 import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import { CART_STATUS_CONVERTED } from '../../cart/domain/cart.policy';
 import type { CheckoutPricingRuleRecord } from '../../checkout/domain/checkout.types';
@@ -54,6 +58,7 @@ import type {
   MerchantOrderStatusEventView,
   MerchantOrderSummaryView,
   OrderAddressRecord,
+  OrderAddressSnapshotView,
   OrderDetailView,
   OrderItemView,
   OrderListQuery,
@@ -76,6 +81,36 @@ function parseCoordinate(value: unknown): number {
     return Number(value);
   }
   return Number.NaN;
+}
+
+function persistOptionalVarchar<N extends number>(
+  value: string | null | undefined,
+): ReturnType<typeof pgVarchar<N>> | null {
+  const normalized = blankToNull(value);
+  return normalized == null ? null : pgVarchar<N>(normalized);
+}
+
+function toDeliveryAddressView(address: {
+  addressText: string;
+  latitude: unknown;
+  longitude: unknown;
+  building?: string | null;
+  floor?: string | null;
+  entrance?: string | null;
+  landmark?: string | null;
+  instructions: string | null;
+}): OrderAddressSnapshotView {
+  const details = readAddressDetails(address);
+  return {
+    addressText: address.addressText,
+    latitude: parseCoordinate(address.latitude),
+    longitude: parseCoordinate(address.longitude),
+    building: details.building,
+    floor: details.floor,
+    entrance: details.entrance,
+    landmark: details.landmark,
+    instructions: address.instructions,
+  };
 }
 
 @Injectable()
@@ -104,12 +139,17 @@ export class OrderRepository {
     if (!row) {
       return null;
     }
+    const details = readAddressDetails(row);
     return {
       id: row.id,
       customerId: row.customerId,
       addressText: row.addressText,
       latitude: parseCoordinate(row.latitude),
       longitude: parseCoordinate(row.longitude),
+      building: details.building,
+      floor: details.floor,
+      entrance: details.entrance,
+      landmark: details.landmark,
     };
   }
 
@@ -211,6 +251,10 @@ export class OrderRepository {
       addressText: input.address.addressText,
       latitude: pgNumeric<9, 6>(input.address.latitude, 6),
       longitude: pgNumeric<9, 6>(input.address.longitude, 6),
+      building: persistOptionalVarchar<64>(input.address.building),
+      floor: persistOptionalVarchar<32>(input.address.floor),
+      entrance: persistOptionalVarchar<64>(input.address.entrance),
+      landmark: persistOptionalVarchar<128>(input.address.landmark),
       instructions: null,
     });
     for (const line of input.lines) {
@@ -369,12 +413,7 @@ export class OrderRepository {
       ...summary,
       merchantBranchId: order.merchantBranchId,
       items,
-      deliveryAddress: {
-        addressText: address.addressText,
-        latitude: parseCoordinate(address.latitude),
-        longitude: parseCoordinate(address.longitude),
-        instructions: address.instructions,
-      },
+      deliveryAddress: toDeliveryAddressView(address),
     };
   }
 
@@ -1139,12 +1178,7 @@ export class OrderRepository {
     return {
       ...summary,
       items,
-      deliveryAddress: {
-        addressText: address.addressText,
-        latitude: parseCoordinate(address.latitude),
-        longitude: parseCoordinate(address.longitude),
-        instructions: address.instructions,
-      },
+      deliveryAddress: toDeliveryAddressView(address),
       statusHistory,
       cancellation: cancellation
         ? {

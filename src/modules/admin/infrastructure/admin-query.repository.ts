@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
+import { readAddressDetails } from '../../../common/address/address-details';
 import {
   PrismaService,
   type SpeedyGoDb,
@@ -973,6 +974,7 @@ export class AdminQueryRepository {
             addressText: addressRow.addressText,
             latitude: parseCoordinate(addressRow.latitude),
             longitude: parseCoordinate(addressRow.longitude),
+            ...readAddressDetails(addressRow),
             instructions: addressRow.instructions,
           }
         : null,

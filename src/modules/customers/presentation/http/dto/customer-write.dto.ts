@@ -1,3 +1,4 @@
+import { applyDecorators } from '@nestjs/common';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
@@ -9,11 +10,44 @@ import {
   Max,
   MaxLength,
   Min,
+  ValidateIf,
 } from 'class-validator';
+import { ADDRESS_DETAIL_LIMITS } from '../../../../../common/address/address-details';
 import { CUSTOMER_ADDRESS_TEXT_MAX_LENGTH } from '../../../domain/customer.types';
 
 function trimString(value: unknown): unknown {
   return typeof value === 'string' ? value.trim() : value;
+}
+
+function optionalNullableTrimmedString(value: unknown): unknown {
+  if (value === undefined) {
+    return undefined;
+  }
+  if (value === null) {
+    return null;
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed.length === 0 ? null : trimmed;
+  }
+  return value;
+}
+
+function OptionalAddressDetail(maxLength: number, example: string) {
+  return applyDecorators(
+    ApiPropertyOptional({
+      nullable: true,
+      maxLength,
+      example,
+      description:
+        'Omitted on PATCH leaves the stored value unchanged. null or blank clears it.',
+    }),
+    IsOptional(),
+    Transform(({ value }) => optionalNullableTrimmedString(value)),
+    ValidateIf((_, value) => value !== null && value !== undefined),
+    IsString(),
+    MaxLength(maxLength),
+  );
 }
 
 export class CreateCustomerProfileDto {
@@ -64,6 +98,18 @@ export class CreateCustomerAddressDto {
   @Max(180)
   longitude!: number;
 
+  @OptionalAddressDetail(ADDRESS_DETAIL_LIMITS.building, 'Bloc Z')
+  building?: string | null;
+
+  @OptionalAddressDetail(ADDRESS_DETAIL_LIMITS.floor, '3')
+  floor?: string | null;
+
+  @OptionalAddressDetail(ADDRESS_DETAIL_LIMITS.entrance, 'B')
+  entrance?: string | null;
+
+  @OptionalAddressDetail(ADDRESS_DETAIL_LIMITS.landmark, 'Mosquée')
+  landmark?: string | null;
+
   @ApiPropertyOptional({
     description:
       'Ignored by the server. The first address is always default. Later addresses never replace the current default; use PUT /addresses/:addressId/default.',
@@ -105,4 +151,16 @@ export class UpdateCustomerAddressDto {
   @Min(-180)
   @Max(180)
   longitude?: number;
+
+  @OptionalAddressDetail(ADDRESS_DETAIL_LIMITS.building, 'Bloc Z')
+  building?: string | null;
+
+  @OptionalAddressDetail(ADDRESS_DETAIL_LIMITS.floor, '3')
+  floor?: string | null;
+
+  @OptionalAddressDetail(ADDRESS_DETAIL_LIMITS.entrance, 'B')
+  entrance?: string | null;
+
+  @OptionalAddressDetail(ADDRESS_DETAIL_LIMITS.landmark, 'Mosquée')
+  landmark?: string | null;
 }

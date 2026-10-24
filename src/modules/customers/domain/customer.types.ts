@@ -14,6 +14,10 @@ export type AddressRecord = {
   addressText: string;
   latitude: number;
   longitude: number;
+  building: string | null;
+  floor: string | null;
+  entrance: string | null;
+  landmark: string | null;
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
@@ -34,6 +38,10 @@ export type CreateAddressInput = {
   addressText: string;
   latitude: number;
   longitude: number;
+  building?: string | null;
+  floor?: string | null;
+  entrance?: string | null;
+  landmark?: string | null;
 };
 
 export type UpdateAddressInput = {
@@ -41,6 +49,10 @@ export type UpdateAddressInput = {
   addressText?: string;
   latitude?: number;
   longitude?: number;
+  building?: string | null;
+  floor?: string | null;
+  entrance?: string | null;
+  landmark?: string | null;
 };
 
 export type CustomerProfileView = {
@@ -57,6 +69,10 @@ export type CustomerAddressView = {
   addressText: string;
   latitude: number;
   longitude: number;
+  building: string | null;
+  floor: string | null;
+  entrance: string | null;
+  landmark: string | null;
   isDefault: boolean;
   createdAt: string;
   updatedAt: string;
@@ -100,6 +116,10 @@ export function toAddressView(address: AddressRecord): CustomerAddressView {
     addressText: address.addressText,
     latitude: address.latitude,
     longitude: address.longitude,
+    building: address.building,
+    floor: address.floor,
+    entrance: address.entrance,
+    landmark: address.landmark,
     isDefault: address.isDefault,
     createdAt: address.createdAt,
     updatedAt: address.updatedAt,

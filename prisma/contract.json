@@ -832,6 +832,16 @@
                   "kind": "scalar"
                 }
               },
+              "building": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 64
+                  }
+                }
+              },
               "createdAt": {
                 "nullable": false,
                 "type": {
@@ -847,6 +857,26 @@
                 "type": {
                   "codecId": "pg/uuid@1",
                   "kind": "scalar"
+                }
+              },
+              "entrance": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 64
+                  }
+                }
+              },
+              "floor": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 32
+                  }
                 }
               },
               "id": {
@@ -870,6 +900,16 @@
                   "kind": "scalar",
                   "typeParams": {
                     "length": 64
+                  }
+                }
+              },
+              "landmark": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 128
                   }
                 }
               },
@@ -928,11 +968,20 @@
                 "addressText": {
                   "column": "address_text"
                 },
+                "building": {
+                  "column": "building"
+                },
                 "createdAt": {
                   "column": "created_at"
                 },
                 "customerId": {
                   "column": "customer_id"
+                },
+                "entrance": {
+                  "column": "entrance"
+                },
+                "floor": {
+                  "column": "floor"
                 },
                 "id": {
                   "column": "id"
@@ -942,6 +991,9 @@
                 },
                 "label": {
                   "column": "label"
+                },
+                "landmark": {
+                  "column": "landmark"
                 },
                 "latitude": {
                   "column": "latitude"
@@ -8591,11 +8643,51 @@
                   "kind": "scalar"
                 }
               },
+              "building": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 64
+                  }
+                }
+              },
+              "entrance": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 64
+                  }
+                }
+              },
+              "floor": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 32
+                  }
+                }
+              },
               "instructions": {
                 "nullable": true,
                 "type": {
                   "codecId": "pg/text@1",
                   "kind": "scalar"
+                }
+              },
+              "landmark": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 128
+                  }
                 }
               },
               "latitude": {
@@ -8650,8 +8742,20 @@
                 "addressText": {
                   "column": "address_text"
                 },
+                "building": {
+                  "column": "building"
+                },
+                "entrance": {
+                  "column": "entrance"
+                },
+                "floor": {
+                  "column": "floor"
+                },
                 "instructions": {
                   "column": "instructions"
+                },
+                "landmark": {
+                  "column": "landmark"
                 },
                 "latitude": {
                   "column": "latitude"
@@ -12096,6 +12200,14 @@
                   "nativeType": "text",
                   "nullable": false
                 },
+                "building": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 64
+                  }
+                },
                 "created_at": {
                   "codecId": "pg/timestamptz-string@1",
                   "default": {
@@ -12112,6 +12224,22 @@
                   "codecId": "pg/uuid@1",
                   "nativeType": "uuid",
                   "nullable": false
+                },
+                "entrance": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 64
+                  }
+                },
+                "floor": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 32
+                  }
                 },
                 "id": {
                   "codecId": "pg/uuid@1",
@@ -12133,6 +12261,14 @@
                   "nullable": false,
                   "typeParams": {
                     "length": 64
+                  }
+                },
+                "landmark": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 128
                   }
                 },
                 "latitude": {
@@ -19224,10 +19360,42 @@
                   "nativeType": "text",
                   "nullable": false
                 },
+                "building": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 64
+                  }
+                },
+                "entrance": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 64
+                  }
+                },
+                "floor": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 32
+                  }
+                },
                 "instructions": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
                   "nullable": true
+                },
+                "landmark": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 128
+                  }
                 },
                 "latitude": {
                   "codecId": "pg/numeric@1",
@@ -22863,7 +23031,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "9264a4ca379452b2d144241308d978ae56185d5688f82ca99bfeca30a3d68cb9"
+    "storageHash": "ba3bdc34e4d01d7ef708da99f81d7848d454ef69d053b7e95ead4bf11ec14304"
   },
   "capabilities": {
     "postgres": {

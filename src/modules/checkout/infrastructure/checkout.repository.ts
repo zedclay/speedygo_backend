@@ -4,6 +4,7 @@ import {
   type SpeedyGoDb,
 } from '../../../infrastructure/database/database.module';
 import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
+import { readAddressDetails } from '../../../common/address/address-details';
 import type {
   CheckoutAddressRecord,
   CheckoutPricingRuleRecord,
@@ -53,6 +54,7 @@ export class CheckoutRepository {
     if (!row) {
       return null;
     }
+    const details = readAddressDetails(row);
     return {
       id: row.id,
       customerId: row.customerId,
@@ -60,6 +62,10 @@ export class CheckoutRepository {
       addressText: row.addressText,
       latitude: parseCoordinate(row.latitude),
       longitude: parseCoordinate(row.longitude),
+      building: details.building,
+      floor: details.floor,
+      entrance: details.entrance,
+      landmark: details.landmark,
     };
   }
 
