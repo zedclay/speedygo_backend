@@ -89,6 +89,21 @@ export class MemoryOtpStore implements OtpStorePort {
     return Promise.resolve();
   }
 
+  deleteChallengeIfGeneration(
+    purpose: OtpPurpose,
+    channel: AuthChannel,
+    identifierHash: string,
+    sendGeneration: string,
+  ): Promise<boolean> {
+    const key = this.ck(purpose, channel, identifierHash);
+    const entry = this.challenges.get(key);
+    if (!entry || entry.challenge.sendGeneration !== sendGeneration) {
+      return Promise.resolve(false);
+    }
+    this.challenges.delete(key);
+    return Promise.resolve(true);
+  }
+
   markCooldown(
     purpose: OtpPurpose,
     channel: AuthChannel,

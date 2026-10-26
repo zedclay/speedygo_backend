@@ -26,6 +26,7 @@ export type OtpChallenge = {
   requestCount: number;
   channel: AuthChannel;
   purpose: OtpPurpose;
+  sendGeneration?: string;
 };
 
 export type DeviceMetadata = {

@@ -10,6 +10,7 @@ import { OTP_SENDER } from './domain/ports/otp-sender.port';
 import { OTP_STORE } from './domain/ports/otp-store.port';
 import { ConsoleOtpSender } from './infrastructure/otp/console-otp.sender';
 import { DisabledOtpSender } from './infrastructure/otp/disabled-otp.sender';
+import { InfobipOtpSender } from './infrastructure/otp/infobip-otp.sender';
 import { TestOtpSender } from './infrastructure/otp/test-otp.sender';
 import { RedisOtpStore } from './infrastructure/redis/redis-otp.store';
 import { SessionAudienceStore } from './infrastructure/session-audience.store';
@@ -32,7 +33,13 @@ function otpSenderFactory(config: ConfigService) {
   if (transport === 'test') {
     return new TestOtpSender();
   }
-  return new DisabledOtpSender();
+  if (transport === 'infobip') {
+    return new InfobipOtpSender(config);
+  }
+  if (transport === 'disabled') {
+    return new DisabledOtpSender();
+  }
+  throw new Error(`Unknown OTP_TRANSPORT=${transport}`);
 }
 
 @Module({

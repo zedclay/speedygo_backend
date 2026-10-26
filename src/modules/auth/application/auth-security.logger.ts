@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 
 export type AuthSecurityEvent =
   | 'otp_requested'
+  | 'otp_delivery_uncertain'
   | 'otp_verification_failed'
   | 'otp_verified'
   | 'session_created'

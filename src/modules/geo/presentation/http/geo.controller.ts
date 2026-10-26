@@ -59,7 +59,7 @@ export class GeoController {
   @ApiOperation({
     summary: 'Algeria-biased place suggestions',
     description:
-      'Authenticated. Proxies Google Places Autocomplete (New) with includedRegionCodes=dz. Returns 503 GEO_GEOCODING_NOT_CONFIGURED when GOOGLE_MAPS_API_KEY is empty. Clients must not invent suggestions.',
+      'Authenticated. Proxies Google Places Autocomplete (New) with includedRegionCodes=dz and optional sessionToken (UUID v4; Autocomplete → Place Details billing). Returns 503 GEO_GEOCODING_NOT_CONFIGURED when GOOGLE_MAPS_API_KEY is empty. Clients must not invent suggestions. The server key never leaves this process.',
   })
   @ApiOkResponse({ type: PlaceAutocompleteResponseDto })
   @ApiResponse({

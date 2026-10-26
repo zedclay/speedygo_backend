@@ -534,6 +534,72 @@ export class NotificationRepository {
   }
 
   /**
+   * Send-time authorization + staleness snapshot for a Customer order Push.
+   * Order.customerId is the CustomerProfile id; eligibility is that profile's Account.
+   */
+  async findCustomerOrderPushContext(
+    accountId: string,
+    orderId: string,
+  ): Promise<{
+    accountStatus: string | null;
+    customerAccountId: string | null;
+    orderStatus: string | null;
+  }> {
+    const account = await orm(this.db()).Account.where({ id: accountId }).first();
+    const order = await orm(this.db()).Order.where({ id: orderId }).first();
+    const profile = order
+      ? await orm(this.db())
+          .CustomerProfile.where({ id: order.customerId })
+          .first()
+      : null;
+    return {
+      accountStatus: account?.status ?? null,
+      customerAccountId: profile?.accountId ?? null,
+      orderStatus: order?.status ?? null,
+    };
+  }
+
+  /**
+   * Send-time snapshot for a Driver MATCH_OFFER Push.
+   * Offer expiry is assignedAt + MATCHING_OFFER_TIMEOUT_MS (not stored).
+   */
+  async findMatchOfferPushContext(
+    accountId: string,
+    assignmentId: string,
+  ): Promise<{
+    accountStatus: string | null;
+    driverAccountId: string | null;
+    assignmentStatus: string | null;
+    assignedAt: string | null;
+    acceptedAt: string | null;
+    releasedAt: string | null;
+  }> {
+    const account = await orm(this.db()).Account.where({ id: accountId }).first();
+    const assignment = await orm(this.db())
+      .DriverAssignment.where({ id: assignmentId })
+      .first();
+    const profile = assignment
+      ? await orm(this.db())
+          .DriverProfile.where({ id: assignment.driverId })
+          .first()
+      : null;
+    const iso = (value: unknown): string | null => {
+      if (value == null) return null;
+      if (typeof value === 'string') return value;
+      if (value instanceof Date) return value.toISOString();
+      return String(value);
+    };
+    return {
+      accountStatus: account?.status ?? null,
+      driverAccountId: profile?.accountId ?? null,
+      assignmentStatus: assignment?.status ?? null,
+      assignedAt: iso(assignment?.assignedAt),
+      acceptedAt: iso(assignment?.acceptedAt),
+      releasedAt: iso(assignment?.releasedAt),
+    };
+  }
+
+  /**
    * Merchant members with ORDER_READ (OWNER/MANAGER/STAFF) for operational notices.
    */
   async listMerchantOrderRecipientAccountIds(

@@ -5,6 +5,7 @@ export const AUTH_ERROR_CODES = {
   AUTH_INVALID_OTP: 'AUTH_INVALID_OTP',
   AUTH_OTP_EXPIRED: 'AUTH_OTP_EXPIRED',
   AUTH_OTP_ATTEMPTS_EXCEEDED: 'AUTH_OTP_ATTEMPTS_EXCEEDED',
+  AUTH_OTP_DELIVERY_FAILED: 'AUTH_OTP_DELIVERY_FAILED',
   AUTH_RATE_LIMITED: 'AUTH_RATE_LIMITED',
   AUTH_INVALID_TOKEN: 'AUTH_INVALID_TOKEN',
   AUTH_SESSION_REVOKED: 'AUTH_SESSION_REVOKED',
@@ -57,6 +58,14 @@ export function authOtpAttemptsExceeded(): AuthError {
     AUTH_ERROR_CODES.AUTH_OTP_ATTEMPTS_EXCEEDED,
     'Verification failed',
     401,
+  );
+}
+
+export function authOtpDeliveryFailed(): AuthError {
+  return new AuthError(
+    AUTH_ERROR_CODES.AUTH_OTP_DELIVERY_FAILED,
+    'OTP could not be delivered',
+    503,
   );
 }
 

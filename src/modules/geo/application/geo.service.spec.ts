@@ -38,6 +38,17 @@ describe('GeoService geocoding', () => {
     });
   });
 
+  it('returns empty suggestions without a provider call when q is short', async () => {
+    const service = new GeoService(
+      {} as never,
+      { get: () => 'present-but-unused' } as never,
+    );
+    await expect(service.autocompletePlaces({ q: 'S' })).resolves.toEqual({
+      configured: true,
+      suggestions: [],
+    });
+  });
+
   it('rejects the 0,0 substitute for reverse geocode', async () => {
     const service = new GeoService(
       {} as never,

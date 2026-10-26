@@ -19,6 +19,8 @@ const MESSAGE: PushMessage = {
   data: { type: 'MERCHANT_ORDER_CREATED', orderId: 'o' },
   collapseKey: 'o',
   ttlSeconds: 1800,
+  androidChannelId: 'merchant_new_orders',
+  apnsThreadId: 'merchant-orders',
 };
 
 function jsonResponse(status: number, body: unknown): Response {

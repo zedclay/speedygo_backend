@@ -210,10 +210,7 @@ export class MatchingService {
     };
     await this.safeSchedule(offered);
     if (offered.offered && created) {
-      await this.notifications.notifyMatchOffer({
-        assignmentId: created.id,
-        driverId: created.driverId,
-      });
+      await this.notifyMatchOfferAfterPersist(created);
     }
     return offered;
   }
@@ -433,10 +430,7 @@ export class MatchingService {
       offered: true,
     };
     await this.safeSchedule(result);
-    await this.notifications.notifyMatchOffer({
-      assignmentId: assignment.id,
-      driverId: assignment.driverId,
-    });
+    await this.notifyMatchOfferAfterPersist(assignment);
 
     return {
       orderId,
@@ -466,6 +460,24 @@ export class MatchingService {
       return null;
     }
     return this.matchDelivery(expired.deliveryId);
+  }
+
+  /** Post-persistence only. Notify failure must not roll back the offer. */
+  private async notifyMatchOfferAfterPersist(
+    assignment: AssignmentRecord,
+  ): Promise<void> {
+    try {
+      await this.notifications.notifyMatchOffer({
+        assignmentId: assignment.id,
+        driverId: assignment.driverId,
+      });
+    } catch (error) {
+      this.logger.warn(
+        `MATCH_OFFER notify failed assignment=${assignment.id}: ${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
   }
 
   private async expireOpenOfferIfDue(deliveryId: string): Promise<void> {

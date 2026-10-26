@@ -6,6 +6,12 @@ export const PUSH_PROVIDER_FCM = 'fcm';
 /** Android channel created by the Merchant app for new-order alerts. */
 export const MERCHANT_ORDER_ANDROID_CHANNEL_ID = 'merchant_new_orders';
 
+/** Android channel created by the Customer app for order-lifecycle alerts. */
+export const CUSTOMER_ORDER_ANDROID_CHANNEL_ID = 'customer_order_updates';
+
+/** Android channel created by the Driver app for match-offer alerts. */
+export const DRIVER_MATCH_ANDROID_CHANNEL_ID = 'driver_match_offers';
+
 export type PushMessage = {
   token: string;
   platform: string;
@@ -16,6 +22,8 @@ export type PushMessage = {
   /** Same key collapses repeated attempts for one source in the OS tray. */
   collapseKey: string;
   ttlSeconds: number;
+  androidChannelId: string;
+  apnsThreadId: string;
 };
 
 export type PushSendOutcome =
