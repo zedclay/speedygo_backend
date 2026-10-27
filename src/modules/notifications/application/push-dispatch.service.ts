@@ -1,6 +1,8 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { parseNotificationCategory } from '../domain/notification.policy';
 import {
+  CUSTOMER_ORDER_PUSH_TYPES,
   NOTIFICATION_CHANNEL_PUSH,
   NOTIFICATION_DELIVERY_FAILED,
   NOTIFICATION_DELIVERY_PENDING,
@@ -9,11 +11,28 @@ import {
   NOTIFICATION_DELIVERY_SKIPPED_NOT_CONFIGURED,
   NOTIFICATION_DELIVERY_SKIPPED_RECIPIENT_INELIGIBLE,
   NOTIFICATION_DELIVERY_SKIPPED_STALE_SOURCE,
+  NOTIFICATION_TYPE_MATCH_OFFER,
   NOTIFICATION_TYPE_MERCHANT_ORDER_CREATED,
+  NOTIFICATION_TYPE_ORDER_CANCELLED,
+  NOTIFICATION_TYPE_ORDER_REJECTED,
+  type NotificationTypeV1,
 } from '../domain/notification.types';
 import type { PushSendJobData } from '../domain/notification.jobs';
-import { buildMerchantOrderPushMessage } from '../domain/push.policy';
-import { PUSH_GATEWAY, type PushGateway } from '../domain/push.types';
+import {
+  buildCustomerOrderPushMessage,
+  buildMatchOfferPushMessage,
+  buildMerchantOrderPushMessage,
+} from '../domain/push.policy';
+import {
+  isOfferExpired,
+  isOpenOffer,
+  remainingOfferDelayMs,
+} from '../../matching/domain/matching.policy';
+import {
+  PUSH_GATEWAY,
+  type PushGateway,
+  type PushMessage,
+} from '../domain/push.types';
 import { NotificationRepository } from '../infrastructure/notification.repository';
 
 const MERCHANT_ORDER_ROLES = new Set(['OWNER', 'MANAGER', 'STAFF']);
@@ -37,6 +56,7 @@ export class PushDispatchService {
   constructor(
     private readonly notifications: NotificationRepository,
     @Inject(PUSH_GATEWAY) private readonly gateway: PushGateway,
+    private readonly config: ConfigService,
   ) {}
 
   isConfigured(): boolean {
@@ -79,32 +99,16 @@ export class PushDispatchService {
     }
 
     const { type, sourceId } = parseNotificationCategory(notification.category);
-    if (type !== NOTIFICATION_TYPE_MERCHANT_ORDER_CREATED) {
-      return finish(NOTIFICATION_DELIVERY_SKIPPED_NOT_CONFIGURED, null, false);
-    }
-
-    const ctx = await this.notifications.findMerchantOrderPushContext(
+    const prepared = await this.prepareMessage(
       notification.accountId,
+      notification.id,
+      notification.title,
+      notification.body,
+      type,
       sourceId,
     );
-    if (
-      ctx.accountStatus !== 'ACTIVE' ||
-      !ctx.memberRole ||
-      !MERCHANT_ORDER_ROLES.has(ctx.memberRole) ||
-      !ctx.merchantId ||
-      !ctx.branchId
-    ) {
-      return finish(
-        NOTIFICATION_DELIVERY_SKIPPED_RECIPIENT_INELIGIBLE,
-        null,
-        false,
-      );
-    }
-    if (
-      ctx.orderStatus === 'CANCELLED' ||
-      ctx.fulfillmentStatus !== 'PENDING_ACCEPTANCE'
-    ) {
-      return finish(NOTIFICATION_DELIVERY_SKIPPED_STALE_SOURCE, null, false);
+    if (prepared.kind === 'skip') {
+      return finish(prepared.status, null, false);
     }
 
     const accepted = new Set(data.acceptedTokenIds ?? []);
@@ -124,16 +128,7 @@ export class PushDispatchService {
     let invalidCount = 0;
     for (const token of tokens) {
       const outcome = await this.gateway.send(
-        buildMerchantOrderPushMessage({
-          token: token.token,
-          platform: token.platform,
-          title: notification.title,
-          body: notification.body,
-          notificationId: notification.id,
-          orderId: sourceId,
-          merchantId: ctx.merchantId,
-          branchId: ctx.branchId,
-        }),
+        prepared.build(token.token, token.platform),
       );
       switch (outcome.kind) {
         case 'accepted':
@@ -192,5 +187,155 @@ export class PushDispatchService {
       `push:all_tokens_invalid:${invalidCount}`,
       false,
     );
+  }
+
+  private async prepareMessage(
+    accountId: string,
+    notificationId: string,
+    title: string,
+    body: string,
+    type: string,
+    sourceId: string,
+  ): Promise<
+    | { kind: 'skip'; status: string }
+    | { kind: 'ok'; build: (token: string, platform: string) => PushMessage }
+  > {
+    if (type === NOTIFICATION_TYPE_MERCHANT_ORDER_CREATED) {
+      const ctx = await this.notifications.findMerchantOrderPushContext(
+        accountId,
+        sourceId,
+      );
+      if (
+        ctx.accountStatus !== 'ACTIVE' ||
+        !ctx.memberRole ||
+        !MERCHANT_ORDER_ROLES.has(ctx.memberRole) ||
+        !ctx.merchantId ||
+        !ctx.branchId
+      ) {
+        return {
+          kind: 'skip',
+          status: NOTIFICATION_DELIVERY_SKIPPED_RECIPIENT_INELIGIBLE,
+        };
+      }
+      if (
+        ctx.orderStatus === 'CANCELLED' ||
+        ctx.fulfillmentStatus !== 'PENDING_ACCEPTANCE'
+      ) {
+        return {
+          kind: 'skip',
+          status: NOTIFICATION_DELIVERY_SKIPPED_STALE_SOURCE,
+        };
+      }
+      return {
+        kind: 'ok',
+        build: (token, platform) =>
+          buildMerchantOrderPushMessage({
+            token,
+            platform,
+            title,
+            body,
+            notificationId,
+            orderId: sourceId,
+            merchantId: ctx.merchantId as string,
+            branchId: ctx.branchId as string,
+          }),
+      };
+    }
+
+    if (CUSTOMER_ORDER_PUSH_TYPES.has(type as NotificationTypeV1)) {
+      const ctx = await this.notifications.findCustomerOrderPushContext(
+        accountId,
+        sourceId,
+      );
+      if (
+        ctx.accountStatus !== 'ACTIVE' ||
+        ctx.customerAccountId !== accountId
+      ) {
+        return {
+          kind: 'skip',
+          status: NOTIFICATION_DELIVERY_SKIPPED_RECIPIENT_INELIGIBLE,
+        };
+      }
+      const terminalEvent =
+        type === NOTIFICATION_TYPE_ORDER_CANCELLED ||
+        type === NOTIFICATION_TYPE_ORDER_REJECTED;
+      if (!ctx.orderStatus || (ctx.orderStatus === 'CANCELLED' && !terminalEvent)) {
+        return {
+          kind: 'skip',
+          status: NOTIFICATION_DELIVERY_SKIPPED_STALE_SOURCE,
+        };
+      }
+      return {
+        kind: 'ok',
+        build: (token, platform) =>
+          buildCustomerOrderPushMessage({
+            token,
+            platform,
+            title,
+            body,
+            type,
+            notificationId,
+            orderId: sourceId,
+          }),
+      };
+    }
+
+    if (type === NOTIFICATION_TYPE_MATCH_OFFER) {
+      const ctx = await this.notifications.findMatchOfferPushContext(
+        accountId,
+        sourceId,
+      );
+      if (
+        ctx.accountStatus !== 'ACTIVE' ||
+        ctx.driverAccountId !== accountId
+      ) {
+        return {
+          kind: 'skip',
+          status: NOTIFICATION_DELIVERY_SKIPPED_RECIPIENT_INELIGIBLE,
+        };
+      }
+      const offerTimeoutMs = this.config.get<number>(
+        'matching.offerTimeoutMs',
+        30_000,
+      );
+      if (
+        !ctx.assignedAt ||
+        !isOpenOffer(ctx.assignmentStatus ?? '', ctx.releasedAt) ||
+        ctx.acceptedAt ||
+        isOfferExpired(ctx.assignedAt, offerTimeoutMs)
+      ) {
+        return {
+          kind: 'skip',
+          status: NOTIFICATION_DELIVERY_SKIPPED_STALE_SOURCE,
+        };
+      }
+      const ttlSeconds = Math.floor(
+        remainingOfferDelayMs(ctx.assignedAt, offerTimeoutMs) / 1000,
+      );
+      if (ttlSeconds < 1) {
+        return {
+          kind: 'skip',
+          status: NOTIFICATION_DELIVERY_SKIPPED_STALE_SOURCE,
+        };
+      }
+      return {
+        kind: 'ok',
+        build: (token, platform) =>
+          buildMatchOfferPushMessage({
+            token,
+            platform,
+            title,
+            body,
+            notificationId,
+            assignmentId: sourceId,
+            ttlSeconds,
+          }),
+      };
+    }
+
+    return {
+      kind: 'skip',
+      status: NOTIFICATION_DELIVERY_SKIPPED_NOT_CONFIGURED,
+    };
   }
 }

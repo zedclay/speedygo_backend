@@ -1,4 +1,6 @@
 import {
+  buildCustomerOrderPushMessage,
+  buildMatchOfferPushMessage,
   buildMerchantOrderPushMessage,
   classifyFcmError,
   toFcmV1Body,
@@ -86,5 +88,67 @@ describe('FCM v1 body', () => {
     expect(body.message.android.notification.channel_id).toBe('merchant_new_orders');
     expect(body.message.apns.headers['apns-collapse-id']).toBe('o');
     expect(body.message.apns.headers['apns-expiration']).toBe(String(1000 + 1800));
+  });
+
+  it('customer order payload uses customer_order_updates and 1h TTL', () => {
+    const msg = buildCustomerOrderPushMessage({
+      token: 'tok',
+      platform: 'android',
+      title: 'Commande prête',
+      body: 'Votre commande est prête',
+      type: 'ORDER_READY',
+      notificationId: 'n',
+      orderId: 'o',
+    });
+    const body = toFcmV1Body(msg, 1_000_000) as {
+      message: {
+        data: Record<string, string>;
+        android: { ttl: string; notification: { channel_id: string } };
+      };
+    };
+    expect(body.message.data).toEqual({
+      type: 'ORDER_READY',
+      orderId: 'o',
+      notificationId: 'n',
+    });
+    expect(body.message.android.ttl).toBe('3600s');
+    expect(body.message.android.notification.channel_id).toBe(
+      'customer_order_updates',
+    );
+  });
+
+  it('MATCH_OFFER payload uses driver_match_offers and caller-supplied remaining TTL', () => {
+    const msg = buildMatchOfferPushMessage({
+      token: 'tok',
+      platform: 'android',
+      title: 'Nouvelle course',
+      body: 'Une course vous est proposée',
+      notificationId: 'n',
+      assignmentId: 'a',
+      ttlSeconds: 17,
+    });
+    const body = toFcmV1Body(msg, 1_000_000) as {
+      message: {
+        data: Record<string, string>;
+        android: {
+          ttl: string;
+          collapse_key: string;
+          notification: { channel_id: string };
+        };
+        apns: { headers: Record<string, string> };
+      };
+    };
+    expect(body.message.data).toEqual({
+      type: 'MATCH_OFFER',
+      sourceId: 'a',
+      offerId: 'a',
+      notificationId: 'n',
+    });
+    expect(body.message.android.ttl).toBe('17s');
+    expect(body.message.android.collapse_key).toBe('a');
+    expect(body.message.android.notification.channel_id).toBe(
+      'driver_match_offers',
+    );
+    expect(body.message.apns.headers['apns-expiration']).toBe(String(1000 + 17));
   });
 });

@@ -1,13 +1,18 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { identifierHash, normalizeIdentifier } from '../domain/identity';
 import {
   authInvalidOtp,
   authOtpAttemptsExceeded,
+  authOtpDeliveryFailed,
   authOtpExpired,
   authRateLimited,
 } from '../domain/auth.errors';
+import {
+  InfobipSmsError,
+  isUncertainInfobipOutcome,
+} from '../infrastructure/otp/infobip-sms.policy';
 import {
   OTP_SENDER,
   type OtpSenderPort,
@@ -90,6 +95,7 @@ export class OtpService {
       code,
       audience: input.audience,
     });
+    const sendGeneration = randomUUID();
 
     await this.store.saveChallenge(
       input.purpose,
@@ -103,16 +109,41 @@ export class OtpService {
         requestCount: hourly,
         channel: input.channel,
         purpose: input.purpose,
+        sendGeneration,
       },
       ttl,
     );
     await this.store.markCooldown(input.purpose, input.channel, hash, cooldown);
-    await this.sender.send({
-      channel: input.channel,
-      identifier,
-      purpose: input.purpose,
-      code,
-    });
+    try {
+      await this.sender.send({
+        channel: input.channel,
+        identifier,
+        purpose: input.purpose,
+        code,
+      });
+    } catch (error) {
+      if (isUncertainInfobipOutcome(error)) {
+        this.security.emit('otp_delivery_uncertain', {
+          channel: input.channel,
+          identifierHash: hash,
+          purpose: input.purpose,
+        });
+      } else {
+        await this.store.deleteChallengeIfGeneration(
+          input.purpose,
+          input.channel,
+          hash,
+          sendGeneration,
+        );
+        if (error instanceof InfobipSmsError) {
+          // Selected Infobip is unavailable (missing/unreadable key, empty
+          // sender, non-https base URL, or a definite provider failure).
+          // Do not map generic programming errors here.
+          throw authOtpDeliveryFailed();
+        }
+        throw error;
+      }
+    }
     this.security.emit('otp_requested', {
       channel: input.channel,
       identifierHash: hash,

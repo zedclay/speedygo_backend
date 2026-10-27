@@ -1,7 +1,9 @@
 import { NotificationService } from './notification.service';
 import {
   NOTIFICATION_TYPE_ADMIN_DRIVER_VERIF,
+  NOTIFICATION_TYPE_MATCH_OFFER,
   NOTIFICATION_TYPE_MERCHANT_ORDER_CREATED,
+  NOTIFICATION_TYPE_ORDER_READY,
   NOTIFICATION_TYPE_PAYMENT_SUCCEEDED,
 } from '../domain/notification.types';
 
@@ -19,6 +21,7 @@ describe('NotificationService', () => {
     createNotification: jest.Mock;
     createDeliveryLog: jest.Mock;
     findCustomerAccountIdByCustomerId: jest.Mock;
+    findDriverAccountIdByDriverId: jest.Mock;
     findPaymentNotifyContext: jest.Mock;
     listForAccount: jest.Mock;
     countUnread: jest.Mock;
@@ -54,6 +57,7 @@ describe('NotificationService', () => {
       }),
       createDeliveryLog: jest.fn().mockResolvedValue({}),
       findCustomerAccountIdByCustomerId: jest.fn().mockResolvedValue(ACCOUNT),
+      findDriverAccountIdByDriverId: jest.fn().mockResolvedValue(ACCOUNT),
       findPaymentNotifyContext: jest.fn(),
       listForAccount: jest.fn().mockResolvedValue({ items: [], total: 0 }),
       countUnread: jest.fn().mockResolvedValue(0),
@@ -124,6 +128,41 @@ describe('NotificationService', () => {
     >;
     expect(calls[1][0].status).toBe('SKIPPED_NOT_CONFIGURED');
     expect(jobs.enqueuePushSend).not.toHaveBeenCalled();
+  });
+
+  it('customer order types enqueue Push when the provider is configured', async () => {
+    push.isConfigured.mockReturnValue(true);
+    await service.emitSafe({
+      type: NOTIFICATION_TYPE_ORDER_READY,
+      sourceId: SOURCE,
+      accountId: ACCOUNT,
+      title: 'Commande prête',
+      body: 'body',
+    });
+    expect(jobs.enqueuePushSend).toHaveBeenCalledWith(NOTIF_ID);
+  });
+
+  it('MATCH_OFFER enqueues Push after persistence when configured', async () => {
+    push.isConfigured.mockReturnValue(true);
+    await service.notifyMatchOffer({
+      assignmentId: SOURCE,
+      driverId: 'driver-1',
+    });
+    expect(notifications.findDriverAccountIdByDriverId).toHaveBeenCalledWith(
+      'driver-1',
+    );
+    expect(jobs.enqueuePushSend).toHaveBeenCalledWith(NOTIF_ID);
+  });
+
+  it('MATCH_OFFER idempotent replay does not enqueue a second push', async () => {
+    push.isConfigured.mockReturnValue(true);
+    notifications.findByAccountCategory.mockResolvedValue([{ id: NOTIF_ID }]);
+    await service.notifyMatchOffer({
+      assignmentId: SOURCE,
+      driverId: 'driver-1',
+    });
+    expect(jobs.enqueuePushSend).not.toHaveBeenCalled();
+    expect(notifications.createNotification).not.toHaveBeenCalled();
   });
 
   it('non push-enabled types never enqueue even when provider is configured', async () => {

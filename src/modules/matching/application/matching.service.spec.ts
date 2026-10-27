@@ -72,6 +72,10 @@ describe('MatchingService', () => {
     enqueueRetry: jest.Mock;
     scheduleAfterMatch: jest.Mock;
   };
+  let notifications: {
+    notifyMatchOffer: jest.Mock;
+    notifyDriverAssigned: jest.Mock;
+  };
 
   beforeEach(() => {
     assignments = [];
@@ -211,10 +215,10 @@ describe('MatchingService', () => {
         },
         setDeliveryAssigned: () => Promise.resolve(true),
       } as never,
-      {
+      (notifications = {
         notifyMatchOffer: jest.fn().mockResolvedValue(undefined),
         notifyDriverAssigned: jest.fn().mockResolvedValue(undefined),
-      } as never,
+      }) as never,
       store,
       config as unknown as ConfigService,
       jobs,
@@ -243,6 +247,25 @@ describe('MatchingService', () => {
     expect(result.offered).toBe(true);
     expect(result.assignment?.driverId).toBe(DRIVER_A);
     expect(assignments).toHaveLength(1);
+    expect(notifications.notifyMatchOffer).toHaveBeenCalledWith({
+      assignmentId: assignments[0].id,
+      driverId: DRIVER_A,
+    });
+  });
+
+  it('keeps the persisted offer when MATCH_OFFER notify fails', async () => {
+    geo = [
+      {
+        driverId: DRIVER_A,
+        distanceMeters: 80,
+        recordedAt: '2026-09-02T00:00:00.000Z',
+      },
+    ];
+    notifications.notifyMatchOffer.mockRejectedValue(new Error('notify down'));
+    const result = await service.matchDelivery(DELIVERY_ID);
+    expect(result.offered).toBe(true);
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0].status).toBe(ASSIGNMENT_STATUS_OFFERED);
   });
 
   it('excludes offline, suspended, expired-license, and busy Drivers', async () => {

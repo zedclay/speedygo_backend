@@ -1,4 +1,6 @@
 import {
+  CUSTOMER_ORDER_ANDROID_CHANNEL_ID,
+  DRIVER_MATCH_ANDROID_CHANNEL_ID,
   MERCHANT_ORDER_ANDROID_CHANNEL_ID,
   type PushFailureOutcome,
   type PushMessage,
@@ -31,6 +33,64 @@ export function buildMerchantOrderPushMessage(input: {
     },
     collapseKey: input.orderId,
     ttlSeconds: MERCHANT_ORDER_PUSH_TTL_SECONDS,
+    androidChannelId: MERCHANT_ORDER_ANDROID_CHANNEL_ID,
+    apnsThreadId: 'merchant-orders',
+  };
+}
+
+/** Customer order-lifecycle pushes older than this are dropped by the OS. */
+export const CUSTOMER_ORDER_PUSH_TTL_SECONDS = 60 * 60;
+
+export function buildCustomerOrderPushMessage(input: {
+  token: string;
+  platform: string;
+  title: string;
+  body: string;
+  type: string;
+  notificationId: string;
+  orderId: string;
+}): PushMessage {
+  return {
+    token: input.token,
+    platform: input.platform,
+    title: input.title,
+    body: input.body,
+    data: {
+      type: input.type,
+      orderId: input.orderId,
+      notificationId: input.notificationId,
+    },
+    collapseKey: input.orderId,
+    ttlSeconds: CUSTOMER_ORDER_PUSH_TTL_SECONDS,
+    androidChannelId: CUSTOMER_ORDER_ANDROID_CHANNEL_ID,
+    apnsThreadId: 'customer-orders',
+  };
+}
+
+export function buildMatchOfferPushMessage(input: {
+  token: string;
+  platform: string;
+  title: string;
+  body: string;
+  notificationId: string;
+  assignmentId: string;
+  ttlSeconds: number;
+}): PushMessage {
+  return {
+    token: input.token,
+    platform: input.platform,
+    title: input.title,
+    body: input.body,
+    data: {
+      type: 'MATCH_OFFER',
+      sourceId: input.assignmentId,
+      offerId: input.assignmentId,
+      notificationId: input.notificationId,
+    },
+    collapseKey: input.assignmentId,
+    ttlSeconds: input.ttlSeconds,
+    androidChannelId: DRIVER_MATCH_ANDROID_CHANNEL_ID,
+    apnsThreadId: 'driver-match-offers',
   };
 }
 
@@ -46,7 +106,7 @@ export function toFcmV1Body(message: PushMessage, nowMs: number): unknown {
         ttl: `${message.ttlSeconds}s`,
         collapse_key: message.collapseKey,
         notification: {
-          channel_id: MERCHANT_ORDER_ANDROID_CHANNEL_ID,
+          channel_id: message.androidChannelId,
           tag: message.collapseKey,
           sound: 'default',
         },
@@ -61,7 +121,7 @@ export function toFcmV1Body(message: PushMessage, nowMs: number): unknown {
           ),
         },
         payload: {
-          aps: { sound: 'default', 'thread-id': 'merchant-orders' },
+          aps: { sound: 'default', 'thread-id': message.apnsThreadId },
         },
       },
     },

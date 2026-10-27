@@ -26,6 +26,19 @@ export class GeoService {
     return (this.config.get<string>('maps.googleApiKey') ?? '').trim();
   }
 
+  /** Server Places/Geocoding only. Never log or return the key. */
+  private async googleFetch(url: string, init: RequestInit): Promise<Response> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 8_000);
+    try {
+      return await fetch(url, { ...init, signal: controller.signal });
+    } catch {
+      throw geoLocationInvalid('Address search provider request failed');
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+
   async listWilayas(): Promise<{ wilayas: WilayaView[] }> {
     const rows = await this.geo.listWilayas();
     return { wilayas: rows.map(toWilayaView) };
@@ -150,6 +163,8 @@ export class GeoService {
    * Places Autocomplete (New). Fail-closed when GOOGLE_MAPS_API_KEY is empty.
    * Official: POST https://places.googleapis.com/v1/places:autocomplete
    * Restricted to DZ. Does not invent suggestions.
+   * Responses are not cached. Place IDs may be stored; other Places content
+   * is not persisted. Clients must display results on a Google Map.
    */
   async autocompletePlaces(input: {
     q: string;
@@ -171,7 +186,7 @@ export class GeoService {
       input.language === 'ar' || input.language === 'fr'
         ? input.language
         : 'fr';
-    const response = await fetch(
+    const response = await this.googleFetch(
       'https://places.googleapis.com/v1/places:autocomplete',
       {
         method: 'POST',
@@ -184,8 +199,11 @@ export class GeoService {
         body: JSON.stringify({
           input: q,
           includedRegionCodes: ['dz'],
+          regionCode: 'dz',
           languageCode,
-          sessionToken: input.sessionToken,
+          ...(input.sessionToken?.trim()
+            ? { sessionToken: input.sessionToken.trim() }
+            : {}),
         }),
       },
     );
@@ -243,7 +261,7 @@ export class GeoService {
     url.searchParams.set('key', key);
     url.searchParams.set('language', language);
     url.searchParams.set('region', 'dz');
-    const response = await fetch(url);
+    const response = await this.googleFetch(url.toString(), { method: 'GET' });
     if (!response.ok) {
       throw geoLocationInvalid('Reverse geocoding provider request failed');
     }
@@ -297,10 +315,12 @@ export class GeoService {
       `https://places.googleapis.com/v1/places/${encodeURIComponent(id)}`,
     );
     url.searchParams.set('languageCode', languageCode);
-    if (input.sessionToken) {
-      url.searchParams.set('sessionToken', input.sessionToken);
+    const sessionToken = input.sessionToken?.trim();
+    if (sessionToken) {
+      url.searchParams.set('sessionToken', sessionToken);
     }
-    const response = await fetch(url, {
+    const response = await this.googleFetch(url.toString(), {
+      method: 'GET',
       headers: {
         'X-Goog-Api-Key': key,
         'X-Goog-FieldMask': 'id,formattedAddress,location',

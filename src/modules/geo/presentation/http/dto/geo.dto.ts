@@ -75,8 +75,12 @@ export class PlaceAutocompleteQueryDto {
   @IsString()
   language?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description:
+      'Places Autocomplete (New) session token (UUID v4). Same token must be sent to Place Details, then discarded.',
+  })
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(128)
   sessionToken?: string;
@@ -140,8 +144,12 @@ export class PlaceDetailsQueryDto {
   @IsString()
   language?: string;
 
-  @ApiPropertyOptional()
+  @ApiPropertyOptional({
+    description:
+      'Same Autocomplete (New) session token as the suggestions request that produced this placeId.',
+  })
   @IsOptional()
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @MaxLength(128)
   sessionToken?: string;

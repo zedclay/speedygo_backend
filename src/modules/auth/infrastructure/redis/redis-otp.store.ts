@@ -11,6 +11,19 @@ import type {
   OtpPurpose,
 } from '../../domain/auth.types';
 
+const DELETE_IF_GENERATION_LUA = `
+local raw = redis.call('GET', KEYS[1])
+if not raw then
+  return 0
+end
+local data = cjson.decode(raw)
+if data.sendGeneration ~= ARGV[1] then
+  return 0
+end
+redis.call('DEL', KEYS[1])
+return 1
+`;
+
 const CONSUME_LUA = `
 local raw = redis.call('GET', KEYS[1])
 if not raw then
@@ -147,6 +160,23 @@ export class RedisOtpStore implements OtpStorePort {
     await this.redis
       .getClient()
       .del(this.challengeKey(purpose, channel, identifierHash));
+  }
+
+  async deleteChallengeIfGeneration(
+    purpose: OtpPurpose,
+    channel: AuthChannel,
+    identifierHash: string,
+    sendGeneration: string,
+  ): Promise<boolean> {
+    const result = (await this.redis
+      .getClient()
+      .eval(
+        DELETE_IF_GENERATION_LUA,
+        1,
+        this.challengeKey(purpose, channel, identifierHash),
+        sendGeneration,
+      )) as number;
+    return result === 1;
   }
 
   async markCooldown(
