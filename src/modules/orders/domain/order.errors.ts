@@ -220,7 +220,10 @@ export function orderReconfirmationRequired(input: {
   merchandiseSubtotalMinor: number;
   deliveryFeeMinor: number;
   customerTotalMinor: number;
+  discountMinor?: number;
+  promoCode?: string | null;
 }): OrderError {
+  const promo = input.promoCode?.trim();
   return new OrderError(
     ORDER_ERROR_CODES.ORDER_RECONFIRMATION_REQUIRED,
     'Live Order amounts differ from the Customer-confirmed Checkout amounts',
@@ -232,7 +235,9 @@ export function orderReconfirmationRequired(input: {
           input.merchandiseSubtotalMinor,
         ),
         deliveryFeeMinor: moneyMinorToDecimalString(input.deliveryFeeMinor),
+        discountMinor: moneyMinorToDecimalString(input.discountMinor ?? 0),
         customerTotalMinor: moneyMinorToDecimalString(input.customerTotalMinor),
+        promoCode: promo && promo.length > 0 ? promo : null,
       },
     },
   );

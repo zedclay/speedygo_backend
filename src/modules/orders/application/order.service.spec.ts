@@ -186,6 +186,9 @@ describe('OrderService.createOrder', () => {
         deliveryFeeMinor: moneyMinorToDecimalString(
           payload.financial.customerDeliveryFeeMinor,
         ),
+        discountMinor: moneyMinorToDecimalString(
+          payload.financial.totalDiscountMinor,
+        ),
         customerTotalMinor: moneyMinorToDecimalString(
           payload.financial.customerPayableMinor,
         ),
@@ -318,6 +321,7 @@ describe('OrderService.createOrder', () => {
     expect(created.paymentMethod).toBe('COD');
     expect(created.financial.merchandiseSubtotalMinor).toBe('1200');
     expect(created.financial.deliveryFeeMinor).toBe('500');
+    expect(created.financial.discountMinor).toBe('0');
     expect(created.financial.customerTotalMinor).toBe('1700');
     expect(created.items[0].unitPriceMinor).toBe('1200');
     expect(created.items[0].productNameSnapshot).toBe('Coffee');
@@ -763,6 +767,7 @@ describe('OrderService reads', () => {
               currency: 'DZD',
               merchandiseSubtotalMinor: '1200',
               deliveryFeeMinor: '500',
+              discountMinor: '0',
               customerTotalMinor: '1700',
             },
           },
@@ -781,6 +786,7 @@ describe('OrderService reads', () => {
           currency: 'DZD',
           merchandiseSubtotalMinor: '1200',
           deliveryFeeMinor: '500',
+          discountMinor: '0',
           customerTotalMinor: '1700',
         },
         items: [],

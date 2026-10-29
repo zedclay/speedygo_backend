@@ -108,6 +108,8 @@ export type OrderCustomerFinancialView = {
   currency: string;
   merchandiseSubtotalMinor: string;
   deliveryFeeMinor: string;
+  /** Customer-safe snapshot of OrderFinancialSnapshot.totalDiscountMinor. */
+  discountMinor: string;
   customerTotalMinor: string;
 };
 

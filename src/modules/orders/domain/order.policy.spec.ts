@@ -512,7 +512,36 @@ describe('Order policy', () => {
         current: {
           merchandiseSubtotalMinor: '1500',
           deliveryFeeMinor: '800',
+          discountMinor: '0',
           customerTotalMinor: '2300',
+          promoCode: null,
+        },
+      });
+    }
+  });
+
+  it('includes live discount and promoCode on reconfirmation current', () => {
+    try {
+      requireConfirmedAmountsMatch({
+        grossMerchandiseSubtotalMinor: 1500,
+        deliveryFeeMinor: 500,
+        customerPayableMinor: 1700,
+        expectedMerchandiseSubtotalMinor: 1500,
+        expectedDeliveryFeeMinor: 500,
+        expectedCustomerTotalMinor: 2000,
+        discountMinor: 300,
+        promoCode: 'DEMOHOME150',
+      });
+      fail('expected reconfirmation');
+    } catch (error) {
+      expect((error as { details: unknown }).details).toEqual({
+        changes: ['CUSTOMER_TOTAL'],
+        current: {
+          merchandiseSubtotalMinor: '1500',
+          deliveryFeeMinor: '500',
+          discountMinor: '300',
+          customerTotalMinor: '1700',
+          promoCode: 'DEMOHOME150',
         },
       });
     }
