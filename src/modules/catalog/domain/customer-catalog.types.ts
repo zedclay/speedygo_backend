@@ -1,3 +1,15 @@
+export type DeliveryCoverageReason =
+  | 'UNFILTERED'
+  | 'INSIDE'
+  | 'OUTSIDE'
+  | 'AMBIGUOUS';
+
+export type DeliveryCoverage = {
+  inCoverage: boolean;
+  zoneCount: number;
+  reason: DeliveryCoverageReason;
+};
+
 export type CustomerStorefrontHours = {
   hoursConfigured: boolean;
   isOpenNow: boolean;
@@ -33,6 +45,12 @@ export type CustomerStorefrontSummary = {
   timezone: string;
   currentClosesAt: string | null;
   nextOpenAt: string | null;
+  /**
+   * Per-storefront delivery coverage vs the current owned pin.
+   * Present on favorites list only. Omitted on catalog list/detail.
+   * Never a stored favorite flag. Customer-safe: no zone ids or names.
+   */
+  coverage?: DeliveryCoverage;
 };
 
 export type CustomerStorefrontDetail = CustomerStorefrontSummary & {
@@ -76,18 +94,6 @@ export type CustomerProductOptionGroup = {
 
 export type CustomerProductDetail = CustomerProductSummary & {
   optionGroups: CustomerProductOptionGroup[];
-};
-
-export type DeliveryCoverageReason =
-  | 'UNFILTERED'
-  | 'INSIDE'
-  | 'OUTSIDE'
-  | 'AMBIGUOUS';
-
-export type DeliveryCoverage = {
-  inCoverage: boolean;
-  zoneCount: number;
-  reason: DeliveryCoverageReason;
 };
 
 export type CustomerCatalogPage<T> = {

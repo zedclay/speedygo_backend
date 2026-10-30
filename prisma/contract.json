@@ -60,6 +60,10 @@
       "model": "Commune",
       "namespace": "public"
     },
+    "customer_favorites": {
+      "model": "CustomerFavorite",
+      "namespace": "public"
+    },
     "customer_internal_notes": {
       "model": "CustomerInternalNote",
       "namespace": "public"
@@ -2495,6 +2499,114 @@
               "table": "communes"
             }
           },
+          "CustomerFavorite": {
+            "fields": {
+              "branchId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 6
+                  }
+                }
+              },
+              "customerId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "targetId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "targetKind": {
+                "nullable": false,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 16
+                  }
+                }
+              }
+            },
+            "relations": {
+              "branch": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "branchId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "MerchantBranch",
+                  "namespace": "public"
+                }
+              },
+              "customer": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "customerId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "CustomerProfile",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "branchId": {
+                  "column": "branch_id"
+                },
+                "createdAt": {
+                  "column": "created_at"
+                },
+                "customerId": {
+                  "column": "customer_id"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "targetId": {
+                  "column": "target_id"
+                },
+                "targetKind": {
+                  "column": "target_kind"
+                }
+              },
+              "namespaceId": "public",
+              "table": "customer_favorites"
+            }
+          },
           "CustomerInternalNote": {
             "fields": {
               "adminId": {
@@ -2670,6 +2782,21 @@
                 },
                 "to": {
                   "model": "Account",
+                  "namespace": "public"
+                }
+              },
+              "favorites": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "customerId"
+                  ]
+                },
+                "to": {
+                  "model": "CustomerFavorite",
                   "namespace": "public"
                 }
               }
@@ -5199,6 +5326,21 @@
                 },
                 "to": {
                   "model": "MerchantBranchCover",
+                  "namespace": "public"
+                }
+              },
+              "customerFavorites": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "branchId"
+                  ]
+                },
+                "to": {
+                  "model": "CustomerFavorite",
                   "namespace": "public"
                 }
               },
@@ -13769,6 +13911,136 @@
                   "name": "communes_wilaya_426d9809",
                   "prefix": "communes_wilaya",
                   "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
+            "customer_favorites": {
+              "checks": [
+                {
+                  "expression": "target_kind IN ('BRANCH', 'PRODUCT')",
+                  "name": "customer_favorites_kind_6a252a76",
+                  "prefix": "customer_favorites_kind"
+                }
+              ],
+              "columns": {
+                "branch_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "created_at": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 6
+                  }
+                },
+                "customer_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "target_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "target_kind": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": false,
+                  "typeParams": {
+                    "length": 16
+                  }
+                }
+              },
+              "foreignKeys": [
+                {
+                  "onDelete": "restrict",
+                  "source": {
+                    "columns": [
+                      "customer_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "customer_favorites"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "customer_profiles"
+                  }
+                },
+                {
+                  "onDelete": "restrict",
+                  "source": {
+                    "columns": [
+                      "branch_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "customer_favorites"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "merchant_branches"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "branch_id"
+                  ],
+                  "name": "customer_favorites_branch_id_idx_b5212172",
+                  "prefix": "customer_favorites_branch_id_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "customer_id",
+                    "created_at"
+                  ],
+                  "name": "customer_favorites_customer_created_cd59c338",
+                  "prefix": "customer_favorites_customer_created",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "customer_id"
+                  ],
+                  "name": "customer_favorites_customer_id_idx_e16dfa6b",
+                  "prefix": "customer_favorites_customer_id_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "customer_id",
+                    "target_kind",
+                    "target_id"
+                  ],
+                  "name": "customer_favorites_owner_target_8a263e23",
+                  "prefix": "customer_favorites_owner_target",
+                  "unique": true
                 }
               ],
               "primaryKey": {
@@ -23031,7 +23303,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "ba3bdc34e4d01d7ef708da99f81d7848d454ef69d053b7e95ead4bf11ec14304"
+    "storageHash": "f2f8d3dd52add96c6cd1d154f4b9dd9f2b18b394a0a878dd4e58841edaacbd3b"
   },
   "capabilities": {
     "postgres": {

@@ -8,6 +8,7 @@ import {
   customerCatalogInvalidPagination,
   customerSearchQueryInvalid,
 } from './customer-catalog.errors';
+import type { DeliveryCoverage } from './customer-catalog.types';
 
 /** Same defaults as Merchant Catalog product list / Customer order list. */
 export const CUSTOMER_CATALOG_LIST_DEFAULT_LIMIT = 50;
@@ -23,6 +24,32 @@ export const CUSTOMER_CATALOG_ALLOWED_SORTS = [
 ] as const;
 export type CustomerCatalogSortField =
   (typeof CUSTOMER_CATALOG_ALLOWED_SORTS)[number];
+
+export const CUSTOMER_CATALOG_SEARCH_HIT_STOREFRONT = 'STOREFRONT' as const;
+export const CUSTOMER_CATALOG_SEARCH_HIT_PRODUCT = 'PRODUCT' as const;
+export const CUSTOMER_CATALOG_SEARCH_HIT_TYPES = [
+  CUSTOMER_CATALOG_SEARCH_HIT_STOREFRONT,
+  CUSTOMER_CATALOG_SEARCH_HIT_PRODUCT,
+] as const;
+export type CustomerCatalogSearchHitType =
+  (typeof CUSTOMER_CATALOG_SEARCH_HIT_TYPES)[number];
+
+export function resolveCustomerCatalogSearchHitType(
+  hitType?: string,
+): CustomerCatalogSearchHitType | undefined {
+  if (hitType === undefined || hitType === '') {
+    return undefined;
+  }
+  if (
+    hitType === CUSTOMER_CATALOG_SEARCH_HIT_STOREFRONT ||
+    hitType === CUSTOMER_CATALOG_SEARCH_HIT_PRODUCT
+  ) {
+    return hitType;
+  }
+  throw customerCatalogInvalidPagination(
+    `hitType must be one of: ${CUSTOMER_CATALOG_SEARCH_HIT_TYPES.join(', ')}`,
+  );
+}
 
 /**
  * Storefront = MerchantBranch (orderable cart/checkout scope).
@@ -141,4 +168,76 @@ export function resolveCustomerCatalogSort(
   throw customerCatalogInvalidPagination(
     `sort must be one of: ${CUSTOMER_CATALOG_ALLOWED_SORTS.join(', ')}`,
   );
+}
+
+export type PinCoverageResolution = {
+  coverage: DeliveryCoverage;
+  zoneId?: string;
+};
+
+const COVERAGE_UNFILTERED: DeliveryCoverage = {
+  inCoverage: true,
+  zoneCount: 0,
+  reason: 'UNFILTERED',
+};
+
+const COVERAGE_OUTSIDE: DeliveryCoverage = {
+  inCoverage: false,
+  zoneCount: 0,
+  reason: 'OUTSIDE',
+};
+
+const COVERAGE_INSIDE: DeliveryCoverage = {
+  inCoverage: true,
+  zoneCount: 1,
+  reason: 'INSIDE',
+};
+
+/**
+ * Same pin policy as Customer catalog list/search.
+ * Caller must 404 unowned addresses before invoking.
+ * No wilaya shortcut. Zone ids stay internal.
+ */
+export function resolvePinCoverage(input: {
+  addressId?: string;
+  coordinatesValid: boolean;
+  zones: Array<{ id: string }>;
+}): PinCoverageResolution {
+  if (input.addressId == null || input.addressId === '') {
+    return { coverage: COVERAGE_UNFILTERED };
+  }
+  if (!input.coordinatesValid) {
+    return { coverage: COVERAGE_OUTSIDE };
+  }
+  if (input.zones.length === 0) {
+    return { coverage: COVERAGE_OUTSIDE };
+  }
+  if (input.zones.length > 1) {
+    return {
+      coverage: {
+        inCoverage: false,
+        zoneCount: input.zones.length,
+        reason: 'AMBIGUOUS',
+      },
+    };
+  }
+  return { coverage: COVERAGE_INSIDE, zoneId: input.zones[0].id };
+}
+
+/**
+ * Checkout/catalog rule: the branch pin must share the customer's unique
+ * covering zone. When the pin is not INSIDE, every favorite inherits that
+ * pin reason (OUTSIDE / AMBIGUOUS / UNFILTERED).
+ */
+export function coverageForBranchAgainstPin(input: {
+  pin: PinCoverageResolution;
+  branchZoneIds: string[];
+}): DeliveryCoverage {
+  if (input.pin.coverage.reason !== 'INSIDE' || !input.pin.zoneId) {
+    return input.pin.coverage;
+  }
+  if (input.branchZoneIds.includes(input.pin.zoneId)) {
+    return COVERAGE_INSIDE;
+  }
+  return COVERAGE_OUTSIDE;
 }
