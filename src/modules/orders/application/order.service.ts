@@ -304,6 +304,8 @@ export class OrderService {
           confirmed.expectedMerchandiseSubtotalMinor,
         expectedDeliveryFeeMinor: confirmed.expectedDeliveryFeeMinor,
         expectedCustomerTotalMinor: confirmed.expectedCustomerTotalMinor,
+        discountMinor: financial.totalDiscountMinor,
+        promoCode: input.promoCode ?? null,
       });
 
       await this.orders.persistCreatedOrder(

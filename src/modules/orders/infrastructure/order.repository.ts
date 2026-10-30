@@ -465,6 +465,9 @@ export class OrderRepository {
           deliveryFeeMinor: moneyMinorToDecimalString(
             financial.customerDeliveryFeeMinor,
           ),
+          discountMinor: moneyMinorToDecimalString(
+            financial.totalDiscountMinor,
+          ),
           customerTotalMinor: moneyMinorToDecimalString(
             financial.customerPayableMinor,
           ),

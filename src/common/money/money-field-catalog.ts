@@ -32,7 +32,12 @@ export const MONEY_HTTP_FIELDS: readonly MoneyHttpField[] = [
   { v1: 'merchantDiscountMinor', v2: 'merchantDiscount', signed: false, surfaces: ['ofs'] },
   { v1: 'platformDiscountMinor', v2: 'platformDiscount', signed: false, surfaces: ['ofs'] },
   { v1: 'totalDiscountMinor', v2: 'totalDiscount', signed: false, surfaces: ['ofs'] },
-  { v1: 'discountMinor', v2: 'discount', signed: false, surfaces: ['checkout'] },
+  {
+    v1: 'discountMinor',
+    v2: 'discount',
+    signed: false,
+    surfaces: ['checkout', 'orders'],
+  },
   { v1: 'discountAmountMinor', v2: 'discountAmount', signed: false, surfaces: ['promotions'] },
   { v1: 'commissionBaseMinor', v2: 'commissionBase', signed: false, surfaces: ['ofs'] },
   { v1: 'merchantCommissionAmountMinor', v2: 'merchantCommissionAmount', signed: false, surfaces: ['ofs'] },

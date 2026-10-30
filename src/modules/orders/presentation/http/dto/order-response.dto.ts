@@ -110,6 +110,15 @@ export class OrderCustomerFinancialResponseDto {
   @ApiProperty({
     type: String,
     description:
+      'Customer-safe promotion discount snapshotted at Order creation (OrderFinancialSnapshot.totalDiscountMinor). Funding buckets are not exposed. 0 when no promotion applied. Equation: merchandiseSubtotalMinor − discountMinor + deliveryFeeMinor = customerTotalMinor.',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '0',
+  })
+  discountMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    description:
       'Customer payable total in integer minor units (maps from OrderFinancialSnapshot.customerPayableMinor). Public API name is customerTotalMinor.',
     pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
     example: '1700',

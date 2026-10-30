@@ -161,6 +161,8 @@ export function requireConfirmedAmountsMatch(input: {
   expectedMerchandiseSubtotalMinor: number;
   expectedDeliveryFeeMinor: number;
   expectedCustomerTotalMinor: number;
+  discountMinor?: number;
+  promoCode?: string | null;
 }): void {
   const changes: OrderReconfirmationChange[] = [];
   if (
@@ -181,6 +183,8 @@ export function requireConfirmedAmountsMatch(input: {
       merchandiseSubtotalMinor: input.grossMerchandiseSubtotalMinor,
       deliveryFeeMinor: input.deliveryFeeMinor,
       customerTotalMinor: input.customerPayableMinor,
+      discountMinor: input.discountMinor ?? 0,
+      promoCode: input.promoCode ?? null,
     });
   }
 }
