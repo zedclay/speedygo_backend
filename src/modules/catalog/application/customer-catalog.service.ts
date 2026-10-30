@@ -25,9 +25,13 @@ import {
   customerStorefrontNotFound,
 } from '../domain/customer-catalog.errors';
 import {
+  coverageForBranchAgainstPin,
   normalizeCustomerCatalogPagination,
   normalizeCustomerCatalogSearchQuery,
+  resolveCustomerCatalogSearchHitType,
   resolveCustomerCatalogSort,
+  resolvePinCoverage,
+  type PinCoverageResolution,
 } from '../domain/customer-catalog.policy';
 import type {
   CustomerCatalogPage,
@@ -97,59 +101,21 @@ export class CustomerCatalogService {
     if (query.wilayaCode) {
       await this.geo.listCommunes(query.wilayaCode);
     }
-    let coverage: DeliveryCoverage = {
-      inCoverage: true,
-      zoneCount: 0,
-      reason: 'UNFILTERED',
-    };
-    let coverageZoneId: string | undefined;
-    if (query.addressId) {
-      const address = await this.catalog.findOwnedAddress(
-        profileId,
-        query.addressId,
-      );
-      if (!address) {
-        throw customerAddressNotFound();
-      }
-      if (!hasValidCoordinates(address.latitude, address.longitude)) {
-        coverage = { inCoverage: false, zoneCount: 0, reason: 'OUTSIDE' };
-        return {
-          items: [],
-          limit: page.limit,
-          offset: page.offset,
-          total: 0,
-          coverage,
-        };
-      }
-      const zones = await this.catalog.findCoveringZones(
-        address.latitude,
-        address.longitude,
-      );
-      if (zones.length === 0) {
-        return {
-          items: [],
-          limit: page.limit,
-          offset: page.offset,
-          total: 0,
-          coverage: { inCoverage: false, zoneCount: 0, reason: 'OUTSIDE' },
-        };
-      }
-      if (zones.length > 1) {
-        return {
-          items: [],
-          limit: page.limit,
-          offset: page.offset,
-          total: 0,
-          coverage: {
-            inCoverage: false,
-            zoneCount: zones.length,
-            reason: 'AMBIGUOUS',
-          },
-        };
-      }
-      coverageZoneId = zones[0].id;
-      coverage = { inCoverage: true, zoneCount: 1, reason: 'INSIDE' };
+    const pin = await this.resolvePinCoverageForProfile(
+      profileId,
+      query.addressId,
+    );
+    if (query.addressId && pin.coverage.reason !== 'INSIDE') {
+      return {
+        items: [],
+        limit: page.limit,
+        offset: page.offset,
+        total: 0,
+        coverage: pin.coverage,
+      };
     }
+    const coverageZoneId = pin.zoneId;
+    const coverage = pin.coverage;
     // One captured "now" for openNow SQL filter + hours enrichment so totals agree.
     const now = this.clock.now();
     const openNowLocal =
@@ -278,20 +244,48 @@ export class CustomerCatalogService {
 
   async search(
     accountId: string,
-    query: { q: string; limit?: number; offset?: number; sort?: string },
+    query: {
+      q: string;
+      limit?: number;
+      offset?: number;
+      sort?: string;
+      openNow?: boolean;
+      addressId?: string;
+      hitType?: string;
+    },
   ): Promise<CustomerCatalogSearchResult> {
-    await this.requireCustomerProfile(accountId);
+    const profileId = await this.requireCustomerProfile(accountId);
     resolveCustomerCatalogSort(query.sort);
+    const hitType = resolveCustomerCatalogSearchHitType(query.hitType);
     const normalizedQ = normalizeCustomerCatalogSearchQuery(query.q);
     const page = normalizeCustomerCatalogPagination(query);
+    const pin = await this.resolvePinCoverageForProfile(
+      profileId,
+      query.addressId,
+    );
+    if (query.addressId && pin.coverage.reason !== 'INSIDE') {
+      return {
+        items: [],
+        limit: page.limit,
+        offset: page.offset,
+        total: 0,
+        coverage: pin.coverage,
+      };
+    }
+    const coverageZoneId = pin.zoneId;
+    const now = this.clock.now();
+    const openNowLocal =
+      query.openNow === true ? captureOpenNowLocalParts(now) : undefined;
     const result = await this.catalog.search({
       query: normalizedQ,
       ...page,
+      hitType,
+      openNowLocal,
+      coverageZoneId,
     });
     const branchIds = [
       ...new Set(result.items.map((hit) => hit.storefront.branchId)),
     ];
-    const now = this.clock.now();
     const hours = await this.openingHours.evaluateBranches(branchIds, now);
     return {
       ...result,
@@ -302,7 +296,65 @@ export class CustomerCatalogService {
           hours.get(hit.storefront.branchId),
         ),
       })),
+      coverage: query.addressId ? pin.coverage : result.coverage,
     };
+  }
+
+  async resolveOwnedPinCoverage(
+    accountId: string,
+    addressId?: string,
+  ): Promise<PinCoverageResolution> {
+    const profileId = await this.requireCustomerProfile(accountId);
+    return this.resolvePinCoverageForProfile(profileId, addressId);
+  }
+
+  async coverageForStorefront(
+    storefront: Pick<CustomerStorefrontSummary, 'latitude' | 'longitude'>,
+    pin: PinCoverageResolution,
+  ): Promise<DeliveryCoverage> {
+    if (pin.coverage.reason !== 'INSIDE' || !pin.zoneId) {
+      return pin.coverage;
+    }
+    const zones = await this.catalog.findCoveringZones(
+      storefront.latitude,
+      storefront.longitude,
+    );
+    return coverageForBranchAgainstPin({
+      pin,
+      branchZoneIds: zones.map((zone) => zone.id),
+    });
+  }
+
+  private async resolvePinCoverageForProfile(
+    profileId: string,
+    addressId?: string,
+  ): Promise<PinCoverageResolution> {
+    if (addressId == null || addressId === '') {
+      return resolvePinCoverage({
+        addressId,
+        coordinatesValid: false,
+        zones: [],
+      });
+    }
+    const address = await this.catalog.findOwnedAddress(profileId, addressId);
+    if (!address) {
+      throw customerAddressNotFound();
+    }
+    const coordinatesValid = hasValidCoordinates(
+      address.latitude,
+      address.longitude,
+    );
+    const zones = coordinatesValid
+      ? await this.catalog.findCoveringZones(
+          address.latitude,
+          address.longitude,
+        )
+      : [];
+    return resolvePinCoverage({
+      addressId,
+      coordinatesValid,
+      zones,
+    });
   }
 
   private mergeHours(
@@ -334,6 +386,7 @@ export class CustomerCatalogService {
       merchantName: storefront.merchantName,
       merchantPublicReference: storefront.merchantPublicReference,
       coverImageUrl: storefront.coverImageUrl ?? null,
+      ...(storefront.coverage ? { coverage: storefront.coverage } : {}),
       hoursConfigured: hours.hoursConfigured,
       isOpenNow: hours.isOpenNow,
       timezone: hours.timezone,

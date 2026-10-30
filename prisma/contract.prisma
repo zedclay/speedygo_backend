@@ -206,6 +206,7 @@ model CustomerProfile {
   updatedAt TimestamptzString(6) @default(now()) @map("updated_at")
 
   account Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  favorites CustomerFavorite[]
 
   @@map("customer_profiles")
 }
@@ -419,6 +420,7 @@ model MerchantBranch {
   cover            MerchantBranchCover?
   logo             MerchantBranchLogo?
   hoursExceptions  MerchantBranchHoursException[]
+  customerFavorites CustomerFavorite[]
 
   @@check(
     expression: "(wilaya_code IS NULL AND commune_id IS NULL) OR (wilaya_code IS NOT NULL AND commune_id IS NOT NULL)",
@@ -1773,6 +1775,25 @@ model CustomerInternalNote {
 
   @@index([customerId, createdAt], name: "customer_internal_notes_customer_created")
   @@map("customer_internal_notes")
+}
+
+/// Account-scoped Customer saved storefronts and products (discovery UI).
+/// BRANCH: targetId = merchant_branches.id. PRODUCT: targetId = products.id.
+model CustomerFavorite {
+  id         Uuid                 @id
+  customerId Uuid                 @map("customer_id")
+  targetKind VarChar(16)          @map("target_kind")
+  targetId   Uuid                 @map("target_id")
+  branchId   Uuid                 @map("branch_id")
+  createdAt  TimestamptzString(6) @default(now()) @map("created_at")
+
+  customer CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  branch   MerchantBranch  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@index([customerId, targetKind, targetId], unique: true, name: "customer_favorites_owner_target")
+  @@index([customerId, createdAt], name: "customer_favorites_customer_created")
+  @@check(expression: "target_kind IN ('BRANCH', 'PRODUCT')", name: "customer_favorites_kind")
+  @@map("customer_favorites")
 }
 
 // ---------------------------------------------------------------------------

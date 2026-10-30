@@ -70,6 +70,9 @@ describe('CustomerCatalogService.search', () => {
       query: 'ab',
       limit: 50,
       offset: 0,
+      hitType: undefined,
+      openNowLocal: undefined,
+      coverageZoneId: undefined,
     });
   });
 });

@@ -14,6 +14,9 @@ import { MerchantBranchClassificationController } from './presentation/http/merc
 import { MerchantBranchClassificationService } from './application/merchant-branch-classification.service';
 import { CatalogController } from './presentation/http/catalog.controller';
 import { CustomerCatalogController } from './presentation/http/customer-catalog.controller';
+import { CustomerFavoritesController } from './presentation/http/customer-favorites.controller';
+import { CustomerFavoritesService } from './application/customer-favorites.service';
+import { CustomerFavoritesRepository } from './infrastructure/customer-favorites.repository';
 import { MerchantProductImageController } from './presentation/http/merchant-product-image.controller';
 import { MerchantProductImageService } from './application/merchant-product-image.service';
 import { ProductImageRepository } from './infrastructure/product-image.repository';
@@ -26,6 +29,7 @@ import { ProductDuplicationRepository } from './infrastructure/product-duplicati
     MerchantBranchClassificationController,
     CatalogController,
     CustomerCatalogController,
+    CustomerFavoritesController,
     MerchantProductImageController,
   ],
   providers: [
@@ -33,6 +37,8 @@ import { ProductDuplicationRepository } from './infrastructure/product-duplicati
     CatalogService,
     CustomerCatalogRepository,
     CustomerCatalogService,
+    CustomerFavoritesRepository,
+    CustomerFavoritesService,
     CommerceVerticalRepository,
     MerchantBranchClassificationService,
     ProductImageRepository,

@@ -300,6 +300,11 @@ describe('promotion.policy', () => {
     expect(view).not.toHaveProperty('type');
     expect(view).not.toHaveProperty('funding');
     expect(view).not.toHaveProperty('customerDiscoverable');
+    expect(view).not.toHaveProperty('merchantId');
+    expect(view).not.toHaveProperty('branchId');
+    expect(view).not.toHaveProperty('merchantName');
+    expect(view).not.toHaveProperty('coverImageUrl');
+    expect(view).not.toHaveProperty('minSpendMinor');
   });
 
   it('orders discovery by endsAt then id', () => {

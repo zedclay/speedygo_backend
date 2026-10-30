@@ -2,6 +2,7 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Transform, Type } from 'class-transformer';
 import {
   IsBoolean,
+  IsIn,
   IsInt,
   IsOptional,
   IsString,
@@ -155,6 +156,48 @@ export class CustomerCatalogSearchQueryDto extends CustomerCatalogPaginationQuer
   @MinLength(CUSTOMER_CATALOG_SEARCH_MIN_LENGTH)
   @MaxLength(CUSTOMER_CATALOG_SEARCH_MAX_LENGTH)
   q!: string;
+
+  @ApiPropertyOptional({
+    description:
+      'When true, only hits whose storefront the authoritative opening-hours evaluator considers open at request time. Unconfigured hours are excluded. Same semantics as storefront list openNow. Query string "false" must not become true.',
+    default: false,
+  })
+  @IsOptional()
+  @Transform(({ value }) => toOptionalBoolean(value))
+  @IsBoolean()
+  openNow?: boolean;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description:
+      'Owned Customer Address. When set, hits are limited to branches ST_Covers by the same active DeliveryZone as this pin. Outside/ambiguous coverage returns an empty page with coverage.reason. Same semantics as storefront list addressId.',
+  })
+  @IsOptional()
+  @IsUUID()
+  addressId?: string;
+
+  @ApiPropertyOptional({
+    enum: ['STOREFRONT', 'PRODUCT'],
+    description:
+      'When set, only that hit type is counted and paginated. Omitted = both types, deterministic hit_type ASC then name.',
+  })
+  @IsOptional()
+  @IsString()
+  @IsIn(['STOREFRONT', 'PRODUCT'])
+  hitType?: string;
+}
+
+export class CustomerDeliveryCoverageDto {
+  @ApiProperty()
+  inCoverage!: boolean;
+
+  @ApiProperty()
+  zoneCount!: number;
+
+  @ApiProperty({
+    enum: ['UNFILTERED', 'INSIDE', 'OUTSIDE', 'AMBIGUOUS'],
+  })
+  reason!: 'UNFILTERED' | 'INSIDE' | 'OUTSIDE' | 'AMBIGUOUS';
 }
 
 export class CustomerStorefrontResponseDto {
@@ -213,6 +256,13 @@ export class CustomerStorefrontResponseDto {
       'ISO timestamptz of next open when closed; null when open/unconfigured',
   })
   nextOpenAt!: string | null;
+
+  @ApiPropertyOptional({
+    type: () => CustomerDeliveryCoverageDto,
+    description:
+      'Favorites list only. Live coverage vs the requested owned pin. Omitted on catalog list/detail. No zone ids or names.',
+  })
+  coverage?: CustomerDeliveryCoverageDto;
 }
 
 export class CustomerStorefrontOpeningIntervalDto {
@@ -247,19 +297,6 @@ export class CustomerStorefrontDetailResponseDto extends CustomerStorefrontRespo
       'Public weekly schedule when hoursConfigured; empty days when not configured. No version/actor/interval ids.',
   })
   days!: CustomerStorefrontOpeningDayDto[];
-}
-
-export class CustomerDeliveryCoverageDto {
-  @ApiProperty()
-  inCoverage!: boolean;
-
-  @ApiProperty()
-  zoneCount!: number;
-
-  @ApiProperty({
-    enum: ['UNFILTERED', 'INSIDE', 'OUTSIDE', 'AMBIGUOUS'],
-  })
-  reason!: 'UNFILTERED' | 'INSIDE' | 'OUTSIDE' | 'AMBIGUOUS';
 }
 
 export class CustomerStorefrontListResponseDto {
