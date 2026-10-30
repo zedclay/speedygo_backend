@@ -25,6 +25,7 @@ import {
 } from '@nestjs/swagger';
 import type { AuthenticatedPrincipal } from '../../../auth/domain/auth.types';
 import { CurrentPrincipal } from '../../../auth/presentation/http/decorators/current-principal.decorator';
+import { RequireAuthAudience } from '../../../auth/presentation/http/decorators/require-auth-audience.decorator';
 import { STORAGE_MAX_BYTES } from '../../../../infrastructure/storage/domain/content-validation';
 import { storageMalformedMultipart } from '../../../../infrastructure/storage/domain/storage.errors';
 import { DriverService } from '../../application/driver.service';
@@ -45,6 +46,7 @@ import {
 
 @ApiTags('driver')
 @ApiBearerAuth()
+@RequireAuthAudience('DRIVER')
 @Controller('driver')
 export class DriverController {
   constructor(private readonly drivers: DriverService) {}

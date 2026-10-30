@@ -4,6 +4,8 @@ import {
   type SpeedyGoDb,
 } from '../../../infrastructure/database/database.module';
 import {
+  NOTIFICATION_TYPE_ADMIN_DRIVER_VERIF,
+  NOTIFICATION_TYPE_ADMIN_MERCHANT_VERIF,
   NOTIFICATION_TYPE_DRIVER_EARNING_CREATED,
   NOTIFICATION_TYPE_MATCH_OFFER,
   NOTIFICATION_TYPE_PAYMENT_SUCCEEDED,
@@ -45,6 +47,18 @@ export type MatchOfferNotifyCandidate = {
   assignedAt: string;
   status: string;
   releasedAt: string | null;
+};
+
+export type AdminMerchantVerifCandidate = {
+  submissionId: string;
+  merchantId: string;
+  merchantName: string;
+  publicReference: string;
+};
+
+export type AdminDriverVerifCandidate = {
+  driverId: string;
+  driverFullName: string;
 };
 
 async function consumeQueryRows<T>(result: unknown): Promise<T[]> {
@@ -326,6 +340,76 @@ export class NotificationRecoveryRepository {
       })
       .build();
     return consumeQueryRows<MatchOfferNotifyCandidate>(
+      this.db().runtime().query(plan),
+    );
+  }
+
+  /**
+   * Formal merchant verification submissions with no Admin inbox row yet
+   * (commit→emit gap). Category key = ADMIN_MERCHANT_VERIF:{submissionId}.
+   */
+  async listMissingAdminMerchantVerifications(input: {
+    lookbackIso: string;
+    limit: number;
+  }): Promise<AdminMerchantVerifCandidate[]> {
+    const type = NOTIFICATION_TYPE_ADMIN_MERCHANT_VERIF;
+    const plan = this.db().raw.sql`
+      SELECT s.id AS "submissionId",
+             s.merchant_id AS "merchantId",
+             m.name AS "merchantName",
+             m.public_reference AS "publicReference"
+      FROM merchant_verification_submissions s
+      INNER JOIN merchants m ON m.id = s.merchant_id
+      WHERE s.submitted_at >= ${input.lookbackIso}::timestamptz
+        AND NOT EXISTS (
+          SELECT 1
+          FROM notifications n
+          WHERE n.category = (${type} || ':' || s.id::text)
+        )
+      ORDER BY s.submitted_at DESC
+      LIMIT ${input.limit}
+    `
+      .returnsRow({
+        submissionId: 'pg/uuid@1',
+        merchantId: 'pg/uuid@1',
+        merchantName: 'pg/varchar@1',
+        publicReference: 'pg/varchar@1',
+      })
+      .build();
+    return consumeQueryRows<AdminMerchantVerifCandidate>(
+      this.db().runtime().query(plan),
+    );
+  }
+
+  /**
+   * Drivers in PENDING_REVIEW with no Admin inbox row yet (commit→emit gap).
+   * Category key = ADMIN_DRIVER_VERIF:{driverProfileId}.
+   */
+  async listMissingAdminDriverVerifications(input: {
+    lookbackIso: string;
+    limit: number;
+  }): Promise<AdminDriverVerifCandidate[]> {
+    const type = NOTIFICATION_TYPE_ADMIN_DRIVER_VERIF;
+    const plan = this.db().raw.sql`
+      SELECT dp.id AS "driverId",
+             dp.full_name AS "driverFullName"
+      FROM driver_profiles dp
+      WHERE dp.verification_status = 'PENDING_REVIEW'
+        AND dp.updated_at >= ${input.lookbackIso}::timestamptz
+        AND NOT EXISTS (
+          SELECT 1
+          FROM notifications n
+          WHERE n.category = (${type} || ':' || dp.id::text)
+        )
+      ORDER BY dp.updated_at DESC
+      LIMIT ${input.limit}
+    `
+      .returnsRow({
+        driverId: 'pg/uuid@1',
+        driverFullName: 'pg/varchar@1',
+      })
+      .build();
+    return consumeQueryRows<AdminDriverVerifCandidate>(
       this.db().runtime().query(plan),
     );
   }

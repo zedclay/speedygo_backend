@@ -3,6 +3,18 @@ import {
   notificationIntegrityConflict,
   notificationNotFound,
 } from '../domain/notification.errors';
+import { adminNotificationPermissionFor } from '../domain/admin-notification.policy';
+import {
+  ADMIN_TEMPLATE_AUDIENCE,
+  ADMIN_TEMPLATE_CHANNEL_IN_APP,
+  ADMIN_TEMPLATE_DEFAULTS,
+  ADMIN_TEMPLATE_LOCALES,
+  adminTemplateCode,
+  factoryFallbackCopy,
+  normalizeAdminTemplateLocale,
+  renderAdminTemplate,
+  type AdminTemplateLocale,
+} from '../domain/admin-notification-template.policy';
 import {
   buildNotificationCategory,
   copyDeliveryCompleted,
@@ -32,6 +44,9 @@ import {
   NOTIFICATION_DELIVERY_SENT,
   NOTIFICATION_DELIVERY_SKIPPED_NOT_CONFIGURED,
   NOTIFICATION_PUSH_ENABLED_TYPES,
+  NOTIFICATION_TYPE_ADMIN_DRIVER_VERIF,
+  NOTIFICATION_TYPE_ADMIN_MERCHANT_VERIF,
+  NOTIFICATION_TYPE_ADMIN_SUPPORT_TICKET,
   NOTIFICATION_TYPE_DELIVERY_COMPLETED,
   NOTIFICATION_TYPE_DRIVER_ASSIGNED,
   NOTIFICATION_TYPE_DRIVER_EARNING_CREATED,
@@ -48,6 +63,7 @@ import {
   type EmitNotificationInput,
   type NotificationListView,
   type NotificationRecord,
+  type NotificationTypeAdminV1,
   type NotificationView,
 } from '../domain/notification.types';
 import {
@@ -122,6 +138,7 @@ export class NotificationService {
           title: input.title.trim(),
           body: input.body.trim(),
           category,
+          templateId: input.templateId ?? null,
         },
         tx,
       );
@@ -439,6 +456,200 @@ export class NotificationService {
         ...copy,
       });
     }
+  }
+
+  /**
+   * Fan-out Admin operational notification. Best-effort after the business
+   * commit (never rolls back the source TX). Optional resurface marks an
+   * existing row unread, refreshes copy, and bumps createdAt — used for
+   * Driver re-submit after reject (same sourceId = driver profile id).
+   * Recovery must pass resurfaceIfExists:false so an unchanged PENDING_REVIEW
+   * gap-fill does not reopen a read receipt. Merchant uses submission id so
+   * each formal submit is a distinct category.
+   *
+   * Title/body are resolved **per recipient** from AdminProfile.preferredLocale
+   * (never from the source Driver/Merchant/Customer). Persisted snapshots are
+   * immutable on later template edits; live resurface refreshes copy from the
+   * current template for that recipient's locale only.
+   */
+  async notifyAdminAudience(input: {
+    type: NotificationTypeAdminV1;
+    sourceId: string;
+    vars: Record<string, string>;
+    resurfaceIfExists?: boolean;
+  }): Promise<void> {
+    const permission = adminNotificationPermissionFor(input.type);
+    const recipients =
+      await this.notifications.findAdminRecipientsWithPermission(permission);
+    for (const recipient of recipients) {
+      const locale = normalizeAdminTemplateLocale(recipient.preferredLocale);
+      const copy = await this.resolveAdminEmitCopy(
+        input.type,
+        input.vars,
+        locale,
+      );
+      let emitted: Awaited<ReturnType<NotificationService['emitLogical']>>;
+      try {
+        emitted = await this.emitLogical({
+          type: input.type,
+          sourceId: input.sourceId,
+          accountId: recipient.accountId,
+          title: copy.title,
+          body: copy.body,
+          templateId: copy.templateId,
+        });
+      } catch (error) {
+        this.logger.warn(
+          `notification emit failed type=${input.type} source=${input.sourceId} account=${recipient.accountId} err=${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+        continue;
+      }
+      // Live Driver resubmit: always resurface existing rows (unread + copy +
+      // createdAt). Recovery passes resurfaceIfExists:false and must not reopen
+      // read receipts or bump timestamps for an unchanged PENDING_REVIEW gap-fill.
+      if (!emitted.created && input.resurfaceIfExists) {
+        try {
+          await this.notifications.resurfaceOwned(
+            recipient.accountId,
+            emitted.notification.id,
+            copy.title,
+            copy.body,
+          );
+        } catch (error) {
+          this.logger.warn(
+            `notification resurface failed id=${emitted.notification.id} err=${
+              error instanceof Error ? error.message : String(error)
+            }`,
+          );
+        }
+      }
+      if (!emitted.created || !emitted.pushPending) {
+        continue;
+      }
+      try {
+        await this.jobs.enqueuePushSend(emitted.notification.id);
+      } catch (error) {
+        this.logger.warn(
+          `push enqueue failed notification=${emitted.notification.id} err=${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
+      }
+    }
+  }
+
+  /**
+   * Resolve active catalogue row for the recipient locale → render;
+   * else locale-scoped factory fallback (never the other locale's catalogue).
+   * Does not mutate existing Notification rows.
+   */
+  async resolveAdminEmitCopy(
+    type: NotificationTypeAdminV1,
+    vars: Record<string, string>,
+    locale: AdminTemplateLocale = 'fr',
+  ): Promise<{ title: string; body: string; templateId: string | null }> {
+    const code = adminTemplateCode(type, locale);
+    try {
+      const row =
+        await this.notifications.findNotificationTemplateByCode(code);
+      if (row && row.active) {
+        const rendered = renderAdminTemplate(
+          row.titleTemplate,
+          row.bodyTemplate,
+          vars,
+        );
+        if (rendered.title.length > 0 && rendered.body.length > 0) {
+          return {
+            title: rendered.title,
+            body: rendered.body,
+            templateId: row.id,
+          };
+        }
+      }
+    } catch (error) {
+      this.logger.warn(
+        `admin template resolve failed type=${type} locale=${locale} err=${
+          error instanceof Error ? error.message : String(error)
+        }`,
+      );
+    }
+    const fallback = factoryFallbackCopy(type, vars, locale);
+    return { ...fallback, templateId: null };
+  }
+
+  /** Idempotent seed of the six Admin IN_APP catalogue rows (fr+ar × 3 types). */
+  async ensureAdminNotificationTemplates(): Promise<void> {
+    const types: NotificationTypeAdminV1[] = [
+      NOTIFICATION_TYPE_ADMIN_DRIVER_VERIF,
+      NOTIFICATION_TYPE_ADMIN_MERCHANT_VERIF,
+      NOTIFICATION_TYPE_ADMIN_SUPPORT_TICKET,
+    ];
+    for (const type of types) {
+      for (const locale of ADMIN_TEMPLATE_LOCALES) {
+        const code = adminTemplateCode(type, locale as AdminTemplateLocale);
+        const existing =
+          await this.notifications.findNotificationTemplateByCode(code);
+        if (existing) continue;
+        const defaults = ADMIN_TEMPLATE_DEFAULTS[type][locale];
+        await this.notifications.createNotificationTemplate({
+          code,
+          audience: ADMIN_TEMPLATE_AUDIENCE,
+          trigger: type,
+          channel: ADMIN_TEMPLATE_CHANNEL_IN_APP,
+          titleTemplate: defaults.title,
+          bodyTemplate: defaults.body,
+          active: true,
+        });
+      }
+    }
+  }
+
+  async notifyAdminDriverVerificationSubmitted(input: {
+    driverId: string;
+    driverFullName: string;
+    /** When true (live submit), refresh unread if a prior row exists. */
+    resurfaceIfExists?: boolean;
+  }): Promise<void> {
+    await this.notifyAdminAudience({
+      type: NOTIFICATION_TYPE_ADMIN_DRIVER_VERIF,
+      sourceId: input.driverId,
+      resurfaceIfExists: input.resurfaceIfExists ?? true,
+      vars: { driverFullName: input.driverFullName },
+    });
+  }
+
+  async notifyAdminMerchantVerificationSubmitted(input: {
+    /** MerchantVerificationSubmission id — idempotency + distinct later submits. */
+    submissionId: string;
+    merchantId: string;
+    merchantName: string;
+    publicReference: string;
+  }): Promise<void> {
+    await this.notifyAdminAudience({
+      type: NOTIFICATION_TYPE_ADMIN_MERCHANT_VERIF,
+      sourceId: input.submissionId,
+      vars: {
+        merchantName: input.merchantName,
+        publicReference: input.publicReference,
+      },
+    });
+  }
+
+  async notifyAdminSupportTicketCreated(input: {
+    ticketId: string;
+    publicReference: string;
+    subject: string | null;
+  }): Promise<void> {
+    await this.notifyAdminAudience({
+      type: NOTIFICATION_TYPE_ADMIN_SUPPORT_TICKET,
+      sourceId: input.ticketId,
+      vars: {
+        publicReference: input.publicReference,
+        subject: input.subject?.trim() || '—',
+      },
+    });
   }
 
   async listForAccount(

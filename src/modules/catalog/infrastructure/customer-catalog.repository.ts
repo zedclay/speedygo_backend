@@ -57,11 +57,55 @@ export class CustomerCatalogRepository {
     return row?.id ?? null;
   }
 
+  async findOwnedAddress(
+    customerId: string,
+    addressId: string,
+  ): Promise<{
+    id: string;
+    latitude: number;
+    longitude: number;
+  } | null> {
+    const row = await orm(this.db())
+      .Address.where({ id: addressId, customerId })
+      .first();
+    if (!row) {
+      return null;
+    }
+    const latitude = Number(row.latitude);
+    const longitude = Number(row.longitude);
+    return { id: row.id, latitude, longitude };
+  }
+
+  async findCoveringZones(
+    latitude: number,
+    longitude: number,
+  ): Promise<Array<{ id: string; name: string }>> {
+    const client = this.db();
+    const plan = client.raw.sql`
+      SELECT id, name
+      FROM delivery_zones
+      WHERE active = true
+        AND ST_Covers(
+          geometry,
+          ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)
+        )
+    `
+      .returnsRow({
+        id: 'pg/uuid@1',
+        name: 'sql/varchar@1',
+      })
+      .build();
+    const rows = await client.runtime().query(plan);
+    return rows.map((row) => ({ id: row.id, name: String(row.name) }));
+  }
+
   async listStorefronts(input: {
     limit: number;
     offset: number;
     verticalId?: string;
     openNowLocal?: OpenNowLocalParts;
+    coverageZoneId?: string;
+    wilayaCode?: string;
   }): Promise<CustomerCatalogPage<CustomerStorefrontBase>> {
     return input.verticalId
       ? this.listStorefrontsByVertical({
@@ -69,11 +113,15 @@ export class CustomerCatalogRepository {
           offset: input.offset,
           verticalId: input.verticalId,
           openNowLocal: input.openNowLocal,
+          coverageZoneId: input.coverageZoneId,
+          wilayaCode: input.wilayaCode,
         })
       : this.listStorefrontsUnfiltered({
           limit: input.limit,
           offset: input.offset,
           openNowLocal: input.openNowLocal,
+          coverageZoneId: input.coverageZoneId,
+          wilayaCode: input.wilayaCode,
         });
   }
 
@@ -81,6 +129,8 @@ export class CustomerCatalogRepository {
     limit: number;
     offset: number;
     openNowLocal?: OpenNowLocalParts;
+    coverageZoneId?: string;
+    wilayaCode?: string;
   }): Promise<CustomerCatalogPage<CustomerStorefrontBase>> {
     const db = this.db();
     const openNowFlag = input.openNowLocal !== undefined ? 1 : 0;
@@ -90,6 +140,11 @@ export class CustomerCatalogRepository {
     const localDate = input.openNowLocal?.localDate ?? '2000-01-02';
     const previousLocalDate =
       input.openNowLocal?.previousLocalDate ?? '2000-01-01';
+    const useCoverage = input.coverageZoneId ? 1 : 0;
+    const coverageZoneId =
+      input.coverageZoneId ?? '00000000-0000-0000-0000-000000000000';
+    const useWilaya = input.wilayaCode ? 1 : 0;
+    const wilayaCode = input.wilayaCode ?? '00';
     const countPlan = db.raw.sql`
         SELECT COUNT(*)::int8 AS total
         FROM merchant_branches b
@@ -170,6 +225,22 @@ export class CustomerCatalogRepository {
                   )
               )
             )
+          )
+          AND (
+            ${useCoverage} = 0
+            OR ST_Covers(
+              (
+                SELECT z.geometry
+                FROM delivery_zones z
+                WHERE z.id = ${coverageZoneId}::uuid
+                  AND z.active = true
+              ),
+              ST_SetSRID(ST_MakePoint(b.longitude, b.latitude), 4326)
+            )
+          )
+          AND (
+            ${useWilaya} = 0
+            OR b.wilaya_code = ${wilayaCode}
           )
       `
       .returnsRow({ total: 'pg/int8@1' })
@@ -270,6 +341,22 @@ export class CustomerCatalogRepository {
                   )
               )
             )
+          )
+          AND (
+            ${useCoverage} = 0
+            OR ST_Covers(
+              (
+                SELECT z.geometry
+                FROM delivery_zones z
+                WHERE z.id = ${coverageZoneId}::uuid
+                  AND z.active = true
+              ),
+              ST_SetSRID(ST_MakePoint(b.longitude, b.latitude), 4326)
+            )
+          )
+          AND (
+            ${useWilaya} = 0
+            OR b.wilaya_code = ${wilayaCode}
           )
         ORDER BY b.name ASC, b.id ASC
         LIMIT ${input.limit} OFFSET ${input.offset}
@@ -289,6 +376,8 @@ export class CustomerCatalogRepository {
     offset: number;
     verticalId: string;
     openNowLocal?: OpenNowLocalParts;
+    coverageZoneId?: string;
+    wilayaCode?: string;
   }): Promise<CustomerCatalogPage<CustomerStorefrontBase>> {
     const db = this.db();
     const openNowFlag = input.openNowLocal !== undefined ? 1 : 0;
@@ -298,6 +387,11 @@ export class CustomerCatalogRepository {
     const localDate = input.openNowLocal?.localDate ?? '2000-01-02';
     const previousLocalDate =
       input.openNowLocal?.previousLocalDate ?? '2000-01-01';
+    const useCoverage = input.coverageZoneId ? 1 : 0;
+    const coverageZoneId =
+      input.coverageZoneId ?? '00000000-0000-0000-0000-000000000000';
+    const useWilaya = input.wilayaCode ? 1 : 0;
+    const wilayaCode = input.wilayaCode ?? '00';
     const countPlan = db.raw.sql`
         SELECT COUNT(*)::int8 AS total
         FROM merchant_branches b
@@ -382,6 +476,22 @@ export class CustomerCatalogRepository {
                   )
               )
             )
+          )
+          AND (
+            ${useCoverage} = 0
+            OR ST_Covers(
+              (
+                SELECT z.geometry
+                FROM delivery_zones z
+                WHERE z.id = ${coverageZoneId}::uuid
+                  AND z.active = true
+              ),
+              ST_SetSRID(ST_MakePoint(b.longitude, b.latitude), 4326)
+            )
+          )
+          AND (
+            ${useWilaya} = 0
+            OR b.wilaya_code = ${wilayaCode}
           )
       `
       .returnsRow({ total: 'pg/int8@1' })
@@ -486,6 +596,22 @@ export class CustomerCatalogRepository {
                   )
               )
             )
+          )
+          AND (
+            ${useCoverage} = 0
+            OR ST_Covers(
+              (
+                SELECT z.geometry
+                FROM delivery_zones z
+                WHERE z.id = ${coverageZoneId}::uuid
+                  AND z.active = true
+              ),
+              ST_SetSRID(ST_MakePoint(b.longitude, b.latitude), 4326)
+            )
+          )
+          AND (
+            ${useWilaya} = 0
+            OR b.wilaya_code = ${wilayaCode}
           )
         ORDER BY b.name ASC, b.id ASC
         LIMIT ${input.limit} OFFSET ${input.offset}
@@ -770,6 +896,9 @@ export class CustomerCatalogRepository {
     query: string;
     limit: number;
     offset: number;
+    hitType?: 'STOREFRONT' | 'PRODUCT';
+    openNowLocal?: OpenNowLocalParts;
+    coverageZoneId?: string;
   }): Promise<CustomerCatalogPage<CustomerCatalogSearchHitBase>> {
     // Defense in depth: service must normalize first; never run ILIKE '%%'.
     if (
@@ -782,10 +911,25 @@ export class CustomerCatalogRepository {
     }
     const db = this.db();
     const like = `%${input.query}%`;
-
+    const hitTypes =
+      input.hitType === 'STOREFRONT'
+        ? 'STOREFRONT'
+        : input.hitType === 'PRODUCT'
+          ? 'PRODUCT'
+          : 'STOREFRONT,PRODUCT';
+    const openNowFlag = input.openNowLocal !== undefined ? 1 : 0;
+    const localDay = input.openNowLocal?.dayOfWeek ?? 1;
+    const prevDay = input.openNowLocal?.previousDayOfWeek ?? 7;
+    const minute = input.openNowLocal?.minuteOfDay ?? 0;
+    const localDate = input.openNowLocal?.localDate ?? '2000-01-02';
+    const previousLocalDate =
+      input.openNowLocal?.previousLocalDate ?? '2000-01-01';
+    const useCoverage = input.coverageZoneId ? 1 : 0;
+    const coverageZoneId =
+      input.coverageZoneId ?? '00000000-0000-0000-0000-000000000000';
     const countPlan = db.raw.sql`
         SELECT COUNT(*)::int8 AS total FROM (
-          SELECT b.id AS hit_id
+          SELECT 'STOREFRONT'::varchar AS hit_type, b.id AS hit_id, b.id AS branch_id
           FROM merchant_branches b
           INNER JOIN merchants m ON m.id = b.merchant_id
           WHERE m.status = 'ACTIVE'
@@ -797,7 +941,7 @@ export class CustomerCatalogRepository {
               OR m.name ILIKE ${like}
             )
           UNION ALL
-          SELECT p.id AS hit_id
+          SELECT 'PRODUCT'::varchar AS hit_type, p.id AS hit_id, b.id AS branch_id
           FROM products p
           INNER JOIN categories c ON c.id = p.category_id
           INNER JOIN merchant_branches b ON b.id = p.merchant_branch_id
@@ -810,6 +954,93 @@ export class CustomerCatalogRepository {
             AND p.available = true
             AND p.name ILIKE ${like}
         ) hits
+        INNER JOIN merchant_branches b ON b.id = hits.branch_id
+        WHERE hits.hit_type = ANY (string_to_array(${hitTypes}, ','))
+          AND (
+            ${openNowFlag} = 0
+            OR (
+              (
+                EXISTS (
+                  SELECT 1
+                  FROM merchant_branch_hours_exceptions he
+                  INNER JOIN merchant_branch_hours_exception_intervals hi ON hi.exception_id = he.id
+                  WHERE he.branch_id = b.id
+                    AND he.local_date = ${localDate}::date
+                    AND he.closed = false
+                    AND ${minute} >= hi.opens_minute
+                    AND (
+                      hi.closes_next_day = true
+                      OR ${minute} < hi.closes_minute
+                    )
+                    AND EXISTS (
+                      SELECT 1
+                      FROM merchant_branch_opening_schedules hs
+                      WHERE hs.branch_id = b.id
+                    )
+                )
+                OR (
+                  NOT EXISTS (
+                    SELECT 1
+                    FROM merchant_branch_hours_exceptions ht
+                    WHERE ht.branch_id = b.id
+                      AND ht.local_date = ${localDate}::date
+                  )
+                  AND EXISTS (
+                  SELECT 1
+                  FROM merchant_branch_opening_schedules s
+                  INNER JOIN merchant_branch_opening_intervals i ON i.schedule_id = s.id
+                  WHERE s.branch_id = b.id
+                    AND (
+                      (
+                        i.day_of_week = ${localDay}
+                        AND ${minute} >= i.opens_minute
+                        AND (
+                          i.closes_next_day = true
+                          OR ${minute} < i.closes_minute
+                        )
+                      )
+                      OR (
+                        i.day_of_week = ${prevDay}
+                        AND i.closes_next_day = true
+                        AND ${minute} < i.closes_minute
+                        AND NOT EXISTS (
+                          SELECT 1
+                          FROM merchant_branch_hours_exceptions hp
+                          WHERE hp.branch_id = b.id
+                            AND hp.local_date = ${previousLocalDate}::date
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                FROM merchant_branch_availability_overrides o
+                WHERE o.branch_id = b.id
+                  AND (
+                    o.mode = 'FORCE_CLOSED'
+                    OR (
+                      o.mode = 'TEMPORARY_CLOSED'
+                      AND o.closed_until IS NOT NULL
+                      AND o.closed_until > NOW()
+                    )
+                  )
+              )
+            )
+          )
+          AND (
+            ${useCoverage} = 0
+            OR ST_Covers(
+              (
+                SELECT z.geometry
+                FROM delivery_zones z
+                WHERE z.id = ${coverageZoneId}::uuid
+                  AND z.active = true
+              ),
+              ST_SetSRID(ST_MakePoint(b.longitude, b.latitude), 4326)
+            )
+          )
       `
       .returnsRow({ total: 'pg/int8@1' })
       .build();
@@ -820,7 +1051,7 @@ export class CustomerCatalogRepository {
     }
 
     const pagePlan = db.raw.sql`
-        SELECT * FROM (
+        SELECT hits.* FROM (
           SELECT
             'STOREFRONT'::varchar AS hit_type,
             b.name AS sort_name,
@@ -885,7 +1116,94 @@ export class CustomerCatalogRepository {
             AND p.available = true
             AND p.name ILIKE ${like}
         ) hits
-        ORDER BY hit_type ASC, sort_name ASC, sort_id ASC
+        INNER JOIN merchant_branches b ON b.id = hits.branch_id
+        WHERE hits.hit_type = ANY (string_to_array(${hitTypes}, ','))
+          AND (
+            ${openNowFlag} = 0
+            OR (
+              (
+                EXISTS (
+                  SELECT 1
+                  FROM merchant_branch_hours_exceptions he
+                  INNER JOIN merchant_branch_hours_exception_intervals hi ON hi.exception_id = he.id
+                  WHERE he.branch_id = b.id
+                    AND he.local_date = ${localDate}::date
+                    AND he.closed = false
+                    AND ${minute} >= hi.opens_minute
+                    AND (
+                      hi.closes_next_day = true
+                      OR ${minute} < hi.closes_minute
+                    )
+                    AND EXISTS (
+                      SELECT 1
+                      FROM merchant_branch_opening_schedules hs
+                      WHERE hs.branch_id = b.id
+                    )
+                )
+                OR (
+                  NOT EXISTS (
+                    SELECT 1
+                    FROM merchant_branch_hours_exceptions ht
+                    WHERE ht.branch_id = b.id
+                      AND ht.local_date = ${localDate}::date
+                  )
+                  AND EXISTS (
+                  SELECT 1
+                  FROM merchant_branch_opening_schedules s
+                  INNER JOIN merchant_branch_opening_intervals i ON i.schedule_id = s.id
+                  WHERE s.branch_id = b.id
+                    AND (
+                      (
+                        i.day_of_week = ${localDay}
+                        AND ${minute} >= i.opens_minute
+                        AND (
+                          i.closes_next_day = true
+                          OR ${minute} < i.closes_minute
+                        )
+                      )
+                      OR (
+                        i.day_of_week = ${prevDay}
+                        AND i.closes_next_day = true
+                        AND ${minute} < i.closes_minute
+                        AND NOT EXISTS (
+                          SELECT 1
+                          FROM merchant_branch_hours_exceptions hp
+                          WHERE hp.branch_id = b.id
+                            AND hp.local_date = ${previousLocalDate}::date
+                        )
+                      )
+                    )
+                  )
+                )
+              )
+              AND NOT EXISTS (
+                SELECT 1
+                FROM merchant_branch_availability_overrides o
+                WHERE o.branch_id = b.id
+                  AND (
+                    o.mode = 'FORCE_CLOSED'
+                    OR (
+                      o.mode = 'TEMPORARY_CLOSED'
+                      AND o.closed_until IS NOT NULL
+                      AND o.closed_until > NOW()
+                    )
+                  )
+              )
+            )
+          )
+          AND (
+            ${useCoverage} = 0
+            OR ST_Covers(
+              (
+                SELECT z.geometry
+                FROM delivery_zones z
+                WHERE z.id = ${coverageZoneId}::uuid
+                  AND z.active = true
+              ),
+              ST_SetSRID(ST_MakePoint(b.longitude, b.latitude), 4326)
+            )
+          )
+        ORDER BY hits.hit_type ASC, hits.sort_name ASC, hits.sort_id ASC
         LIMIT ${input.limit} OFFSET ${input.offset}
       `
       .returnsRow({

@@ -10,6 +10,7 @@ import {
   type PgTimestamptz,
 } from '../../../infrastructure/database/pg-values';
 import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
+import { readAddressDetails } from '../../../common/address/address-details';
 import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import {
   ORDER_FULFILLMENT_READY,
@@ -121,14 +122,13 @@ export class DeliveryRepository {
     };
   }
 
-  async lockPayment(
+  async findPaymentSummary(
     orderId: string,
-    client: OrmClient,
+    client?: OrmClient,
   ): Promise<{ method: string; status: string; amountMinor: number } | null> {
-    await orm(client).Payment.where({ orderId }).update({
-      updatedAt: pgNow(),
-    });
-    const row = await orm(client).Payment.where({ orderId }).first();
+    const row = await orm(client ?? this.db())
+      .Payment.where({ orderId })
+      .first();
     if (!row) {
       return null;
     }
@@ -137,6 +137,16 @@ export class DeliveryRepository {
       status: row.status,
       amountMinor: parseMinorUnits(row.amountMinor),
     };
+  }
+
+  async lockPayment(
+    orderId: string,
+    client: OrmClient,
+  ): Promise<{ method: string; status: string; amountMinor: number } | null> {
+    await orm(client).Payment.where({ orderId }).update({
+      updatedAt: pgNow(),
+    });
+    return this.findPaymentSummary(orderId, client);
   }
 
   async findSnapshotCustomerPayable(
@@ -421,6 +431,7 @@ export class DeliveryRepository {
         addressText: address.addressText,
         latitude: parseCoordinate(address.latitude),
         longitude: parseCoordinate(address.longitude),
+        ...readAddressDetails(address),
         instructions: address.instructions,
       },
       deliveryFeeMinor: financial

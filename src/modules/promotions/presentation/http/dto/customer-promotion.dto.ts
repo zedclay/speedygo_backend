@@ -58,6 +58,43 @@ export class CustomerDiscoverablePromotionDto {
       'Available to discover. Not a guarantee that Checkout will apply the code to a cart.',
   })
   eligibility!: typeof CUSTOMER_PROMOTION_ELIGIBILITY_DISCOVERABLE;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    format: 'uuid',
+    description:
+      'Present only when the campaign has a stored merchant relationship. Current Promotion model has no merchant FK — omitted.',
+  })
+  merchantId?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    format: 'uuid',
+    description:
+      'Present only when the campaign has a stored branch relationship. Current Promotion model has no branch FK — omitted.',
+  })
+  branchId?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Customer-safe merchant name when merchantId is present. Never inferred from customerLabel.',
+  })
+  merchantName?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Existing authenticated image path bound to the campaign. Omitted when none exists. Not a Stitch stock photo.',
+  })
+  coverImageUrl?: string | null;
+
+  @ApiPropertyOptional({
+    nullable: true,
+    description:
+      'Canonical merchandise minimum spend in integer minor units as a decimal string. Omitted: Promotion has no min-spend column. Checkout remains authority.',
+  })
+  minSpendMinor?: string | null;
 }
 
 export class CustomerDiscoverablePromotionListDto {

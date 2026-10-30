@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { parseMoneyMinorDecimalString } from '../../../common/money/money-minor';
+import { loadStoredCentimes } from '../../../common/money/prisma-money-decimal';
 import { createUuidV7 } from '../../../common/utils/uuid-v7';
 import {
   PrismaService,
@@ -87,19 +87,11 @@ function toSettlement(row: {
     merchantId: row.merchantId,
     periodStart: row.periodStart,
     periodEnd: row.periodEnd,
-    grossSalesMinor: parseMoneyMinorDecimalString(row.grossSalesMinor),
-    commissionMinor: parseMoneyMinorDecimalString(row.commissionMinor),
-    refundAdjustmentsMinor: parseMoneyMinorDecimalString(
-      row.refundAdjustmentsMinor,
-      { allowNegative: true },
-    ),
-    manualAdjustmentsMinor: parseMoneyMinorDecimalString(
-      row.manualAdjustmentsMinor,
-      { allowNegative: true },
-    ),
-    netPayableMinor: parseMoneyMinorDecimalString(row.netPayableMinor, {
-      allowNegative: true,
-    }),
+    grossSalesMinor: loadStoredCentimes(row.grossSalesMinor),
+    commissionMinor: loadStoredCentimes(row.commissionMinor),
+    refundAdjustmentsMinor: loadStoredCentimes(row.refundAdjustmentsMinor),
+    manualAdjustmentsMinor: loadStoredCentimes(row.manualAdjustmentsMinor),
+    netPayableMinor: loadStoredCentimes(row.netPayableMinor),
     status: row.status,
     paidAt: row.paidAt,
     createdAt: row.createdAt,
@@ -131,14 +123,10 @@ function toLine(row: {
     settlementId: row.settlementId,
     orderId: row.orderId,
     type: row.type,
-    grossMerchandiseMinor: parseMoneyMinorDecimalString(
-      row.grossMerchandiseMinor,
-    ),
-    commissionMinor: parseMoneyMinorDecimalString(row.commissionMinor),
-    merchantNetMinor: parseMoneyMinorDecimalString(row.merchantNetMinor),
-    adjustmentMinor: parseMoneyMinorDecimalString(row.adjustmentMinor, {
-      allowNegative: true,
-    }),
+    grossMerchandiseMinor: loadStoredCentimes(row.grossMerchandiseMinor),
+    commissionMinor: loadStoredCentimes(row.commissionMinor),
+    merchantNetMinor: loadStoredCentimes(row.merchantNetMinor),
+    adjustmentMinor: loadStoredCentimes(row.adjustmentMinor),
     reference: row.reference,
     createdAt: row.createdAt,
   };
@@ -467,13 +455,13 @@ export class MerchantSettlementRepository {
       completedAt: String(row.completed_at),
       orderStatus: String(row.order_status),
       paymentStatus: String(row.payment_status),
-      grossMerchandiseSubtotalMinor: parseMoneyMinorDecimalString(
+      grossMerchandiseSubtotalMinor: loadStoredCentimes(
         row.gross_merchandise_subtotal_minor,
       ),
-      merchantCommissionAmountMinor: parseMoneyMinorDecimalString(
+      merchantCommissionAmountMinor: loadStoredCentimes(
         row.merchant_commission_amount_minor,
       ),
-      merchantNetAmountMinor: parseMoneyMinorDecimalString(
+      merchantNetAmountMinor: loadStoredCentimes(
         row.merchant_net_amount_minor,
       ),
     }));
@@ -516,13 +504,13 @@ export class MerchantSettlementRepository {
       orderStatus: order.status,
       completedAt: order.completedAt,
       paymentStatus: payment.status,
-      grossMerchandiseSubtotalMinor: parseMoneyMinorDecimalString(
+      grossMerchandiseSubtotalMinor: loadStoredCentimes(
         snapshot.grossMerchandiseSubtotalMinor,
       ),
-      merchantCommissionAmountMinor: parseMoneyMinorDecimalString(
+      merchantCommissionAmountMinor: loadStoredCentimes(
         snapshot.merchantCommissionAmountMinor,
       ),
-      merchantNetAmountMinor: parseMoneyMinorDecimalString(
+      merchantNetAmountMinor: loadStoredCentimes(
         snapshot.merchantNetAmountMinor,
       ),
     };
@@ -552,7 +540,7 @@ export class MerchantSettlementRepository {
       refundId: refund.id,
       orderId: refund.orderId,
       status: refund.status,
-      amountMinor: parseMoneyMinorDecimalString(refund.amountMinor),
+      amountMinor: loadStoredCentimes(refund.amountMinor),
       completedAt: refund.completedAt,
       merchantId: orderCtx.merchantId,
     };

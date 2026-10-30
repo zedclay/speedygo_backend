@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { SecureDocumentStorageService } from '../../../infrastructure/storage/application/secure-document-storage.service';
+import { NotificationService } from '../../notifications/application/notification.service';
 import {
   legalAcceptanceRequired,
   legalVersionOutdated,
@@ -48,6 +49,7 @@ export class MerchantVerificationService {
     private readonly merchants: MerchantRepository,
     private readonly access: MerchantAccessService,
     private readonly secureDocuments: SecureDocumentStorageService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async getVerification(
@@ -261,6 +263,7 @@ export class MerchantVerificationService {
     // submit transaction.
     await this.merchants.ensureActiveLegalVersions();
 
+    let submissionId: string | undefined;
     await this.merchants.runInTransaction(async (tx) => {
       const locked = await this.merchants.lockMerchant(merchantId, tx);
       if (!locked) {
@@ -310,6 +313,7 @@ export class MerchantVerificationService {
         { merchantId, submittedByAccountId: accountId },
         tx,
       );
+      submissionId = submission.id;
       await this.merchants.createLegalAcceptances(
         {
           merchantId,
@@ -330,6 +334,16 @@ export class MerchantVerificationService {
       }
       await this.merchants.markDocumentsSubmitted(merchantId, tx);
     });
+
+    const merchant = await this.merchants.findMerchant(merchantId);
+    if (merchant && submissionId) {
+      await this.notifications.notifyAdminMerchantVerificationSubmitted({
+        submissionId,
+        merchantId: merchant.id,
+        merchantName: merchant.name,
+        publicReference: merchant.publicReference,
+      });
+    }
 
     return this.loadMembershipView(accountId, merchantId);
   }

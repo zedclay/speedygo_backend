@@ -103,6 +103,10 @@ class MemoryCustomerRepository {
       addressText: input.addressText,
       latitude: input.latitude,
       longitude: input.longitude,
+      building: input.building ?? null,
+      floor: input.floor ?? null,
+      entrance: input.entrance ?? null,
+      landmark: input.landmark ?? null,
       isDefault: isFirst,
       createdAt: now(),
       updatedAt: now(),
@@ -134,6 +138,18 @@ class MemoryCustomerRepository {
     }
     if (input.longitude !== undefined) {
       row.longitude = input.longitude;
+    }
+    if (input.building !== undefined) {
+      row.building = input.building;
+    }
+    if (input.floor !== undefined) {
+      row.floor = input.floor;
+    }
+    if (input.entrance !== undefined) {
+      row.entrance = input.entrance;
+    }
+    if (input.landmark !== undefined) {
+      row.landmark = input.landmark;
     }
     row.updatedAt = now();
     return Promise.resolve(row);
@@ -315,6 +331,43 @@ describe('CustomerAddressService', () => {
     });
     expect(updated.label).toBe('Work');
     expect(updated.addressText).toBe('Street 2');
+  });
+
+  it('persists structured details, leaves omitted fields, and clears blanks', async () => {
+    const created = await addresses.create(ACCOUNT_A, {
+      label: 'Home',
+      addressText: 'Cité 1500',
+      latitude: 35.1939,
+      longitude: -0.6417,
+      building: 'Bloc Z',
+      floor: '3',
+      entrance: 'B',
+      landmark: 'Mosquée',
+    });
+    expect(created).toMatchObject({
+      addressText: 'Cité 1500',
+      building: 'Bloc Z',
+      floor: '3',
+      entrance: 'B',
+      landmark: 'Mosquée',
+    });
+    const omitted = await addresses.update(ACCOUNT_A, created.id, {
+      label: 'Domicile',
+    });
+    expect(omitted.building).toBe('Bloc Z');
+    expect(omitted.floor).toBe('3');
+    expect(omitted.addressText).toBe('Cité 1500');
+    const cleared = await addresses.update(ACCOUNT_A, created.id, {
+      floor: null,
+      landmark: null,
+    });
+    expect(cleared.building).toBe('Bloc Z');
+    expect(cleared.floor).toBeNull();
+    expect(cleared.entrance).toBe('B');
+    expect(cleared.landmark).toBeNull();
+    expect(cleared.latitude).toBe(35.1939);
+    expect(cleared.longitude).toBe(-0.6417);
+    expect(cleared.isDefault).toBe(true);
   });
 
   it('deletes the default address without auto-selecting another', async () => {

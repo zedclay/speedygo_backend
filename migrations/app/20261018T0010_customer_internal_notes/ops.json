@@ -1,0 +1,242 @@
+[
+  {
+    "id": "table.customer_internal_notes",
+    "label": "Create table \"customer_internal_notes\"",
+    "summary": "Creates table \"customer_internal_notes\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "customer_internal_notes"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"customer_internal_notes\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_internal_notes\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"customer_internal_notes\"",
+        "sql": "CREATE TABLE \"public\".\"customer_internal_notes\" (\n  \"admin_id\" uuid NOT NULL,\n  \"body\" text NOT NULL,\n  \"category\" character varying(32) NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"customer_id\" uuid NOT NULL,\n  \"id\" uuid NOT NULL,\n  PRIMARY KEY (\"id\")\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"customer_internal_notes\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_internal_notes\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.customer_internal_notes.customer_internal_notes_admin_id_idx_78cc3551",
+    "label": "Create index \"customer_internal_notes_admin_id_idx_78cc3551\" on \"customer_internal_notes\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "customer_internal_notes_admin_id_idx_78cc3551",
+        "table": "customer_internal_notes"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"customer_internal_notes_admin_id_idx_78cc3551\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_internal_notes_admin_id_idx_78cc3551\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"customer_internal_notes_admin_id_idx_78cc3551\"",
+        "sql": "CREATE INDEX \"customer_internal_notes_admin_id_idx_78cc3551\" ON \"public\".\"customer_internal_notes\" (\"admin_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"customer_internal_notes_admin_id_idx_78cc3551\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_internal_notes_admin_id_idx_78cc3551\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.customer_internal_notes.customer_internal_notes_customer_created_cd59c338",
+    "label": "Create index \"customer_internal_notes_customer_created_cd59c338\" on \"customer_internal_notes\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "customer_internal_notes_customer_created_cd59c338",
+        "table": "customer_internal_notes"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"customer_internal_notes_customer_created_cd59c338\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_internal_notes_customer_created_cd59c338\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"customer_internal_notes_customer_created_cd59c338\"",
+        "sql": "CREATE INDEX \"customer_internal_notes_customer_created_cd59c338\" ON \"public\".\"customer_internal_notes\" (\"customer_id\", \"created_at\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"customer_internal_notes_customer_created_cd59c338\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_internal_notes_customer_created_cd59c338\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.customer_internal_notes.customer_internal_notes_customer_id_idx_e16dfa6b",
+    "label": "Create index \"customer_internal_notes_customer_id_idx_e16dfa6b\" on \"customer_internal_notes\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "customer_internal_notes_customer_id_idx_e16dfa6b",
+        "table": "customer_internal_notes"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"customer_internal_notes_customer_id_idx_e16dfa6b\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_internal_notes_customer_id_idx_e16dfa6b\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"customer_internal_notes_customer_id_idx_e16dfa6b\"",
+        "sql": "CREATE INDEX \"customer_internal_notes_customer_id_idx_e16dfa6b\" ON \"public\".\"customer_internal_notes\" (\"customer_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"customer_internal_notes_customer_id_idx_e16dfa6b\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_internal_notes_customer_id_idx_e16dfa6b\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.customer_internal_notes.customer_internal_notes_customer_id_fkey",
+    "label": "Add foreign key \"customer_internal_notes_customer_id_fkey\" on \"customer_internal_notes\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "customer_internal_notes_customer_id_fkey",
+        "table": "customer_internal_notes"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"customer_internal_notes_customer_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "customer_internal_notes_customer_id_fkey",
+          "public",
+          "\"public\".\"customer_internal_notes\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"customer_internal_notes_customer_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"customer_internal_notes\"\nADD CONSTRAINT \"customer_internal_notes_customer_id_fkey\"\nFOREIGN KEY (\"customer_id\")\nREFERENCES \"public\".\"customer_profiles\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"customer_internal_notes_customer_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "customer_internal_notes_customer_id_fkey",
+          "public",
+          "\"public\".\"customer_internal_notes\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.customer_internal_notes.customer_internal_notes_admin_id_fkey",
+    "label": "Add foreign key \"customer_internal_notes_admin_id_fkey\" on \"customer_internal_notes\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "customer_internal_notes_admin_id_fkey",
+        "table": "customer_internal_notes"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"customer_internal_notes_admin_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "customer_internal_notes_admin_id_fkey",
+          "public",
+          "\"public\".\"customer_internal_notes\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"customer_internal_notes_admin_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"customer_internal_notes\"\nADD CONSTRAINT \"customer_internal_notes_admin_id_fkey\"\nFOREIGN KEY (\"admin_id\")\nREFERENCES \"public\".\"admin_profiles\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"customer_internal_notes_admin_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "customer_internal_notes_admin_id_fkey",
+          "public",
+          "\"public\".\"customer_internal_notes\""
+        ]
+      }
+    ]
+  }
+]

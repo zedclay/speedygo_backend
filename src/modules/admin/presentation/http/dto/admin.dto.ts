@@ -15,8 +15,10 @@ import {
   MaxLength,
   Min,
   MinLength,
+  ValidateIf,
   ValidateNested,
 } from 'class-validator';
+import { TransformMoneyInputToMinorInt } from '../../../../../common/money/money-input.transform';
 import {
   ADMIN_LIST_DEFAULT_LIMIT,
   ADMIN_LIST_MAX_LIMIT,
@@ -116,6 +118,41 @@ export class AdminStatusListQueryDto extends AdminListQueryDto {
   status?: string;
 }
 
+/** Admin order list — additive customer/merchant scoping (filters applied before pagination). */
+export class AdminOrderListQueryDto extends AdminStatusListQueryDto {
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  customerId?: string;
+
+  @ApiPropertyOptional({
+    format: 'uuid',
+    description: 'Scopes to all branches of this merchant',
+  })
+  @IsOptional()
+  @IsUUID()
+  merchantId?: string;
+
+  @ApiPropertyOptional({ format: 'uuid' })
+  @IsOptional()
+  @IsUUID()
+  merchantBranchId?: string;
+
+  @ApiPropertyOptional({
+    description: 'Inclusive lower bound on Order.createdAt (ISO-8601)',
+  })
+  @IsOptional()
+  @IsISO8601()
+  createdFrom?: string;
+
+  @ApiPropertyOptional({
+    description: 'Exclusive upper bound on Order.createdAt (ISO-8601)',
+  })
+  @IsOptional()
+  @IsISO8601()
+  createdTo?: string;
+}
+
 export class AdminDriverListQueryDto extends AdminListQueryDto {
   @ApiPropertyOptional()
   @IsOptional()
@@ -169,6 +206,26 @@ export class AdminCodRemittanceListQueryDto extends AdminListQueryDto {
   @IsString()
   @MaxLength(64)
   status?: string;
+}
+
+const ADMIN_COD_DRIVER_RECONCILIATION_STATUSES = [
+  'RECONCILED',
+  'OUTSTANDING',
+  'PARTIAL',
+  'DISCREPANCY',
+] as const;
+
+export class AdminCodDriverSummaryListQueryDto extends AdminListQueryDto {
+  @ApiPropertyOptional({ description: 'Driver name or id search' })
+  @IsOptional()
+  @IsString()
+  @MaxLength(128)
+  q?: string;
+
+  @ApiPropertyOptional({ enum: ADMIN_COD_DRIVER_RECONCILIATION_STATUSES })
+  @IsOptional()
+  @IsIn([...ADMIN_COD_DRIVER_RECONCILIATION_STATUSES])
+  reconciliationStatus?: (typeof ADMIN_COD_DRIVER_RECONCILIATION_STATUSES)[number];
 }
 
 export class AdminAuditListQueryDto extends AdminListQueryDto {
@@ -255,11 +312,24 @@ export class CreateAdminRefundDto {
   @IsUUID()
   orderId!: string;
 
-  @ApiProperty({ minimum: 1 })
+  @ApiPropertyOptional({
+    description: 'minor-v1 only: refund amount in integer centimes',
+    minimum: 1,
+  })
+  @ValidateIf((o) => o.amount === undefined || o.amount === null)
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  amountMinor!: number;
+  amountMinor?: number;
+
+  @ApiPropertyOptional({
+    description: 'dzd-v2 only: refund amount as DZD majors e.g. "6.50"',
+    example: '6.50',
+  })
+  @ValidateIf((o) => o.amountMinor === undefined || o.amountMinor === null)
+  @IsOptional()
+  @IsString()
+  amount?: string;
 
   @ApiProperty({
     enum: [REFUND_METHOD_MANUAL_COD, REFUND_METHOD_MANUAL_OTHER],
@@ -290,11 +360,30 @@ export class AdminRefundNoteDto {
 }
 
 export class ConfirmCodRemittanceDto {
-  @ApiProperty({ minimum: 0 })
-  @Type(() => Number)
+  @ApiPropertyOptional({
+    description: 'v1 only: confirmed amount in integer centimes',
+    example: 65000,
+    minimum: 0,
+  })
+  @ValidateIf(
+    (o) => o.confirmedAmount === undefined || o.confirmedAmount === null,
+  )
+  @TransformMoneyInputToMinorInt()
   @IsInt()
   @Min(0)
-  confirmedAmountMinor!: number;
+  confirmedAmountMinor?: number;
+
+  @ApiPropertyOptional({
+    description: 'dzd-v2 only: confirmed DZD majors string e.g. "650.00"',
+    example: '650.00',
+  })
+  @ValidateIf(
+    (o) =>
+      o.confirmedAmountMinor === undefined || o.confirmedAmountMinor === null,
+  )
+  @IsOptional()
+  @IsString()
+  confirmedAmount?: string;
 }
 
 export class OpenSettlementDraftDto {
@@ -316,10 +405,28 @@ export class AttachSettlementRefundLiabilityDto {
   @IsUUID()
   refundId!: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description: 'minor-v1 only: merchant liability in integer centimes',
+  })
+  @ValidateIf(
+    (o) => o.merchantLiability === undefined || o.merchantLiability === null,
+  )
   @Type(() => Number)
   @IsInt()
-  merchantLiabilityMinor!: number;
+  merchantLiabilityMinor?: number;
+
+  @ApiPropertyOptional({
+    description: 'dzd-v2 only: merchant liability as DZD majors e.g. "10.00"',
+    example: '10.00',
+  })
+  @ValidateIf(
+    (o) =>
+      o.merchantLiabilityMinor === undefined ||
+      o.merchantLiabilityMinor === null,
+  )
+  @IsOptional()
+  @IsString()
+  merchantLiability?: string;
 }
 
 export class CreateAdminPromotionDto {
@@ -333,11 +440,24 @@ export class CreateAdminPromotionDto {
   @IsIn([...PROMOTION_TYPES_V1])
   type!: string;
 
-  @ApiProperty()
+  @ApiPropertyOptional({
+    description:
+      'RATE_BPS: integer basis points (both contracts). FIXED: minor-v1 integer centimes. dzd-v2 FIXED uses valueAmount instead.',
+  })
+  @ValidateIf((o) => o.valueAmount === undefined || o.valueAmount === null)
   @Type(() => Number)
   @IsInt()
   @Min(0)
-  value!: number;
+  value?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'dzd-v2 FIXED_* only: DZD majors string e.g. "10.00". Rejected on RATE_BPS.',
+    example: '10.00',
+  })
+  @IsOptional()
+  @IsString()
+  valueAmount?: string;
 
   @ApiProperty()
   @IsISO8601()
@@ -372,6 +492,27 @@ export class CreateAdminPromotionDto {
   customerLabel?: string | null;
 }
 
+export class UpdateAdminPromotionValueDto {
+  @ApiPropertyOptional({
+    description:
+      'RATE_BPS: integer basis points. FIXED minor-v1: integer centimes. dzd-v2 FIXED uses valueAmount instead.',
+  })
+  @ValidateIf((o) => o.valueAmount === undefined || o.valueAmount === null)
+  @Type(() => Number)
+  @IsInt()
+  @Min(0)
+  value?: number;
+
+  @ApiPropertyOptional({
+    description:
+      'dzd-v2 FIXED_* only: DZD majors string e.g. "10.00". Rejected on RATE_BPS.',
+    example: '10.00',
+  })
+  @IsOptional()
+  @IsString()
+  valueAmount?: string;
+}
+
 export class UpdateAdminPromotionPresentationDto {
   @ApiPropertyOptional({
     maxLength: 64,
@@ -383,4 +524,26 @@ export class UpdateAdminPromotionPresentationDto {
   @IsString()
   @MaxLength(64)
   customerLabel?: string | null;
+}
+
+/** Admin Order Operations v1.0 — offer-only assign. */
+export class AdminAssignOfferDto {
+  @ApiProperty({ format: 'uuid' })
+  @IsUUID()
+  driverId!: string;
+
+  @ApiProperty({ minLength: 1, maxLength: 255 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(255)
+  reason!: string;
+}
+
+/** Admin Order Operations v1.0 — early-window cancel. */
+export class AdminCancelOrderDto {
+  @ApiProperty({ minLength: 1, maxLength: 255 })
+  @IsString()
+  @MinLength(1)
+  @MaxLength(255)
+  reason!: string;
 }

@@ -1,0 +1,281 @@
+[
+  {
+    "id": "table.customer_favorites",
+    "label": "Create table \"customer_favorites\"",
+    "summary": "Creates table \"customer_favorites\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "table",
+        "name": "customer_favorites"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure table \"customer_favorites\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_favorites\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create table \"customer_favorites\"",
+        "sql": "CREATE TABLE \"public\".\"customer_favorites\" (\n  \"branch_id\" uuid NOT NULL,\n  \"created_at\" timestamptz(6) DEFAULT (now()) NOT NULL,\n  \"customer_id\" uuid NOT NULL,\n  \"id\" uuid NOT NULL,\n  \"target_id\" uuid NOT NULL,\n  \"target_kind\" character varying(16) NOT NULL,\n  PRIMARY KEY (\"id\"),\n  CONSTRAINT \"customer_favorites_kind_6a252a76\" CHECK (target_kind IN ('BRANCH', 'PRODUCT'))\n)",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify table \"customer_favorites\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_favorites\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.customer_favorites.customer_favorites_branch_id_idx_b5212172",
+    "label": "Create index \"customer_favorites_branch_id_idx_b5212172\" on \"customer_favorites\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "customer_favorites_branch_id_idx_b5212172",
+        "table": "customer_favorites"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"customer_favorites_branch_id_idx_b5212172\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_favorites_branch_id_idx_b5212172\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"customer_favorites_branch_id_idx_b5212172\"",
+        "sql": "CREATE INDEX \"customer_favorites_branch_id_idx_b5212172\" ON \"public\".\"customer_favorites\" (\"branch_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"customer_favorites_branch_id_idx_b5212172\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_favorites_branch_id_idx_b5212172\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.customer_favorites.customer_favorites_customer_created_cd59c338",
+    "label": "Create index \"customer_favorites_customer_created_cd59c338\" on \"customer_favorites\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "customer_favorites_customer_created_cd59c338",
+        "table": "customer_favorites"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"customer_favorites_customer_created_cd59c338\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_favorites_customer_created_cd59c338\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"customer_favorites_customer_created_cd59c338\"",
+        "sql": "CREATE INDEX \"customer_favorites_customer_created_cd59c338\" ON \"public\".\"customer_favorites\" (\"customer_id\", \"created_at\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"customer_favorites_customer_created_cd59c338\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_favorites_customer_created_cd59c338\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.customer_favorites.customer_favorites_customer_id_idx_e16dfa6b",
+    "label": "Create index \"customer_favorites_customer_id_idx_e16dfa6b\" on \"customer_favorites\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "customer_favorites_customer_id_idx_e16dfa6b",
+        "table": "customer_favorites"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"customer_favorites_customer_id_idx_e16dfa6b\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_favorites_customer_id_idx_e16dfa6b\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"customer_favorites_customer_id_idx_e16dfa6b\"",
+        "sql": "CREATE INDEX \"customer_favorites_customer_id_idx_e16dfa6b\" ON \"public\".\"customer_favorites\" (\"customer_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"customer_favorites_customer_id_idx_e16dfa6b\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_favorites_customer_id_idx_e16dfa6b\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "index.customer_favorites.customer_favorites_owner_target_8a263e23",
+    "label": "Create index \"customer_favorites_owner_target_8a263e23\" on \"customer_favorites\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "index",
+        "name": "customer_favorites_owner_target_8a263e23",
+        "table": "customer_favorites"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure index \"customer_favorites_owner_target_8a263e23\" does not exist",
+        "sql": "SELECT (to_regclass($1)) IS NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_favorites_owner_target_8a263e23\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "create index \"customer_favorites_owner_target_8a263e23\"",
+        "sql": "CREATE UNIQUE INDEX \"customer_favorites_owner_target_8a263e23\" ON \"public\".\"customer_favorites\" (\"customer_id\", \"target_kind\", \"target_id\")",
+        "params": []
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify index \"customer_favorites_owner_target_8a263e23\" exists",
+        "sql": "SELECT (to_regclass($1)) IS NOT NULL AS \"result\"",
+        "params": [
+          "\"public\".\"customer_favorites_owner_target_8a263e23\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.customer_favorites.customer_favorites_customer_id_fkey",
+    "label": "Add foreign key \"customer_favorites_customer_id_fkey\" on \"customer_favorites\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "customer_favorites_customer_id_fkey",
+        "table": "customer_favorites"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"customer_favorites_customer_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "customer_favorites_customer_id_fkey",
+          "public",
+          "\"public\".\"customer_favorites\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"customer_favorites_customer_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"customer_favorites\"\nADD CONSTRAINT \"customer_favorites_customer_id_fkey\"\nFOREIGN KEY (\"customer_id\")\nREFERENCES \"public\".\"customer_profiles\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"customer_favorites_customer_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "customer_favorites_customer_id_fkey",
+          "public",
+          "\"public\".\"customer_favorites\""
+        ]
+      }
+    ]
+  },
+  {
+    "id": "foreignKey.customer_favorites.customer_favorites_branch_id_fkey",
+    "label": "Add foreign key \"customer_favorites_branch_id_fkey\" on \"customer_favorites\"",
+    "operationClass": "additive",
+    "target": {
+      "id": "postgres",
+      "details": {
+        "schema": "public",
+        "objectType": "foreignKey",
+        "name": "customer_favorites_branch_id_fkey",
+        "table": "customer_favorites"
+      }
+    },
+    "precheck": [
+      {
+        "description": "ensure FK \"customer_favorites_branch_id_fkey\" does not exist",
+        "sql": "SELECT NOT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "customer_favorites_branch_id_fkey",
+          "public",
+          "\"public\".\"customer_favorites\""
+        ]
+      }
+    ],
+    "execute": [
+      {
+        "description": "add FK \"customer_favorites_branch_id_fkey\"",
+        "sql": "ALTER TABLE \"public\".\"customer_favorites\"\nADD CONSTRAINT \"customer_favorites_branch_id_fkey\"\nFOREIGN KEY (\"branch_id\")\nREFERENCES \"public\".\"merchant_branches\" (\"id\")\nON DELETE RESTRICT"
+      }
+    ],
+    "postcheck": [
+      {
+        "description": "verify FK \"customer_favorites_branch_id_fkey\" exists",
+        "sql": "SELECT EXISTS (SELECT 1 AS \"one\" FROM \"pg_constraint\" AS \"c\" INNER JOIN \"pg_namespace\" AS \"n\" ON \"n\".\"oid\" = \"c\".\"connamespace\" WHERE (\"c\".\"conname\" = $1 AND \"n\".\"nspname\" = $2 AND \"c\".\"conrelid\" = to_regclass($3))) AS \"result\"",
+        "params": [
+          "customer_favorites_branch_id_fkey",
+          "public",
+          "\"public\".\"customer_favorites\""
+        ]
+      }
+    ]
+  }
+]

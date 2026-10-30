@@ -3,6 +3,7 @@ import {
   CHECKOUT_CLOCK,
   SystemCheckoutClock,
 } from '../checkout/domain/checkout.clock';
+import { GeoModule } from '../geo/geo.module';
 import { MerchantsModule } from '../merchants/merchants.module';
 import { CatalogService } from './application/catalog.service';
 import { CustomerCatalogService } from './application/customer-catalog.service';
@@ -13,6 +14,9 @@ import { MerchantBranchClassificationController } from './presentation/http/merc
 import { MerchantBranchClassificationService } from './application/merchant-branch-classification.service';
 import { CatalogController } from './presentation/http/catalog.controller';
 import { CustomerCatalogController } from './presentation/http/customer-catalog.controller';
+import { CustomerFavoritesController } from './presentation/http/customer-favorites.controller';
+import { CustomerFavoritesService } from './application/customer-favorites.service';
+import { CustomerFavoritesRepository } from './infrastructure/customer-favorites.repository';
 import { MerchantProductImageController } from './presentation/http/merchant-product-image.controller';
 import { MerchantProductImageService } from './application/merchant-product-image.service';
 import { ProductImageRepository } from './infrastructure/product-image.repository';
@@ -20,11 +24,12 @@ import { ProductDuplicationService } from './application/product-duplication.ser
 import { ProductDuplicationRepository } from './infrastructure/product-duplication.repository';
 
 @Module({
-  imports: [MerchantsModule],
+  imports: [MerchantsModule, GeoModule],
   controllers: [
     MerchantBranchClassificationController,
     CatalogController,
     CustomerCatalogController,
+    CustomerFavoritesController,
     MerchantProductImageController,
   ],
   providers: [
@@ -32,6 +37,8 @@ import { ProductDuplicationRepository } from './infrastructure/product-duplicati
     CatalogService,
     CustomerCatalogRepository,
     CustomerCatalogService,
+    CustomerFavoritesRepository,
+    CustomerFavoritesService,
     CommerceVerticalRepository,
     MerchantBranchClassificationService,
     ProductImageRepository,

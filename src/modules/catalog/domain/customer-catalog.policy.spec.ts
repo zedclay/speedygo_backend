@@ -1,9 +1,11 @@
 import {
+  coverageForBranchAgainstPin,
   escapeCustomerCatalogLike,
   isCustomerDiscoverableProduct,
   isStorefrontCustomerVisible,
   normalizeCustomerCatalogPagination,
   normalizeCustomerCatalogSearchQuery,
+  resolvePinCoverage,
   stripCustomerCatalogLikeMetacharacters,
 } from './customer-catalog.policy';
 import {
@@ -154,6 +156,78 @@ describe('customer-catalog.policy', () => {
         'x'.repeat(100),
       );
     });
+  });
+
+  it('resolves pin coverage without a wilaya guess', () => {
+    expect(resolvePinCoverage({ coordinatesValid: false, zones: [] })).toEqual({
+      coverage: { inCoverage: true, zoneCount: 0, reason: 'UNFILTERED' },
+    });
+    expect(
+      resolvePinCoverage({
+        addressId: 'addr-1',
+        coordinatesValid: false,
+        zones: [],
+      }),
+    ).toEqual({
+      coverage: { inCoverage: false, zoneCount: 0, reason: 'OUTSIDE' },
+    });
+    expect(
+      resolvePinCoverage({
+        addressId: 'addr-1',
+        coordinatesValid: true,
+        zones: [],
+      }),
+    ).toEqual({
+      coverage: { inCoverage: false, zoneCount: 0, reason: 'OUTSIDE' },
+    });
+    expect(
+      resolvePinCoverage({
+        addressId: 'addr-1',
+        coordinatesValid: true,
+        zones: [
+          { id: 'z1' },
+          { id: 'z2' },
+        ],
+      }),
+    ).toEqual({
+      coverage: { inCoverage: false, zoneCount: 2, reason: 'AMBIGUOUS' },
+    });
+    expect(
+      resolvePinCoverage({
+        addressId: 'addr-1',
+        coordinatesValid: true,
+        zones: [{ id: 'z-sba' }],
+      }),
+    ).toEqual({
+      coverage: { inCoverage: true, zoneCount: 1, reason: 'INSIDE' },
+      zoneId: 'z-sba',
+    });
+  });
+
+  it('annotates a branch only against the pin zone, not a stored flag', () => {
+    const inside = resolvePinCoverage({
+      addressId: 'addr-1',
+      coordinatesValid: true,
+      zones: [{ id: 'z-sba' }],
+    });
+    expect(
+      coverageForBranchAgainstPin({
+        pin: inside,
+        branchZoneIds: ['z-sba'],
+      }),
+    ).toEqual({ inCoverage: true, zoneCount: 1, reason: 'INSIDE' });
+    expect(
+      coverageForBranchAgainstPin({
+        pin: inside,
+        branchZoneIds: ['z-other'],
+      }),
+    ).toEqual({ inCoverage: false, zoneCount: 0, reason: 'OUTSIDE' });
+    expect(
+      coverageForBranchAgainstPin({
+        pin: { coverage: { inCoverage: false, zoneCount: 0, reason: 'OUTSIDE' } },
+        branchZoneIds: ['z-sba'],
+      }),
+    ).toEqual({ inCoverage: false, zoneCount: 0, reason: 'OUTSIDE' });
   });
 
   it('bounds pagination', () => {

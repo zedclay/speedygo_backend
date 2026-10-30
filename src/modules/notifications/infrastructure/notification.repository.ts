@@ -187,6 +187,7 @@ export class NotificationRepository {
       title: string;
       body: string;
       category: string;
+      templateId?: string | null;
     },
     client: OrmClient,
   ): Promise<NotificationRecord> {
@@ -195,7 +196,7 @@ export class NotificationRepository {
     await orm(client).Notification.create({
       id,
       accountId: input.accountId,
-      templateId: null,
+      templateId: input.templateId ?? null,
       title: input.title,
       body: input.body,
       category: pgVarchar<64>(input.category),
@@ -295,6 +296,62 @@ export class NotificationRepository {
       throw notificationConfigurationInvalid('Notification mark-read failed');
     }
     return row;
+  }
+
+  /**
+   * Re-open an owned inbox row after a later legitimate submit that shares
+   * the same category (Driver verification: sourceId = driver profile id).
+   * Bumps createdAt so list ordering/timestamps reflect the later submit;
+   * does not create a second row.
+   */
+  async resurfaceOwned(
+    accountId: string,
+    notificationId: string,
+    title: string,
+    body: string,
+  ): Promise<NotificationRecord> {
+    const existing = await this.findOwned(accountId, notificationId);
+    if (!existing) {
+      throw notificationNotFound();
+    }
+    const now = pgNow();
+    await orm(this.db())
+      .Notification.where({ id: notificationId, accountId })
+      .update({
+        read: false,
+        title: title.trim(),
+        body: body.trim(),
+        createdAt: now,
+      });
+    const row = await this.findOwned(accountId, notificationId);
+    if (!row) {
+      throw notificationConfigurationInvalid('Notification resurface failed');
+    }
+    return row;
+  }
+
+  async findMerchantIdsBySubmissionIds(
+    submissionIds: readonly string[],
+  ): Promise<Map<string, string>> {
+    const out = new Map<string, string>();
+    if (submissionIds.length === 0) return out;
+    const db = this.db();
+    for (const submissionId of submissionIds) {
+      const plan = db.raw.sql`
+          SELECT id, merchant_id AS "merchantId"
+          FROM merchant_verification_submissions
+          WHERE id = ${submissionId}
+        `
+        .returnsRow({
+          id: 'pg/uuid@1',
+          merchantId: 'pg/uuid@1',
+        })
+        .build();
+      for await (const row of db.runtime().query(plan)) {
+        out.set(row.id, row.merchantId);
+      }
+    }
+    return out;
   }
 
   async markAllRead(accountId: string): Promise<number> {
@@ -477,6 +534,72 @@ export class NotificationRepository {
   }
 
   /**
+   * Send-time authorization + staleness snapshot for a Customer order Push.
+   * Order.customerId is the CustomerProfile id; eligibility is that profile's Account.
+   */
+  async findCustomerOrderPushContext(
+    accountId: string,
+    orderId: string,
+  ): Promise<{
+    accountStatus: string | null;
+    customerAccountId: string | null;
+    orderStatus: string | null;
+  }> {
+    const account = await orm(this.db()).Account.where({ id: accountId }).first();
+    const order = await orm(this.db()).Order.where({ id: orderId }).first();
+    const profile = order
+      ? await orm(this.db())
+          .CustomerProfile.where({ id: order.customerId })
+          .first()
+      : null;
+    return {
+      accountStatus: account?.status ?? null,
+      customerAccountId: profile?.accountId ?? null,
+      orderStatus: order?.status ?? null,
+    };
+  }
+
+  /**
+   * Send-time snapshot for a Driver MATCH_OFFER Push.
+   * Offer expiry is assignedAt + MATCHING_OFFER_TIMEOUT_MS (not stored).
+   */
+  async findMatchOfferPushContext(
+    accountId: string,
+    assignmentId: string,
+  ): Promise<{
+    accountStatus: string | null;
+    driverAccountId: string | null;
+    assignmentStatus: string | null;
+    assignedAt: string | null;
+    acceptedAt: string | null;
+    releasedAt: string | null;
+  }> {
+    const account = await orm(this.db()).Account.where({ id: accountId }).first();
+    const assignment = await orm(this.db())
+      .DriverAssignment.where({ id: assignmentId })
+      .first();
+    const profile = assignment
+      ? await orm(this.db())
+          .DriverProfile.where({ id: assignment.driverId })
+          .first()
+      : null;
+    const iso = (value: unknown): string | null => {
+      if (value == null) return null;
+      if (typeof value === 'string') return value;
+      if (value instanceof Date) return value.toISOString();
+      return String(value);
+    };
+    return {
+      accountStatus: account?.status ?? null,
+      driverAccountId: profile?.accountId ?? null,
+      assignmentStatus: assignment?.status ?? null,
+      assignedAt: iso(assignment?.assignedAt),
+      acceptedAt: iso(assignment?.acceptedAt),
+      releasedAt: iso(assignment?.releasedAt),
+    };
+  }
+
+  /**
    * Merchant members with ORDER_READ (OWNER/MANAGER/STAFF) for operational notices.
    */
   async listMerchantOrderRecipientAccountIds(
@@ -594,4 +717,224 @@ export class NotificationRepository {
       status: refund.status,
     };
   }
+
+  /**
+   * Admin Accounts whose active Role currently grants `permissionCode`.
+   * Used for Admin operational notification fan-out (A006).
+   */
+  async findAdminAccountIdsWithPermission(
+    permissionCode: string,
+  ): Promise<string[]> {
+    const recipients =
+      await this.findAdminRecipientsWithPermission(permissionCode);
+    return recipients.map((r) => r.accountId);
+  }
+
+  /**
+   * Admin recipients for operational fan-out, including preferred_locale
+   * (fr|ar). Locale is AdminProfile-owned — never from source workflow actors.
+   */
+  async findAdminRecipientsWithPermission(
+    permissionCode: string,
+  ): Promise<Array<{ accountId: string; preferredLocale: string }>> {
+    const db = this.db();
+    const plan = db.raw.sql`
+        SELECT DISTINCT a.id AS account_id, ap.preferred_locale
+        FROM admin_profiles ap
+        INNER JOIN accounts a ON a.id = ap.account_id
+        INNER JOIN roles r ON r.id = ap.role_id
+        INNER JOIN role_permissions rp ON rp.role_id = r.id
+        INNER JOIN permissions p ON p.id = rp.permission_id
+        WHERE r.active = true
+          AND a.status = 'ACTIVE'
+          AND p.code = ${permissionCode}
+      `
+      .returnsRow({
+        account_id: 'pg/uuid@1',
+        preferred_locale: {
+          codecId: 'sql/varchar@1',
+          typeParams: { length: 8 },
+        },
+      })
+      .build();
+    const out: Array<{ accountId: string; preferredLocale: string }> = [];
+    for await (const row of db.runtime().query(plan)) {
+      out.push({
+        accountId: row.account_id,
+        preferredLocale: row.preferred_locale,
+      });
+    }
+    return out;
+  }
+
+  async listForAccountFiltered(
+    accountId: string,
+    input: {
+      categoryPrefixes: readonly string[];
+      unreadOnly?: boolean;
+      limit: number;
+      offset: number;
+    },
+  ): Promise<{ items: NotificationRecord[]; total: number; unreadCount: number }> {
+    const all = await orm(this.db()).Notification.where({ accountId }).all();
+    const prefixes = input.categoryPrefixes;
+    const typed = all
+      .map(toNotification)
+      .filter((row) =>
+        prefixes.some(
+          (prefix) =>
+            row.category === prefix || row.category.startsWith(`${prefix}:`),
+        ),
+      )
+      .sort((a, b) =>
+        a.createdAt < b.createdAt ? 1 : a.createdAt > b.createdAt ? -1 : 0,
+      );
+    const unreadCount = typed.filter((row) => !row.read).length;
+    const filtered = input.unreadOnly
+      ? typed.filter((row) => !row.read)
+      : typed;
+    const total = filtered.length;
+    const items = filtered.slice(input.offset, input.offset + input.limit);
+    return { items, total, unreadCount };
+  }
+
+  async markAllReadFiltered(
+    accountId: string,
+    categoryPrefixes: readonly string[],
+  ): Promise<number> {
+    const all = await orm(this.db())
+      .Notification.where({ accountId, read: false })
+      .all();
+    let marked = 0;
+    for (const row of all) {
+      const match = categoryPrefixes.some(
+        (prefix) =>
+          row.category === prefix || row.category.startsWith(`${prefix}:`),
+      );
+      if (!match) continue;
+      await orm(this.db())
+        .Notification.where({ id: row.id, accountId })
+        .update({ read: true });
+      marked += 1;
+    }
+    return marked;
+  }
+
+  async findNotificationTemplateByCode(
+    code: string,
+  ): Promise<NotificationTemplateRecord | null> {
+    const row = await orm(this.db())
+      .NotificationTemplate.where({ code: pgVarchar<128>(code) })
+      .first();
+    return row ? toNotificationTemplate(row) : null;
+  }
+
+  async findNotificationTemplateById(
+    id: string,
+  ): Promise<NotificationTemplateRecord | null> {
+    const row = await orm(this.db()).NotificationTemplate.where({ id }).first();
+    return row ? toNotificationTemplate(row) : null;
+  }
+
+  async listAdminNotificationTemplates(): Promise<NotificationTemplateRecord[]> {
+    const rows = await orm(this.db()).NotificationTemplate.where({
+      audience: pgVarchar<64>('ADMIN'),
+      channel: pgVarchar<32>('IN_APP'),
+    }).all();
+    return rows.map(toNotificationTemplate).sort((a, b) =>
+      a.code < b.code ? -1 : a.code > b.code ? 1 : 0,
+    );
+  }
+
+  async createNotificationTemplate(input: {
+    code: string;
+    audience: string;
+    trigger: string;
+    channel: string;
+    titleTemplate: string;
+    bodyTemplate: string;
+    active: boolean;
+  }): Promise<NotificationTemplateRecord> {
+    const id = createUuidV7();
+    const now = pgNow();
+    await orm(this.db()).NotificationTemplate.create({
+      id,
+      code: pgVarchar<128>(input.code),
+      audience: pgVarchar<64>(input.audience),
+      trigger: pgVarchar<64>(input.trigger),
+      channel: pgVarchar<32>(input.channel),
+      titleTemplate: input.titleTemplate,
+      bodyTemplate: input.bodyTemplate,
+      active: input.active,
+      createdAt: now,
+      updatedAt: now,
+    });
+    const row = await this.findNotificationTemplateById(id);
+    if (!row) {
+      throw notificationConfigurationInvalid('NotificationTemplate create failed');
+    }
+    return row;
+  }
+
+  async updateNotificationTemplate(
+    id: string,
+    input: {
+      titleTemplate: string;
+      bodyTemplate: string;
+      active: boolean;
+    },
+  ): Promise<NotificationTemplateRecord> {
+    await orm(this.db())
+      .NotificationTemplate.where({ id })
+      .update({
+        titleTemplate: input.titleTemplate,
+        bodyTemplate: input.bodyTemplate,
+        active: input.active,
+        updatedAt: pgNow(),
+      });
+    const row = await this.findNotificationTemplateById(id);
+    if (!row) {
+      throw notificationNotFound();
+    }
+    return row;
+  }
+}
+
+export type NotificationTemplateRecord = {
+  id: string;
+  code: string;
+  audience: string;
+  trigger: string;
+  channel: string;
+  titleTemplate: string;
+  bodyTemplate: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
+function toNotificationTemplate(row: {
+  id: string;
+  code: string;
+  audience: string;
+  trigger: string;
+  channel: string;
+  titleTemplate: string;
+  bodyTemplate: string;
+  active: boolean;
+  createdAt: string;
+  updatedAt: string;
+}): NotificationTemplateRecord {
+  return {
+    id: row.id,
+    code: row.code,
+    audience: row.audience,
+    trigger: row.trigger,
+    channel: row.channel,
+    titleTemplate: row.titleTemplate,
+    bodyTemplate: row.bodyTemplate,
+    active: row.active,
+    createdAt: row.createdAt,
+    updatedAt: row.updatedAt,
+  };
 }

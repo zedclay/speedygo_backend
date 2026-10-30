@@ -1,8 +1,12 @@
 /**
- * Exact DZD minor-unit transport helpers.
- * Persistence remains integer minor units (Prisma BigInt).
- * JSON transport for money is a base-10 decimal string — never JS Number.
+ * Legacy v1 money transport: integer minor units (centimes) as digit-strings.
+ * *Minor JSON fields ALWAYS mean centimes — never DZD majors.
+ * New DZD majors use the versioned contract in money-contract.ts.
  */
+import {
+  isDecimalPrismaStorage,
+  loadStoredCentimes,
+} from './prisma-money-decimal';
 
 const MONEY_MINOR_STRING_PATTERN = /^-?[0-9]+$/;
 const MONEY_MINOR_NONNEGATIVE_PATTERN = /^[0-9]+$/;
@@ -14,15 +18,21 @@ export const MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN = '^[0-9]+$';
 export const MONEY_MINOR_ABOVE_SAFE_INTEGER = '9007199254740993';
 
 /**
- * Serialize a DB/domain minor-unit amount as an exact base-10 decimal string.
- * Accepts bigint, integer number (safe range only), or an already-exact decimal string.
- * Does not use floating-point formatting (no exponent, no fractions).
+ * Serialize a DB/domain minor-unit amount as an exact base-10 integer digit string.
+ * When MONEY_PRISMA_DECIMAL=1, DECIMAL/NUMERIC cells are converted to centimes first.
  */
 export function moneyMinorToDecimalString(
   value: bigint | number | string | null | undefined,
 ): string {
   if (value === null || value === undefined) {
     return '0';
+  }
+  if (
+    isDecimalPrismaStorage() &&
+    (typeof value === 'object' ||
+      (typeof value === 'string' && value.includes('.')))
+  ) {
+    return loadStoredCentimes(value).toString(10);
   }
   if (typeof value === 'bigint') {
     return value.toString(10);
@@ -50,9 +60,8 @@ export function moneyMinorToDecimalString(
 }
 
 /**
- * Parse a client monetary input that may exceed JS safe integer range.
- * Rejects fractions, exponents, whitespace ambiguity, NaN, Infinity, and empty.
- * Returns bigint for exact arithmetic / persistence.
+ * Parse v1 *Minor client input → bigint centimes.
+ * Rejects fractional strings (those belong to the DZD v2 contract only).
  */
 export function parseMoneyMinorDecimalString(
   raw: unknown,
@@ -91,7 +100,7 @@ export function parseMoneyMinorDecimalString(
     : MONEY_MINOR_NONNEGATIVE_PATTERN;
   if (!pattern.test(raw)) {
     throw new TypeError(
-      'Money input must be an exact base-10 integer decimal string',
+      'Money input must be an exact base-10 integer decimal string (v1 *Minor = centimes)',
     );
   }
   return BigInt(raw);
@@ -110,9 +119,6 @@ export function isMoneyMinorDecimalString(
   return pattern.test(value);
 }
 
-/**
- * Sum monetary amounts exactly as bigint, then serialize for JSON transport.
- */
 export function sumMoneyMinorToDecimalString(
   values: ReadonlyArray<bigint | number | string>,
 ): string {

@@ -110,6 +110,16 @@ export function isDriverDeliveryAction(
   return (DRIVER_DELIVERY_ACTIONS as readonly string[]).includes(value);
 }
 
+/** Dropoff snapshot is revealed only after pickup confirmation. */
+export function isDropoffRevealedForDriver(status: string): boolean {
+  return (
+    status === DELIVERY_STATUS_PICKED_UP ||
+    status === DELIVERY_STATUS_IN_TRANSIT ||
+    status === DELIVERY_STATUS_ARRIVED_CUSTOMER ||
+    status === DELIVERY_STATUS_DELIVERED
+  );
+}
+
 export function actionRequiresArrivalLocation(
   action: DriverDeliveryAction,
 ): boolean {

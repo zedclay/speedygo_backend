@@ -6,6 +6,9 @@ export const ADMIN_ERROR_CODES = {
   ADMIN_AUDIT_FAILED: 'ADMIN_AUDIT_FAILED',
   ADMIN_FORBIDDEN: 'ADMIN_FORBIDDEN',
   ADMIN_NOT_FOUND: 'ADMIN_NOT_FOUND',
+  ADMIN_INVALID_INPUT: 'ADMIN_INVALID_INPUT',
+  /** Account.status / colocated Admin conflict on customer lifecycle routes. */
+  ADMIN_CUSTOMER_ACCOUNT_CONFLICT: 'ADMIN_CUSTOMER_ACCOUNT_CONFLICT',
 } as const;
 
 export type AdminErrorCode =
@@ -50,4 +53,16 @@ export function adminNotFound(
   message = 'Admin resource not found',
 ): AdminError {
   return new AdminError(ADMIN_ERROR_CODES.ADMIN_NOT_FOUND, message, 404);
+}
+
+export function adminInvalidInput(message: string): AdminError {
+  return new AdminError(ADMIN_ERROR_CODES.ADMIN_INVALID_INPUT, message, 400);
+}
+
+export function adminCustomerAccountConflict(message: string): AdminError {
+  return new AdminError(
+    ADMIN_ERROR_CODES.ADMIN_CUSTOMER_ACCOUNT_CONFLICT,
+    message,
+    409,
+  );
 }

@@ -26,6 +26,7 @@ describe('DriverDeliveryService', () => {
     lockDelivery: jest.Mock;
     lockOrder: jest.Mock;
     lockPayment: jest.Mock;
+    findPaymentSummary: jest.Mock;
     findSnapshotCustomerPayable: jest.Mock;
     transitionIfStatus: jest.Mock;
     releaseAcceptedAssignment: jest.Mock;
@@ -69,6 +70,11 @@ describe('DriverDeliveryService', () => {
         fulfillmentStatus: 'READY',
       }),
       lockPayment: jest.fn().mockResolvedValue({
+        method: 'ELECTRONIC',
+        status: 'SUCCEEDED',
+        amountMinor: 1700,
+      }),
+      findPaymentSummary: jest.fn().mockResolvedValue({
         method: 'ELECTRONIC',
         status: 'SUCCEEDED',
         amountMinor: 1700,
@@ -167,6 +173,197 @@ describe('DriverDeliveryService', () => {
     );
   });
 
+  it('getCurrent returns active assignmentId and matching assignmentVersion', async () => {
+    drivers.findOpenAcceptedAssignment.mockResolvedValue({
+      id: ASSIGNMENT_ID,
+      deliveryId: DELIVERY_ID,
+      status: 'ACCEPTED',
+      version: 7,
+    });
+    deliveries.findDeliveryDetail.mockResolvedValue({
+      id: DELIVERY_ID,
+      status: 'AT_PICKUP',
+      orderStatus: 'ACTIVE',
+      fulfillmentStatus: 'READY',
+      pickedUpAt: null,
+      arrivedCustomerAt: null,
+      deliveredAt: null,
+      pickup: { ...PICKUP, phone: '0550123499' },
+      dropoff: DROPOFF,
+    });
+
+    const view = await service.getCurrent(ACCOUNT);
+
+    expect(view).toMatchObject({
+      assignmentId: ASSIGNMENT_ID,
+      assignmentVersion: 7,
+      deliveryId: DELIVERY_ID,
+      orderId: ORDER_ID,
+      deliveryStatus: 'AT_PICKUP',
+    });
+    expect(view).not.toHaveProperty('pickupCode');
+    expect(view).not.toHaveProperty('accountPhone');
+    expect(JSON.stringify(view)).not.toContain('0550123499');
+  });
+
+  it('hides captured dropoff details before pickup confirmation', async () => {
+    drivers.findOpenAcceptedAssignment.mockResolvedValue({
+      id: ASSIGNMENT_ID,
+      deliveryId: DELIVERY_ID,
+      status: 'ACCEPTED',
+      version: 7,
+    });
+    deliveries.findDeliveryDetail.mockResolvedValue({
+      id: DELIVERY_ID,
+      status: 'AT_PICKUP',
+      orderStatus: 'ACTIVE',
+      fulfillmentStatus: 'READY',
+      pickedUpAt: null,
+      arrivedCustomerAt: null,
+      deliveredAt: null,
+      pickup: { ...PICKUP, phone: '0550123499' },
+      dropoff: {
+        addressText: 'Cité 1500 Logements',
+        building: 'Bloc Z',
+        floor: '3',
+        entrance: 'A',
+        landmark: 'Mosquée',
+        instructions: null,
+      },
+    });
+    const view = await service.getCurrent(ACCOUNT);
+    expect(view).toMatchObject({
+      deliveryStatus: 'AT_PICKUP',
+      dropoffAddressText: null,
+      dropoffBuilding: null,
+      dropoffFloor: null,
+      dropoffEntrance: null,
+      dropoffLandmark: null,
+      dropoffInstructions: null,
+    });
+  });
+
+  it('exposes captured dropoff details without fabricating missing values', async () => {
+    deliveries.findDeliveryDetail.mockResolvedValue({
+      id: DELIVERY_ID,
+      status: 'IN_TRANSIT',
+      orderStatus: 'ACTIVE',
+      fulfillmentStatus: 'READY',
+      pickedUpAt: '2026-10-23T12:00:00.000Z',
+      arrivedCustomerAt: null,
+      deliveredAt: null,
+      pickup: { ...PICKUP, phone: '0550123499' },
+      dropoff: {
+        addressText: 'Cité 1500 Logements',
+        building: 'Bloc Z',
+        floor: '3',
+        entrance: '  ',
+        landmark: 'Mosquée',
+        instructions: null,
+      },
+    });
+    const view = await service.getCurrent(ACCOUNT);
+    expect(view).toMatchObject({
+      dropoffAddressText: 'Cité 1500 Logements',
+      dropoffBuilding: 'Bloc Z',
+      dropoffFloor: '3',
+      dropoffEntrance: null,
+      dropoffLandmark: 'Mosquée',
+      dropoffInstructions: null,
+    });
+  });
+
+  it('confirm-pickup accepts the current assignment version when handoff verifies', async () => {
+    deliveryStatus = 'AT_PICKUP';
+    drivers.findOpenAcceptedAssignment.mockResolvedValue({
+      id: ASSIGNMENT_ID,
+      deliveryId: DELIVERY_ID,
+      status: 'ACCEPTED',
+      version: 3,
+    });
+    pickupHandoffs.verifyForConfirmPickup.mockResolvedValue('verified');
+    deliveries.findDeliveryDetail.mockResolvedValue({
+      id: DELIVERY_ID,
+      status: 'PICKED_UP',
+      orderStatus: 'ACTIVE',
+      fulfillmentStatus: 'READY',
+      pickedUpAt: 't',
+      arrivedCustomerAt: null,
+      deliveredAt: null,
+    });
+
+    const view = await service.confirmPickup(ACCOUNT, {
+      pickupCode: '1234',
+      assignmentId: ASSIGNMENT_ID,
+      assignmentVersion: 3,
+    });
+
+    expect(pickupHandoffs.verifyForConfirmPickup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        assignmentId: ASSIGNMENT_ID,
+        assignmentVersion: 3,
+        body: expect.objectContaining({
+          pickupCode: '1234',
+          assignmentId: ASSIGNMENT_ID,
+          assignmentVersion: 3,
+        }),
+      }),
+    );
+    expect(view.assignmentVersion).toBe(3);
+    expect(view.deliveryStatus).toBe('PICKED_UP');
+  });
+
+  it('confirm-pickup rejects a stale assignment version via handoff conflict', async () => {
+    deliveryStatus = 'AT_PICKUP';
+    drivers.findOpenAcceptedAssignment.mockResolvedValue({
+      id: ASSIGNMENT_ID,
+      deliveryId: DELIVERY_ID,
+      status: 'ACCEPTED',
+      version: 4,
+    });
+    pickupHandoffs.verifyForConfirmPickup.mockRejectedValue({
+      code: 'PICKUP_HANDOFF_ASSIGNMENT_CONFLICT',
+      message: 'assignment version mismatch',
+    });
+
+    await expect(
+      service.confirmPickup(ACCOUNT, {
+        pickupCode: '1234',
+        assignmentId: ASSIGNMENT_ID,
+        assignmentVersion: 1,
+      }),
+    ).rejects.toMatchObject({
+      code: 'PICKUP_HANDOFF_ASSIGNMENT_CONFLICT',
+    });
+    expect(deliveries.transitionIfStatus).not.toHaveBeenCalled();
+  });
+
+  it('legacy confirm-pickup without handoff remains body-optional', async () => {
+    deliveryStatus = 'AT_PICKUP';
+    pickupHandoffs.verifyForConfirmPickup.mockResolvedValue('legacy');
+    deliveries.findDeliveryDetail.mockResolvedValue({
+      id: DELIVERY_ID,
+      status: 'PICKED_UP',
+      orderStatus: 'ACTIVE',
+      fulfillmentStatus: 'READY',
+      pickedUpAt: 't',
+      arrivedCustomerAt: null,
+      deliveredAt: null,
+    });
+
+    const view = await service.confirmPickup(ACCOUNT, undefined);
+
+    expect(pickupHandoffs.verifyForConfirmPickup).toHaveBeenCalledWith(
+      expect.objectContaining({
+        body: undefined,
+        assignmentVersion: 1,
+      }),
+    );
+    expect(view.assignmentId).toBe(ASSIGNMENT_ID);
+    expect(view.assignmentVersion).toBe(1);
+    expect(view.deliveryStatus).toBe('PICKED_UP');
+  });
+
   it('allows the assigned Driver to start to pickup without GPS', async () => {
     locations.get.mockResolvedValue(null);
     const view = await service.performAction(ACCOUNT, 'start-to-pickup');
@@ -180,6 +377,7 @@ describe('DriverDeliveryService', () => {
       {},
     );
     expect(view.deliveryStatus).toBe('TO_PICKUP');
+    expect(view.assignmentVersion).toBe(1);
     expect(locations.get).not.toHaveBeenCalled();
   });
 

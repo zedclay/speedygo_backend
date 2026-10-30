@@ -60,6 +60,14 @@
       "model": "Commune",
       "namespace": "public"
     },
+    "customer_favorites": {
+      "model": "CustomerFavorite",
+      "namespace": "public"
+    },
+    "customer_internal_notes": {
+      "model": "CustomerInternalNote",
+      "namespace": "public"
+    },
     "customer_profiles": {
       "model": "CustomerProfile",
       "namespace": "public"
@@ -577,6 +585,10 @@
               {
                 "name": "LATE_PAYMENT_SUCCESS",
                 "value": "LATE_PAYMENT_SUCCESS"
+              },
+              {
+                "name": "ADMIN_ORDER_CANCELLATION",
+                "value": "ADMIN_ORDER_CANCELLATION"
               }
             ]
           },
@@ -824,6 +836,16 @@
                   "kind": "scalar"
                 }
               },
+              "building": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 64
+                  }
+                }
+              },
               "createdAt": {
                 "nullable": false,
                 "type": {
@@ -839,6 +861,26 @@
                 "type": {
                   "codecId": "pg/uuid@1",
                   "kind": "scalar"
+                }
+              },
+              "entrance": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 64
+                  }
+                }
+              },
+              "floor": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 32
+                  }
                 }
               },
               "id": {
@@ -862,6 +904,16 @@
                   "kind": "scalar",
                   "typeParams": {
                     "length": 64
+                  }
+                }
+              },
+              "landmark": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 128
                   }
                 }
               },
@@ -920,11 +972,20 @@
                 "addressText": {
                   "column": "address_text"
                 },
+                "building": {
+                  "column": "building"
+                },
                 "createdAt": {
                   "column": "created_at"
                 },
                 "customerId": {
                   "column": "customer_id"
+                },
+                "entrance": {
+                  "column": "entrance"
+                },
+                "floor": {
+                  "column": "floor"
                 },
                 "id": {
                   "column": "id"
@@ -934,6 +995,9 @@
                 },
                 "label": {
                   "column": "label"
+                },
+                "landmark": {
+                  "column": "landmark"
                 },
                 "latitude": {
                   "column": "latitude"
@@ -983,6 +1047,16 @@
                 "type": {
                   "codecId": "pg/uuid@1",
                   "kind": "scalar"
+                }
+              },
+              "preferredLocale": {
+                "nullable": false,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 8
+                  }
                 }
               },
               "roleId": {
@@ -1055,6 +1129,9 @@
                 },
                 "id": {
                   "column": "id"
+                },
+                "preferredLocale": {
+                  "column": "preferred_locale"
                 },
                 "roleId": {
                   "column": "role_id"
@@ -2422,6 +2499,222 @@
               "table": "communes"
             }
           },
+          "CustomerFavorite": {
+            "fields": {
+              "branchId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 6
+                  }
+                }
+              },
+              "customerId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "targetId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "targetKind": {
+                "nullable": false,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 16
+                  }
+                }
+              }
+            },
+            "relations": {
+              "branch": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "branchId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "MerchantBranch",
+                  "namespace": "public"
+                }
+              },
+              "customer": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "customerId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "CustomerProfile",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "branchId": {
+                  "column": "branch_id"
+                },
+                "createdAt": {
+                  "column": "created_at"
+                },
+                "customerId": {
+                  "column": "customer_id"
+                },
+                "id": {
+                  "column": "id"
+                },
+                "targetId": {
+                  "column": "target_id"
+                },
+                "targetKind": {
+                  "column": "target_kind"
+                }
+              },
+              "namespaceId": "public",
+              "table": "customer_favorites"
+            }
+          },
+          "CustomerInternalNote": {
+            "fields": {
+              "adminId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "body": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/text@1",
+                  "kind": "scalar"
+                }
+              },
+              "category": {
+                "nullable": false,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 32
+                  }
+                }
+              },
+              "createdAt": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "precision": 6
+                  }
+                }
+              },
+              "customerId": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              },
+              "id": {
+                "nullable": false,
+                "type": {
+                  "codecId": "pg/uuid@1",
+                  "kind": "scalar"
+                }
+              }
+            },
+            "relations": {
+              "admin": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "adminId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "AdminProfile",
+                  "namespace": "public"
+                }
+              },
+              "customer": {
+                "cardinality": "N:1",
+                "on": {
+                  "localFields": [
+                    "customerId"
+                  ],
+                  "targetFields": [
+                    "id"
+                  ]
+                },
+                "to": {
+                  "model": "CustomerProfile",
+                  "namespace": "public"
+                }
+              }
+            },
+            "storage": {
+              "fields": {
+                "adminId": {
+                  "column": "admin_id"
+                },
+                "body": {
+                  "column": "body"
+                },
+                "category": {
+                  "column": "category"
+                },
+                "createdAt": {
+                  "column": "created_at"
+                },
+                "customerId": {
+                  "column": "customer_id"
+                },
+                "id": {
+                  "column": "id"
+                }
+              },
+              "namespaceId": "public",
+              "table": "customer_internal_notes"
+            }
+          },
           "CustomerProfile": {
             "fields": {
               "accountId": {
@@ -2489,6 +2782,21 @@
                 },
                 "to": {
                   "model": "Account",
+                  "namespace": "public"
+                }
+              },
+              "favorites": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "customerId"
+                  ]
+                },
+                "to": {
+                  "model": "CustomerFavorite",
                   "namespace": "public"
                 }
               }
@@ -5018,6 +5326,21 @@
                 },
                 "to": {
                   "model": "MerchantBranchCover",
+                  "namespace": "public"
+                }
+              },
+              "customerFavorites": {
+                "cardinality": "1:N",
+                "on": {
+                  "localFields": [
+                    "id"
+                  ],
+                  "targetFields": [
+                    "branchId"
+                  ]
+                },
+                "to": {
+                  "model": "CustomerFavorite",
                   "namespace": "public"
                 }
               },
@@ -8462,11 +8785,51 @@
                   "kind": "scalar"
                 }
               },
+              "building": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 64
+                  }
+                }
+              },
+              "entrance": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 64
+                  }
+                }
+              },
+              "floor": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 32
+                  }
+                }
+              },
               "instructions": {
                 "nullable": true,
                 "type": {
                   "codecId": "pg/text@1",
                   "kind": "scalar"
+                }
+              },
+              "landmark": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 128
+                  }
                 }
               },
               "latitude": {
@@ -8521,8 +8884,20 @@
                 "addressText": {
                   "column": "address_text"
                 },
+                "building": {
+                  "column": "building"
+                },
+                "entrance": {
+                  "column": "entrance"
+                },
+                "floor": {
+                  "column": "floor"
+                },
                 "instructions": {
                   "column": "instructions"
+                },
+                "landmark": {
+                  "column": "landmark"
                 },
                 "latitude": {
                   "column": "latitude"
@@ -10808,6 +11183,16 @@
                   "kind": "scalar"
                 }
               },
+              "authAudience": {
+                "nullable": true,
+                "type": {
+                  "codecId": "sql/varchar@1",
+                  "kind": "scalar",
+                  "typeParams": {
+                    "length": 16
+                  }
+                }
+              },
               "createdAt": {
                 "nullable": false,
                 "type": {
@@ -10906,6 +11291,9 @@
               "fields": {
                 "accountId": {
                   "column": "account_id"
+                },
+                "authAudience": {
+                  "column": "auth_audience"
                 },
                 "createdAt": {
                   "column": "created_at"
@@ -11954,6 +12342,14 @@
                   "nativeType": "text",
                   "nullable": false
                 },
+                "building": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 64
+                  }
+                },
                 "created_at": {
                   "codecId": "pg/timestamptz-string@1",
                   "default": {
@@ -11970,6 +12366,22 @@
                   "codecId": "pg/uuid@1",
                   "nativeType": "uuid",
                   "nullable": false
+                },
+                "entrance": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 64
+                  }
+                },
+                "floor": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 32
+                  }
                 },
                 "id": {
                   "codecId": "pg/uuid@1",
@@ -11991,6 +12403,14 @@
                   "nullable": false,
                   "typeParams": {
                     "length": 64
+                  }
+                },
+                "landmark": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 128
                   }
                 },
                 "latitude": {
@@ -12100,6 +12520,18 @@
                   "codecId": "pg/uuid@1",
                   "nativeType": "uuid",
                   "nullable": false
+                },
+                "preferred_locale": {
+                  "codecId": "sql/varchar@1",
+                  "default": {
+                    "kind": "literal",
+                    "value": "fr"
+                  },
+                  "nativeType": "character varying",
+                  "nullable": false,
+                  "typeParams": {
+                    "length": 8
+                  }
                 },
                 "role_id": {
                   "codecId": "pg/uuid@1",
@@ -13478,6 +13910,249 @@
                   ],
                   "name": "communes_wilaya_426d9809",
                   "prefix": "communes_wilaya",
+                  "unique": false
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
+            "customer_favorites": {
+              "checks": [
+                {
+                  "expression": "target_kind IN ('BRANCH', 'PRODUCT')",
+                  "name": "customer_favorites_kind_6a252a76",
+                  "prefix": "customer_favorites_kind"
+                }
+              ],
+              "columns": {
+                "branch_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "created_at": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 6
+                  }
+                },
+                "customer_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "target_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "target_kind": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": false,
+                  "typeParams": {
+                    "length": 16
+                  }
+                }
+              },
+              "foreignKeys": [
+                {
+                  "onDelete": "restrict",
+                  "source": {
+                    "columns": [
+                      "customer_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "customer_favorites"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "customer_profiles"
+                  }
+                },
+                {
+                  "onDelete": "restrict",
+                  "source": {
+                    "columns": [
+                      "branch_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "customer_favorites"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "merchant_branches"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "branch_id"
+                  ],
+                  "name": "customer_favorites_branch_id_idx_b5212172",
+                  "prefix": "customer_favorites_branch_id_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "customer_id",
+                    "created_at"
+                  ],
+                  "name": "customer_favorites_customer_created_cd59c338",
+                  "prefix": "customer_favorites_customer_created",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "customer_id"
+                  ],
+                  "name": "customer_favorites_customer_id_idx_e16dfa6b",
+                  "prefix": "customer_favorites_customer_id_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "customer_id",
+                    "target_kind",
+                    "target_id"
+                  ],
+                  "name": "customer_favorites_owner_target_8a263e23",
+                  "prefix": "customer_favorites_owner_target",
+                  "unique": true
+                }
+              ],
+              "primaryKey": {
+                "columns": [
+                  "id"
+                ]
+              },
+              "uniques": []
+            },
+            "customer_internal_notes": {
+              "columns": {
+                "admin_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "body": {
+                  "codecId": "pg/text@1",
+                  "nativeType": "text",
+                  "nullable": false
+                },
+                "category": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": false,
+                  "typeParams": {
+                    "length": 32
+                  }
+                },
+                "created_at": {
+                  "codecId": "pg/timestamptz-string@1",
+                  "default": {
+                    "expression": "now()",
+                    "kind": "function"
+                  },
+                  "nativeType": "timestamptz",
+                  "nullable": false,
+                  "typeParams": {
+                    "precision": 6
+                  }
+                },
+                "customer_id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                },
+                "id": {
+                  "codecId": "pg/uuid@1",
+                  "nativeType": "uuid",
+                  "nullable": false
+                }
+              },
+              "foreignKeys": [
+                {
+                  "onDelete": "restrict",
+                  "source": {
+                    "columns": [
+                      "customer_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "customer_internal_notes"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "customer_profiles"
+                  }
+                },
+                {
+                  "onDelete": "restrict",
+                  "source": {
+                    "columns": [
+                      "admin_id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "customer_internal_notes"
+                  },
+                  "target": {
+                    "columns": [
+                      "id"
+                    ],
+                    "namespaceId": "public",
+                    "tableName": "admin_profiles"
+                  }
+                }
+              ],
+              "indexes": [
+                {
+                  "columns": [
+                    "admin_id"
+                  ],
+                  "name": "customer_internal_notes_admin_id_idx_78cc3551",
+                  "prefix": "customer_internal_notes_admin_id_idx",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "customer_id",
+                    "created_at"
+                  ],
+                  "name": "customer_internal_notes_customer_created_cd59c338",
+                  "prefix": "customer_internal_notes_customer_created",
+                  "unique": false
+                },
+                {
+                  "columns": [
+                    "customer_id"
+                  ],
+                  "name": "customer_internal_notes_customer_id_idx_e16dfa6b",
+                  "prefix": "customer_internal_notes_customer_id_idx",
                   "unique": false
                 }
               ],
@@ -18957,10 +19632,42 @@
                   "nativeType": "text",
                   "nullable": false
                 },
+                "building": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 64
+                  }
+                },
+                "entrance": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 64
+                  }
+                },
+                "floor": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 32
+                  }
+                },
                 "instructions": {
                   "codecId": "pg/text@1",
                   "nativeType": "text",
                   "nullable": true
+                },
+                "landmark": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 128
+                  }
                 },
                 "latitude": {
                   "codecId": "pg/numeric@1",
@@ -21109,8 +21816,8 @@
                   "prefix": "refunds_refund_method_check"
                 },
                 {
-                  "expression": "\"request_origin\" IN ('ADMIN', 'CUSTOMER_CANCELLATION', 'MERCHANT_REJECTION', 'LATE_PAYMENT_SUCCESS')",
-                  "name": "refunds_request_origin_check_85f8868a",
+                  "expression": "\"request_origin\" IN ('ADMIN', 'CUSTOMER_CANCELLATION', 'MERCHANT_REJECTION', 'LATE_PAYMENT_SUCCESS', 'ADMIN_ORDER_CANCELLATION')",
+                  "name": "refunds_request_origin_check_8ebf7837",
                   "prefix": "refunds_request_origin_check"
                 },
                 {
@@ -21459,6 +22166,14 @@
                   "codecId": "pg/uuid@1",
                   "nativeType": "uuid",
                   "nullable": false
+                },
+                "auth_audience": {
+                  "codecId": "sql/varchar@1",
+                  "nativeType": "character varying",
+                  "nullable": true,
+                  "typeParams": {
+                    "length": 16
+                  }
                 },
                 "created_at": {
                   "codecId": "pg/timestamptz-string@1",
@@ -22549,7 +23264,8 @@
                 "ADMIN",
                 "CUSTOMER_CANCELLATION",
                 "MERCHANT_REJECTION",
-                "LATE_PAYMENT_SUCCESS"
+                "LATE_PAYMENT_SUCCESS",
+                "ADMIN_ORDER_CANCELLATION"
               ]
             },
             "RefundStatus": {
@@ -22587,7 +23303,7 @@
         "kind": "postgres-schema"
       }
     },
-    "storageHash": "5f360a13b93c119514de0e1f92b556619f18b913fe69a50dda41fe5ca498a718"
+    "storageHash": "f2f8d3dd52add96c6cd1d154f4b9dd9f2b18b394a0a878dd4e58841edaacbd3b"
   },
   "capabilities": {
     "postgres": {

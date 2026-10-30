@@ -48,7 +48,9 @@ export class AuthExceptionFilter implements ExceptionFilter {
                 current: details.current as {
                   merchandiseSubtotalMinor: string;
                   deliveryFeeMinor: string;
+                  discountMinor: string;
                   customerTotalMinor: string;
+                  promoCode: string | null;
                 },
               }
             : {}),

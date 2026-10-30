@@ -47,6 +47,8 @@ describe('SessionService', () => {
     expiresAt?: string;
     status?: string;
     rotateOk?: boolean;
+    enforce?: boolean;
+    audience?: string | null;
   }) {
     let currentHash = session.refreshTokenHash;
     const accounts = {
@@ -69,13 +71,13 @@ describe('SessionService', () => {
           email: null,
           status: session.status ?? 'ACTIVE',
         }),
-      rotateRefreshHash: (input: { nextHash: string }) => {
+      rotateRefreshHash: jest.fn((input: { nextHash: string }) => {
         if (session.rotateOk === false) {
           return Promise.resolve(false);
         }
         currentHash = input.nextHash;
         return Promise.resolve(true);
-      },
+      }),
       revokeSession: jest.fn(() => Promise.resolve(undefined)),
       revokeAllSessions: jest.fn(() => Promise.resolve([sessionId])),
       listSessions: jest.fn(() =>
@@ -98,9 +100,27 @@ describe('SessionService', () => {
       redis as never,
       config(),
       new AuthSecurityLogger(),
+      {
+        enforce: () => session.enforce === true,
+        bind: () => Promise.resolve(),
+        read: () => Promise.resolve(session.audience ?? null),
+      } as never,
     );
     return { service, accounts };
   }
+
+  it('does not mint replacement tokens for a NULL-audience session when enforcement is on', async () => {
+    const issued = tokens.issueRefreshToken(sessionId);
+    const { service, accounts } = build({
+      refreshTokenHash: issued.hash,
+      enforce: true,
+      audience: null,
+    });
+    await expect(service.refresh(issued.token)).rejects.toMatchObject({
+      code: AUTH_ERROR_CODES.AUTH_AUDIENCE_LEGACY_REJECTED,
+    });
+    expect(accounts.rotateRefreshHash).not.toHaveBeenCalled();
+  });
 
   it('rotates a valid refresh token and rejects the old one', async () => {
     const issued = tokens.issueRefreshToken(sessionId);
@@ -243,6 +263,11 @@ function serviceWithSessions(rows: FakeSession[]) {
     redis as never,
     config(),
     new AuthSecurityLogger(),
+    {
+      enforce: () => false,
+      bind: () => Promise.resolve(),
+      read: () => Promise.resolve(null),
+    } as never,
   );
   return { service, sessions };
 }

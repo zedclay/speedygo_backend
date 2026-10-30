@@ -110,6 +110,17 @@ export type CustomerDiscoverablePromotion = {
   endsAt: string;
   customerLabel: string | null;
   eligibility: typeof CUSTOMER_PROMOTION_ELIGIBILITY_DISCOVERABLE;
+  /**
+   * Optional campaign associations. Omitted when Promotion has no merchant/
+   * branch FK, min-spend column, or bound image (current frozen schema:
+   * GLOBAL codes only). Never invented.
+   */
+  merchantId?: string | null;
+  branchId?: string | null;
+  merchantName?: string | null;
+  coverImageUrl?: string | null;
+  /** Canonical merchandise min-spend, integer minor units as a decimal string. */
+  minSpendMinor?: string | null;
 };
 
 export const CUSTOMER_PROMOTION_DISCOVERY_DEFAULT_LIMIT = 20;

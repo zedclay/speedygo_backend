@@ -2,12 +2,14 @@ import {
   Body,
   Controller,
   Get,
+  Headers,
   HttpCode,
   Param,
   ParseUUIDPipe,
   Post,
   Query,
 } from '@nestjs/common';
+import { resolveWriteCentimes } from '../../../../common/money/resolve-money-write';
 import {
   ApiBearerAuth,
   ApiCreatedResponse,
@@ -46,7 +48,7 @@ export class OrderController {
       'Request body: addressId, paymentMethod (COD or ELECTRONIC), expectedMerchandiseSubtotalMinor, expectedDeliveryFeeMinor, expectedCustomerTotalMinor.',
       'Expected amounts are Customer confirmation values from the latest Checkout Preview only. The Backend recalculates all authoritative merchandise, Delivery Fee, commission, and customerPayableMinor values inside the same transaction.',
       'Public expectedCustomerTotalMinor maps to internal customerPayableMinor for comparison only. Expected amounts never become price authority and are never written to Payment.amountMinor.',
-      'If live amounts differ from confirmed expected amounts, the request returns 409 ORDER_RECONFIRMATION_REQUIRED with changes[] and current { merchandiseSubtotalMinor, deliveryFeeMinor, customerTotalMinor }. Nothing is persisted. The ACTIVE Cart remains ACTIVE.',
+      'If live amounts differ from confirmed expected amounts, the request returns 409 ORDER_RECONFIRMATION_REQUIRED with changes[] and current { merchandiseSubtotalMinor, deliveryFeeMinor, discountMinor, customerTotalMinor, promoCode }. Nothing is persisted. The ACTIVE Cart remains ACTIVE.',
       'Optional promoCode is revalidated inside the Order transaction; if supplied and ineligible, creation fails without silently dropping the discount. Client discountMinor/funding fields are rejected.',
       'Rejected mass-assignment includes cartId, customerId, accountId, merchantId, merchantBranchId, zoneId, pricingRuleId, commissionRuleId, productId, prices, authoritative totals, expectedCustomerPayableMinor, status, fulfillmentStatus, commission amounts, discount amounts, tax, tip, and serviceFee.',
       'On success: Order status CREATED, fulfillment PENDING_ACCEPTANCE, one ORDER_CREATED event, Payment PENDING intent (no PaymentTransaction), no Delivery, ACTIVE Cart converted to CONVERTED. Historical Order values are immutable after commit.',
@@ -72,6 +74,7 @@ export class OrderController {
       ORDER_ERROR_CODES.ORDER_PRICING_CONFIGURATION_INVALID,
       ORDER_ERROR_CODES.ORDER_MERCHANT_NOT_OPERATIONAL,
       ORDER_ERROR_CODES.ORDER_BRANCH_NOT_OPERATIONAL,
+      ORDER_ERROR_CODES.ORDER_BRANCH_OUTSIDE_ZONE,
       ORDER_ERROR_CODES.ORDER_ALREADY_CREATED,
       ORDER_ERROR_CODES.ORDER_FINANCIAL_CONFIGURATION_INVALID,
       ORDER_ERROR_CODES.ORDER_RECONFIRMATION_REQUIRED,
@@ -86,13 +89,29 @@ export class OrderController {
   create(
     @CurrentPrincipal() principal: AuthenticatedPrincipal,
     @Body() body: CreateOrderDto,
+    @Headers() headers: Record<string, unknown>,
   ) {
     return this.orders.createOrder(principal.accountId, {
       addressId: body.addressId,
       paymentMethod: body.paymentMethod,
-      expectedMerchandiseSubtotalMinor: body.expectedMerchandiseSubtotalMinor,
-      expectedDeliveryFeeMinor: body.expectedDeliveryFeeMinor,
-      expectedCustomerTotalMinor: body.expectedCustomerTotalMinor,
+      expectedMerchandiseSubtotalMinor: resolveWriteCentimes({
+        headers,
+        minorField: body.expectedMerchandiseSubtotalMinor,
+        dzdField: body.expectedMerchandiseSubtotal,
+        fieldLabel: 'expectedMerchandiseSubtotal',
+      }),
+      expectedDeliveryFeeMinor: resolveWriteCentimes({
+        headers,
+        minorField: body.expectedDeliveryFeeMinor,
+        dzdField: body.expectedDeliveryFee,
+        fieldLabel: 'expectedDeliveryFee',
+      }),
+      expectedCustomerTotalMinor: resolveWriteCentimes({
+        headers,
+        minorField: body.expectedCustomerTotalMinor,
+        dzdField: body.expectedCustomerTotal,
+        fieldLabel: 'expectedCustomerTotal',
+      }),
       promoCode: body.promoCode,
     });
   }

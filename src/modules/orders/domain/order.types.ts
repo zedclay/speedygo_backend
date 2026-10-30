@@ -12,6 +12,10 @@ export type OrderAddressRecord = {
   addressText: string;
   latitude: number;
   longitude: number;
+  building: string | null;
+  floor: string | null;
+  entrance: string | null;
+  landmark: string | null;
 };
 
 export type OrderZoneRecord = {
@@ -93,6 +97,10 @@ export type OrderAddressSnapshotView = {
   addressText: string;
   latitude: number;
   longitude: number;
+  building: string | null;
+  floor: string | null;
+  entrance: string | null;
+  landmark: string | null;
   instructions: string | null;
 };
 
@@ -100,6 +108,8 @@ export type OrderCustomerFinancialView = {
   currency: string;
   merchandiseSubtotalMinor: string;
   deliveryFeeMinor: string;
+  /** Customer-safe snapshot of OrderFinancialSnapshot.totalDiscountMinor. */
+  discountMinor: string;
   customerTotalMinor: string;
 };
 

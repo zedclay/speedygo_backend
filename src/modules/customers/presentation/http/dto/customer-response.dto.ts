@@ -38,6 +38,18 @@ export class CustomerAddressResponseDto {
   @ApiProperty()
   longitude!: number;
 
+  @ApiPropertyOptional({ nullable: true, type: String })
+  building!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  floor!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  entrance!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  landmark!: string | null;
+
   @ApiProperty()
   isDefault!: boolean;
 

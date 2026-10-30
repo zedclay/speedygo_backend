@@ -1,13 +1,20 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
+  Headers,
   Param,
   ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
 } from '@nestjs/common';
+import { resolveWriteCentimes } from '../../../../../common/money/resolve-money-write';
+import {
+  PROMOTION_TYPE_MERCHANT_FIXED_MINOR,
+  PROMOTION_TYPE_SPEEDYGO_FIXED_MINOR,
+} from '../../../../promotions/domain/promotion.types';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { RequirePermissions } from '../../../../authorization/require-permissions.decorator';
 import { AdminPromotionCommandsService } from '../../../application/admin-promotion-commands.service';
@@ -21,6 +28,7 @@ import {
   AdminPromotionListQueryDto,
   CreateAdminPromotionDto,
   UpdateAdminPromotionPresentationDto,
+  UpdateAdminPromotionValueDto,
 } from '../dto/admin.dto';
 
 @ApiTags('admin-promotions')
@@ -53,8 +61,77 @@ export class AdminPromotionController {
   create(
     @CurrentAdmin() admin: CurrentAdminContext,
     @Body() body: CreateAdminPromotionDto,
+    @Headers() headers: Record<string, unknown>,
   ) {
-    return this.commands.create(admin, body);
+    const isFixed =
+      body.type === PROMOTION_TYPE_MERCHANT_FIXED_MINOR ||
+      body.type === PROMOTION_TYPE_SPEEDYGO_FIXED_MINOR;
+    if (!isFixed && body.valueAmount != null) {
+      throw new BadRequestException(
+        'valueAmount is only valid for FIXED promotions under dzd-v2; RATE_BPS uses integer value (bps)',
+      );
+    }
+    const value = isFixed
+      ? resolveWriteCentimes({
+          headers,
+          minorField: body.value,
+          dzdField: body.valueAmount,
+          fieldLabel: 'valueAmount',
+        })
+      : body.value;
+    if (value === undefined || value === null) {
+      throw new BadRequestException(
+        'RATE_BPS promotions require integer value (basis points)',
+      );
+    }
+    return this.commands.create(admin, {
+      code: body.code,
+      type: body.type,
+      value,
+      startsAt: body.startsAt,
+      endsAt: body.endsAt,
+      active: body.active,
+      customerDiscoverable: body.customerDiscoverable,
+      customerLabel: body.customerLabel,
+    });
+  }
+
+  @Post(':id/value')
+  @RequirePermissions(ADMIN_PERMISSIONS.PROMOTIONS_MANAGE)
+  @ApiOperation({
+    summary: 'Replace promotion value',
+    description:
+      'FIXED dzd-v2: valueAmount DZD majors. RATE_BPS: integer value (bps). Does not change window, funding, or type.',
+  })
+  async updateValue(
+    @CurrentAdmin() admin: CurrentAdminContext,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: UpdateAdminPromotionValueDto,
+    @Headers() headers: Record<string, unknown>,
+  ) {
+    const current = await this.queries.getPromotion(id);
+    const isFixed =
+      current.type === PROMOTION_TYPE_MERCHANT_FIXED_MINOR ||
+      current.type === PROMOTION_TYPE_SPEEDYGO_FIXED_MINOR;
+    if (!isFixed && body.valueAmount != null) {
+      throw new BadRequestException(
+        'valueAmount is only valid for FIXED promotions under dzd-v2; RATE_BPS uses integer value (bps)',
+      );
+    }
+    const value = isFixed
+      ? resolveWriteCentimes({
+          headers,
+          minorField: body.value,
+          dzdField: body.valueAmount,
+          fieldLabel: 'valueAmount',
+        })
+      : body.value;
+    if (value === undefined || value === null) {
+      throw new BadRequestException(
+        'RATE_BPS promotions require integer value (basis points)',
+      );
+    }
+    return this.commands.updateValue(admin, id, value);
   }
 
   @Post(':id/activate')

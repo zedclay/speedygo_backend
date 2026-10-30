@@ -59,12 +59,33 @@ export class AdminDriverController {
     return this.queries.listDrivers({
       ...query,
       verificationStatus: DRIVER_VERIFICATION_PENDING_REVIEW,
+      enrichVerificationQueue: true,
     });
+  }
+
+  @Get(':id/verification')
+  @RequirePermissions(ADMIN_PERMISSIONS.DRIVERS_VERIFY)
+  @ApiOperation({
+    summary: 'Driver verification package (document metadata)',
+    description:
+      'Returns document id/type/status/expiryDate and active vehicle summary. Never returns fileUrl or storage keys. Bytes remain on GET .../documents/:documentId/content.',
+  })
+  getVerification(@Param('id', ParseUUIDPipe) id: string) {
+    return this.queries.getDriverVerification(id);
   }
 
   @Get(':id')
   @RequirePermissions(ADMIN_PERMISSIONS.DRIVERS_READ)
-  @ApiOperation({ summary: 'Driver detail' })
+  @ApiOperation({
+    summary: 'Driver detail',
+    description: [
+      'Returns profile fields plus availabilityStatus, matchingOccupancy, and currentMission.',
+      'matchingOccupancy: OFFLINE | ONLINE_AVAILABLE | ONLINE_ON_MISSION | UNKNOWN.',
+      'ONLINE does not imply free — open unreleased assignment ⇒ ONLINE_ON_MISSION.',
+      'currentMission is null when empty (not an unavailable-capability signal).',
+      'Requires drivers.read. Does not invent ratings, history, vehicle, or financials.',
+    ].join(' '),
+  })
   get(@Param('id', ParseUUIDPipe) id: string) {
     return this.queries.getDriver(id);
   }

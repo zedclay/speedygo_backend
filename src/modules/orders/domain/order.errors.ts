@@ -14,6 +14,7 @@ export const ORDER_ERROR_CODES = {
   ORDER_BRANCH_NOT_OPERATIONAL: 'ORDER_BRANCH_NOT_OPERATIONAL',
   ORDER_BRANCH_CLOSED: 'ORDER_BRANCH_CLOSED',
   ORDER_BRANCH_HOURS_NOT_CONFIGURED: 'ORDER_BRANCH_HOURS_NOT_CONFIGURED',
+  ORDER_BRANCH_OUTSIDE_ZONE: 'ORDER_BRANCH_OUTSIDE_ZONE',
   ORDER_ALREADY_CREATED: 'ORDER_ALREADY_CREATED',
   ORDER_NOT_FOUND: 'ORDER_NOT_FOUND',
   ORDER_PAYMENT_METHOD_INVALID: 'ORDER_PAYMENT_METHOD_INVALID',
@@ -155,6 +156,14 @@ export function orderBranchHoursNotConfigured(): OrderError {
   );
 }
 
+export function orderBranchOutsideZone(): OrderError {
+  return new OrderError(
+    ORDER_ERROR_CODES.ORDER_BRANCH_OUTSIDE_ZONE,
+    'This store cannot deliver to the selected address',
+    409,
+  );
+}
+
 export function orderAlreadyCreated(): OrderError {
   return new OrderError(
     ORDER_ERROR_CODES.ORDER_ALREADY_CREATED,
@@ -211,7 +220,10 @@ export function orderReconfirmationRequired(input: {
   merchandiseSubtotalMinor: number;
   deliveryFeeMinor: number;
   customerTotalMinor: number;
+  discountMinor?: number;
+  promoCode?: string | null;
 }): OrderError {
+  const promo = input.promoCode?.trim();
   return new OrderError(
     ORDER_ERROR_CODES.ORDER_RECONFIRMATION_REQUIRED,
     'Live Order amounts differ from the Customer-confirmed Checkout amounts',
@@ -223,7 +235,9 @@ export function orderReconfirmationRequired(input: {
           input.merchandiseSubtotalMinor,
         ),
         deliveryFeeMinor: moneyMinorToDecimalString(input.deliveryFeeMinor),
+        discountMinor: moneyMinorToDecimalString(input.discountMinor ?? 0),
         customerTotalMinor: moneyMinorToDecimalString(input.customerTotalMinor),
+        promoCode: promo && promo.length > 0 ? promo : null,
       },
     },
   );

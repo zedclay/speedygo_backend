@@ -95,6 +95,8 @@ enum RefundRequestOrigin {
   CUSTOMER_CANCELLATION   = "CUSTOMER_CANCELLATION"
   MERCHANT_REJECTION      = "MERCHANT_REJECTION"
   LATE_PAYMENT_SUCCESS    = "LATE_PAYMENT_SUCCESS"
+  /// Admin early-window Order cancel (Admin Order Operations v1.0).
+  ADMIN_ORDER_CANCELLATION = "ADMIN_ORDER_CANCELLATION"
 }
 
 enum CommissionScope {
@@ -170,6 +172,8 @@ model Session {
   expiresAt        TimestamptzString(6) @map("expires_at")
   revokedAt        TimestamptzString(6)? @map("revoked_at")
   createdAt        TimestamptzString(6) @default(now()) @map("created_at")
+  /// Session-scoped app surface. NULL = pre-audience session. Never a privilege.
+  authAudience     VarChar(16)?         @map("auth_audience")
 
   account Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
   device  Device? @relation(fields: [deviceId], references: [id], onDelete: SetNull)
@@ -202,6 +206,7 @@ model CustomerProfile {
   updatedAt TimestamptzString(6) @default(now()) @map("updated_at")
 
   account Account @relation(fields: [accountId], references: [id], onDelete: Restrict)
+  favorites CustomerFavorite[]
 
   @@map("customer_profiles")
 }
@@ -226,6 +231,8 @@ model AdminProfile {
   roleId           Uuid                 @map("role_id")
   displayName      VarChar(255)         @map("display_name")
   twoFactorEnabled Boolean              @default(false) @map("two_factor_enabled")
+  /// Admin UI + IN_APP notification emit locale: fr or ar. Default fr.
+  preferredLocale  VarChar(8)           @default("fr") @map("preferred_locale")
   createdAt        TimestamptzString(6) @default(now()) @map("created_at")
   updatedAt        TimestamptzString(6) @default(now()) @map("updated_at")
 
@@ -274,6 +281,10 @@ model Address {
   addressText String               @map("address_text")
   latitude    Numeric(9, 6)
   longitude   Numeric(9, 6)
+  building    VarChar(64)?
+  floor       VarChar(32)?
+  entrance    VarChar(64)?
+  landmark    VarChar(128)?
   isDefault   Boolean              @default(false) @map("is_default")
   createdAt   TimestamptzString(6) @default(now()) @map("created_at")
   updatedAt   TimestamptzString(6) @default(now()) @map("updated_at")
@@ -409,6 +420,7 @@ model MerchantBranch {
   cover            MerchantBranchCover?
   logo             MerchantBranchLogo?
   hoursExceptions  MerchantBranchHoursException[]
+  customerFavorites CustomerFavorite[]
 
   @@check(
     expression: "(wilaya_code IS NULL AND commune_id IS NULL) OR (wilaya_code IS NOT NULL AND commune_id IS NOT NULL)",
@@ -1055,6 +1067,10 @@ model OrderDeliveryAddressSnapshot {
   addressText  String       @map("address_text")
   latitude     Numeric(9, 6)
   longitude    Numeric(9, 6)
+  building     VarChar(64)?
+  floor        VarChar(32)?
+  entrance     VarChar(64)?
+  landmark     VarChar(128)?
   instructions String?
 
   order Order @relation(fields: [orderId], references: [id], onDelete: Restrict)
@@ -1742,6 +1758,42 @@ model SupportInternalNote {
   admin  AdminProfile  @relation(fields: [adminId], references: [id], onDelete: Restrict)
 
   @@map("support_internal_notes")
+}
+
+/// Admin-only notes on a CustomerProfile (not Support ticket notes).
+model CustomerInternalNote {
+  id         Uuid                 @id
+  customerId Uuid                 @map("customer_id")
+  adminId    Uuid                 @map("admin_id")
+  /// Allowlisted: GENERAL | SUPPORT | SECURITY | PAYMENT
+  category   VarChar(32)
+  body       String
+  createdAt  TimestamptzString(6) @default(now()) @map("created_at")
+
+  customer CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  admin    AdminProfile    @relation(fields: [adminId], references: [id], onDelete: Restrict)
+
+  @@index([customerId, createdAt], name: "customer_internal_notes_customer_created")
+  @@map("customer_internal_notes")
+}
+
+/// Account-scoped Customer saved storefronts and products (discovery UI).
+/// BRANCH: targetId = merchant_branches.id. PRODUCT: targetId = products.id.
+model CustomerFavorite {
+  id         Uuid                 @id
+  customerId Uuid                 @map("customer_id")
+  targetKind VarChar(16)          @map("target_kind")
+  targetId   Uuid                 @map("target_id")
+  branchId   Uuid                 @map("branch_id")
+  createdAt  TimestamptzString(6) @default(now()) @map("created_at")
+
+  customer CustomerProfile @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  branch   MerchantBranch  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+
+  @@index([customerId, targetKind, targetId], unique: true, name: "customer_favorites_owner_target")
+  @@index([customerId, createdAt], name: "customer_favorites_customer_created")
+  @@check(expression: "target_kind IN ('BRANCH', 'PRODUCT')", name: "customer_favorites_kind")
+  @@map("customer_favorites")
 }
 
 // ---------------------------------------------------------------------------

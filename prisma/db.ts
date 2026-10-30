@@ -2,13 +2,19 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import postgisRuntime from '@prisma/orm-extension-postgis/runtime';
 import postgres from '@prisma/orm-postgres/runtime';
+import { wrapDecimalMoneyClient } from '../src/common/money/sql-money-plan';
+import {
+  assertAudiencePrismaDatabase,
+  selectPrismaContractFile,
+} from '../src/infrastructure/database/prisma-contract-file';
 import type { Contract } from './contract.d';
 
 type PostgresClient = ReturnType<typeof postgres<Contract>>;
 
 function loadContractJson(): unknown {
+  const file = selectPrismaContractFile();
   return JSON.parse(
-    readFileSync(join(process.cwd(), 'prisma', 'contract.json'), 'utf8'),
+    readFileSync(join(process.cwd(), 'prisma', file), 'utf8'),
   ) as unknown;
 }
 
@@ -27,12 +33,14 @@ export function getDb(): PostgresClient {
   if (!url) {
     throw new Error('DATABASE_URL is not set');
   }
+  assertAudiencePrismaDatabase(url);
   if (!client || boundUrl !== url) {
-    client = postgres<Contract>({
+    const constructed = postgres<Contract>({
       contractJson: loadContractJson(),
       url,
       extensions: [postgisRuntime],
     });
+    client = wrapDecimalMoneyClient(constructed);
     boundUrl = url;
   }
   return client;

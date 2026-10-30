@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AdminModule } from '../admin/admin.module';
 import { MerchantsModule } from '../merchants/merchants.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { SupportAdminService } from './application/support-admin.service';
 import { SupportService } from './application/support.service';
 import { SupportRepository } from './infrastructure/support.repository';
@@ -10,7 +11,7 @@ import { DriverSupportController } from './presentation/http/driver-support.cont
 import { MerchantSupportController } from './presentation/http/merchant-support.controller';
 
 @Module({
-  imports: [AdminModule, MerchantsModule],
+  imports: [AdminModule, MerchantsModule, NotificationsModule],
   controllers: [
     CustomerSupportController,
     DriverSupportController,

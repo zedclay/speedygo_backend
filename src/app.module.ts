@@ -1,7 +1,10 @@
 import { Module } from '@nestjs/common';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { MoneyContractResponseInterceptor } from './common/money/money-response.interceptor';
 import { ConfigModule } from '@nestjs/config';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
+import { ReadinessService } from './infrastructure/health/readiness.service';
 import configuration from './config/configuration';
 import { RedisModule } from './infrastructure/cache/redis.module';
 import { DatabaseModule } from './infrastructure/database/database.module';
@@ -79,6 +82,13 @@ import { SettingsModule } from './modules/settings/settings.module';
     SettingsModule,
   ],
   controllers: [AppController],
-  providers: [AppService],
+  providers: [
+    AppService,
+    ReadinessService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: MoneyContractResponseInterceptor,
+    },
+  ],
 })
 export class AppModule {}

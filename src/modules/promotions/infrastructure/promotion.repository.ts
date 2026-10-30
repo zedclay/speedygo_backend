@@ -1,5 +1,5 @@
 import { Injectable } from '@nestjs/common';
-import { parseMoneyMinorDecimalString } from '../../../common/money/money-minor';
+import { loadStoredCentimes } from '../../../common/money/prisma-money-decimal';
 import { createUuidV7 } from '../../../common/utils/uuid-v7';
 import {
   PrismaService,
@@ -22,6 +22,10 @@ import type {
   PromotionRecord,
   PromotionRedemptionRecord,
 } from '../domain/promotion.types';
+import {
+  loadPromotionDomainValue,
+  persistPromotionMoneyFields,
+} from './promotion-money-storage';
 
 export type OrmClient = {
   orm: SpeedyGoDb['orm'];
@@ -62,7 +66,8 @@ function toPromotion(row: {
   id: string;
   code: string;
   type: string;
-  value: number;
+  value: number | null;
+  valueAmount?: unknown;
   startsAt: string;
   endsAt: string;
   active: boolean;
@@ -75,7 +80,11 @@ function toPromotion(row: {
     id: row.id,
     code: String(row.code),
     type: String(row.type),
-    value: Number(row.value),
+    value: loadPromotionDomainValue({
+      type: String(row.type),
+      value: row.value,
+      valueAmount: row.valueAmount,
+    }),
     startsAt: row.startsAt,
     endsAt: row.endsAt,
     active: Boolean(row.active),
@@ -100,7 +109,7 @@ function toRedemption(row: {
     promotionId: row.promotionId,
     customerId: row.customerId,
     orderId: row.orderId,
-    discountAmountMinor: parseMoneyMinorDecimalString(row.discountAmountMinor),
+    discountAmountMinor: loadStoredCentimes(row.discountAmountMinor),
     fundedBy: row.fundedBy as PromotionFundingV1,
     redeemedAt: row.redeemedAt,
   };
@@ -180,11 +189,12 @@ export class PromotionRepository {
     const db = this.asClient(client);
     const id = createUuidV7();
     const now = pgNow();
+    const money = persistPromotionMoneyFields(input.type, input.value);
     await orm(db).Promotion.create({
       id,
       code: pgVarchar<64>(input.code),
       type: pgVarchar<64>(input.type),
-      value: input.value,
+      value: money.value as number,
       startsAt: pgTimestamptz(input.startsAt),
       endsAt: pgTimestamptz(input.endsAt),
       active: input.active,
@@ -195,7 +205,10 @@ export class PromotionRepository {
           : pgVarchar<64>(input.customerLabel),
       createdAt: now,
       updatedAt: now,
-    });
+      ...(money.valueAmount !== undefined
+        ? { valueAmount: money.valueAmount }
+        : {}),
+    } as never);
     const row = await orm(db).Promotion.where({ id }).first();
     if (!row) {
       throw promotionConfigurationInvalid('Promotion create failed');
@@ -255,6 +268,33 @@ export class PromotionRepository {
       .CustomerProfile.where({ accountId })
       .first();
     return row?.id ?? null;
+  }
+
+  async updatePromotionValue(
+    id: string,
+    value: number,
+    client?: OrmClient,
+  ): Promise<PromotionRecord> {
+    const db = this.asClient(client);
+    const existing = await orm(db).Promotion.where({ id }).first();
+    if (!existing) {
+      throw promotionConfigurationInvalid('Promotion update failed');
+    }
+    const money = persistPromotionMoneyFields(String(existing.type), value);
+    await orm(db)
+      .Promotion.where({ id })
+      .update({
+        value: money.value as number,
+        updatedAt: pgNow(),
+        ...(money.valueAmount !== undefined
+          ? { valueAmount: money.valueAmount }
+          : {}),
+      } as never);
+    const row = await orm(db).Promotion.where({ id }).first();
+    if (!row) {
+      throw promotionConfigurationInvalid('Promotion update failed');
+    }
+    return toPromotion(row);
   }
 
   async setActive(

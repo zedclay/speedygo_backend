@@ -32,6 +32,12 @@ export interface OtpStorePort {
     channel: AuthChannel,
     identifierHash: string,
   ): Promise<void>;
+  deleteChallengeIfGeneration(
+    purpose: OtpPurpose,
+    channel: AuthChannel,
+    identifierHash: string,
+    sendGeneration: string,
+  ): Promise<boolean>;
   markCooldown(
     purpose: OtpPurpose,
     channel: AuthChannel,

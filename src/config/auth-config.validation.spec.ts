@@ -30,4 +30,15 @@ describe('assertAuthSecurityConfig', () => {
       }),
     ).toThrow(/forbidden/);
   });
+
+  it('allows Infobip OTP transport in production', () => {
+    expect(() =>
+      assertAuthSecurityConfig({
+        nodeEnv: 'production',
+        jwtAccessSecret: 'a-very-long-production-jwt-access-secret!!',
+        otpHmacSecret: 'a-very-long-production-otp-hmac-secret!!',
+        otpTransport: 'infobip',
+      }),
+    ).not.toThrow();
+  });
 });

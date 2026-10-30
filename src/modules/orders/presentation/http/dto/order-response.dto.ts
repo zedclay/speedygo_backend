@@ -1,4 +1,4 @@
-import { ApiProperty } from '@nestjs/swagger';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN } from '../../../../../common/money/money-minor';
 
 export class OrderItemOptionResponseDto {
@@ -64,11 +64,23 @@ export class OrderAddressSnapshotResponseDto {
   @ApiProperty()
   longitude!: number;
 
+  @ApiPropertyOptional({ nullable: true, type: String })
+  building!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  floor!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  entrance!: string | null;
+
+  @ApiPropertyOptional({ nullable: true, type: String })
+  landmark!: string | null;
+
   @ApiProperty({
     nullable: true,
     type: String,
     description:
-      'Frozen snapshot field. Live Customer Address has no instructions; v1.0 persists null.',
+      'Frozen snapshot field copied at Order creation. Structured details use building/floor/entrance/landmark; this remains null unless previously stored.',
   })
   instructions!: string | null;
 }
@@ -94,6 +106,15 @@ export class OrderCustomerFinancialResponseDto {
     example: '500',
   })
   deliveryFeeMinor!: string;
+
+  @ApiProperty({
+    type: String,
+    description:
+      'Customer-safe promotion discount snapshotted at Order creation (OrderFinancialSnapshot.totalDiscountMinor). Funding buckets are not exposed. 0 when no promotion applied. Equation: merchandiseSubtotalMinor − discountMinor + deliveryFeeMinor = customerTotalMinor.',
+    pattern: MONEY_MINOR_NONNEGATIVE_DECIMAL_STRING_PATTERN,
+    example: '0',
+  })
+  discountMinor!: string;
 
   @ApiProperty({
     type: String,

@@ -1,5 +1,10 @@
 import { Queue, QueueEvents, Worker } from 'bullmq';
 import {
+  bullmqIsolatedRedisConnection,
+  isolatedRedisProbesEnabled,
+  pingIsolatedRedis,
+} from '../../../config/e2e-redis-safety';
+import {
   MATCHING_RECOVERY_JOB_ID,
   matchingRetryJobId,
   matchingStartJobId,
@@ -13,15 +18,13 @@ import {
 } from '../domain/matching.jobs';
 import { MatchingQueueService } from './matching-queue.service';
 
-describe('MatchingQueueService (isolated Redis probe)', () => {
+const describeIsolatedRedis = isolatedRedisProbesEnabled()
+  ? describe
+  : describe.skip;
+
+describeIsolatedRedis('MatchingQueueService (isolated Redis probe)', () => {
   jest.setTimeout(20_000);
-  const redisUrl = process.env.REDIS_URL ?? 'redis://127.0.0.1:6381';
-  const parsed = new URL(redisUrl);
-  const connection = {
-    host: parsed.hostname,
-    port: Number.parseInt(parsed.port || '6379', 10),
-    maxRetriesPerRequest: null,
-  };
+  const connection = bullmqIsolatedRedisConnection();
   const prefix = 'bull:matching-queue-probe';
   let name: string;
   let queue: Queue;
@@ -57,6 +60,10 @@ describe('MatchingQueueService (isolated Redis probe)', () => {
       await worker.close();
     }
   }
+
+  beforeAll(async () => {
+    await pingIsolatedRedis();
+  });
 
   beforeEach(() => {
     name = `probe-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

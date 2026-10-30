@@ -5,6 +5,7 @@ export const AUTH_ERROR_CODES = {
   AUTH_INVALID_OTP: 'AUTH_INVALID_OTP',
   AUTH_OTP_EXPIRED: 'AUTH_OTP_EXPIRED',
   AUTH_OTP_ATTEMPTS_EXCEEDED: 'AUTH_OTP_ATTEMPTS_EXCEEDED',
+  AUTH_OTP_DELIVERY_FAILED: 'AUTH_OTP_DELIVERY_FAILED',
   AUTH_RATE_LIMITED: 'AUTH_RATE_LIMITED',
   AUTH_INVALID_TOKEN: 'AUTH_INVALID_TOKEN',
   AUTH_SESSION_REVOKED: 'AUTH_SESSION_REVOKED',
@@ -13,6 +14,9 @@ export const AUTH_ERROR_CODES = {
   AUTH_ACCOUNT_DISABLED: 'AUTH_ACCOUNT_DISABLED',
   AUTH_FORBIDDEN: 'AUTH_FORBIDDEN',
   AUTH_MISCONFIGURED: 'AUTH_MISCONFIGURED',
+  AUTH_APP_AUDIENCE_REQUIRED: 'AUTH_APP_AUDIENCE_REQUIRED',
+  AUTH_AUDIENCE_MISMATCH: 'AUTH_AUDIENCE_MISMATCH',
+  AUTH_AUDIENCE_LEGACY_REJECTED: 'AUTH_AUDIENCE_LEGACY_REJECTED',
 } as const;
 
 export type AuthErrorCode =
@@ -54,6 +58,14 @@ export function authOtpAttemptsExceeded(): AuthError {
     AUTH_ERROR_CODES.AUTH_OTP_ATTEMPTS_EXCEEDED,
     'Verification failed',
     401,
+  );
+}
+
+export function authOtpDeliveryFailed(): AuthError {
+  return new AuthError(
+    AUTH_ERROR_CODES.AUTH_OTP_DELIVERY_FAILED,
+    'OTP could not be delivered',
+    503,
   );
 }
 
@@ -106,5 +118,35 @@ export function authForbidden(): AuthError {
     AUTH_ERROR_CODES.AUTH_FORBIDDEN,
     'Insufficient permissions',
     403,
+  );
+}
+
+export function authMisconfigured(
+  message = 'Authentication is misconfigured',
+): AuthError {
+  return new AuthError(AUTH_ERROR_CODES.AUTH_MISCONFIGURED, message, 500);
+}
+
+export function authAppAudienceRequired(): AuthError {
+  return new AuthError(
+    AUTH_ERROR_CODES.AUTH_APP_AUDIENCE_REQUIRED,
+    'Application audience is required',
+    400,
+  );
+}
+
+export function authAudienceMismatch(): AuthError {
+  return new AuthError(
+    AUTH_ERROR_CODES.AUTH_AUDIENCE_MISMATCH,
+    'Token audience does not match this resource',
+    403,
+  );
+}
+
+export function authAudienceLegacyRejected(): AuthError {
+  return new AuthError(
+    AUTH_ERROR_CODES.AUTH_AUDIENCE_LEGACY_REJECTED,
+    'This session has no audience and cannot be used while enforcement is on',
+    401,
   );
 }

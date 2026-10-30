@@ -15,6 +15,7 @@ export const CHECKOUT_ERROR_CODES = {
   CHECKOUT_BRANCH_NOT_OPERATIONAL: 'CHECKOUT_BRANCH_NOT_OPERATIONAL',
   CHECKOUT_BRANCH_CLOSED: 'CHECKOUT_BRANCH_CLOSED',
   CHECKOUT_BRANCH_HOURS_NOT_CONFIGURED: 'CHECKOUT_BRANCH_HOURS_NOT_CONFIGURED',
+  CHECKOUT_BRANCH_OUTSIDE_ZONE: 'CHECKOUT_BRANCH_OUTSIDE_ZONE',
 } as const;
 
 export type CheckoutErrorCode =
@@ -121,6 +122,14 @@ export function checkoutBranchHoursNotConfigured(): CheckoutError {
   return new CheckoutError(
     CHECKOUT_ERROR_CODES.CHECKOUT_BRANCH_HOURS_NOT_CONFIGURED,
     'Branch opening hours are not configured',
+    409,
+  );
+}
+
+export function checkoutBranchOutsideZone(): CheckoutError {
+  return new CheckoutError(
+    CHECKOUT_ERROR_CODES.CHECKOUT_BRANCH_OUTSIDE_ZONE,
+    'This store cannot deliver to the selected address',
     409,
   );
 }

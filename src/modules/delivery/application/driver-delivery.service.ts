@@ -1,5 +1,7 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
+import { blankToNull } from '../../../common/address/address-details';
 import { pgNow } from '../../../infrastructure/database/pg-values';
 import { DriverRepository } from '../../drivers/infrastructure/driver.repository';
 import { CodCollectionRepository } from '../../cod/infrastructure/cod-collection.repository';
@@ -44,6 +46,7 @@ import {
   DRIVER_DELIVERY_ACTION_COMPLETE_DELIVERY,
   DRIVER_DELIVERY_DROPOFF_RADIUS_METERS,
   DRIVER_DELIVERY_PICKUP_RADIUS_METERS,
+  isDropoffRevealedForDriver,
   transitionForAction,
   type DriverDeliveryAction,
 } from '../domain/driver-delivery.policy';
@@ -55,6 +58,8 @@ import { PickupHandoffService } from './pickup-handoff.service';
 
 export type DriverCurrentDeliveryView = {
   assignmentId: string;
+  /** Optimistic concurrency token for confirm-pickup when a PENDING handoff exists. */
+  assignmentVersion: number;
   deliveryId: string;
   orderId: string;
   deliveryStatus: string;
@@ -65,6 +70,17 @@ export type DriverCurrentDeliveryView = {
   pickedUpAt: string | null;
   arrivedCustomerAt: string | null;
   deliveredAt: string | null;
+  /**
+   * COD Payment.amountMinor as exact decimal string when method is COD.
+   * Null for electronic / missing payment. UI converts to DZD for display only.
+   */
+  expectedCodAmountMinor: string | null;
+  dropoffAddressText: string | null;
+  dropoffBuilding: string | null;
+  dropoffFloor: string | null;
+  dropoffEntrance: string | null;
+  dropoffLandmark: string | null;
+  dropoffInstructions: string | null;
 };
 
 @Injectable()
@@ -92,19 +108,7 @@ export class DriverDeliveryService {
     if (!detail) {
       return null;
     }
-    return {
-      assignmentId: context.assignmentId,
-      deliveryId: context.deliveryId,
-      orderId: context.orderId,
-      deliveryStatus: detail.status,
-      orderStatus: detail.orderStatus,
-      fulfillmentStatus: detail.fulfillmentStatus,
-      assignmentStatus: context.assignmentStatus,
-      allowedActions: allowedActionsForStatus(detail.status),
-      pickedUpAt: detail.pickedUpAt,
-      arrivedCustomerAt: detail.arrivedCustomerAt,
-      deliveredAt: detail.deliveredAt,
-    };
+    return this.toCurrentView(context, detail);
   }
 
   async performAction(
@@ -254,8 +258,10 @@ export class DriverDeliveryService {
     context: {
       driverId: string;
       assignmentId: string;
+      assignmentVersion: number;
       deliveryId: string;
       orderId: string;
+      assignmentStatus: string;
     },
     transition: ReturnType<typeof transitionForAction>,
   ): Promise<DriverCurrentDeliveryView> {
@@ -391,18 +397,78 @@ export class DriverDeliveryService {
       earningId: earning.id,
       driverId: context.driverId,
     });
+    return this.toCurrentView(context, detail, {
+      assignmentStatus: 'RELEASED',
+      allowedActions: [],
+    });
+  }
+
+  private async toCurrentView(
+    context: {
+      assignmentId: string;
+      assignmentVersion: number;
+      deliveryId: string;
+      orderId: string;
+      assignmentStatus: string;
+    },
+    detail: {
+      status: string;
+      orderStatus: string;
+      fulfillmentStatus: string;
+      pickedUpAt: string | null;
+      arrivedCustomerAt: string | null;
+      deliveredAt: string | null;
+      dropoff?: {
+        addressText?: string | null;
+        building?: string | null;
+        floor?: string | null;
+        entrance?: string | null;
+        landmark?: string | null;
+        instructions?: string | null;
+      } | null;
+    },
+    overrides?: {
+      assignmentStatus?: string;
+      allowedActions?: DriverDeliveryAction[];
+    },
+  ): Promise<DriverCurrentDeliveryView> {
+    const payment = await this.deliveries.findPaymentSummary(context.orderId);
+    const expectedCodAmountMinor =
+      payment?.method === ORDER_PAYMENT_METHOD_COD
+        ? moneyMinorToDecimalString(payment.amountMinor)
+        : null;
+    const revealDropoff = isDropoffRevealedForDriver(detail.status);
     return {
       assignmentId: context.assignmentId,
+      assignmentVersion: context.assignmentVersion,
       deliveryId: context.deliveryId,
       orderId: context.orderId,
       deliveryStatus: detail.status,
       orderStatus: detail.orderStatus,
       fulfillmentStatus: detail.fulfillmentStatus,
-      assignmentStatus: 'RELEASED',
-      allowedActions: [],
+      assignmentStatus: overrides?.assignmentStatus ?? context.assignmentStatus,
+      allowedActions:
+        overrides?.allowedActions ?? allowedActionsForStatus(detail.status),
       pickedUpAt: detail.pickedUpAt,
       arrivedCustomerAt: detail.arrivedCustomerAt,
       deliveredAt: detail.deliveredAt,
+      expectedCodAmountMinor,
+      dropoffAddressText: revealDropoff
+        ? blankToNull(detail.dropoff?.addressText)
+        : null,
+      dropoffBuilding: revealDropoff
+        ? blankToNull(detail.dropoff?.building)
+        : null,
+      dropoffFloor: revealDropoff ? blankToNull(detail.dropoff?.floor) : null,
+      dropoffEntrance: revealDropoff
+        ? blankToNull(detail.dropoff?.entrance)
+        : null,
+      dropoffLandmark: revealDropoff
+        ? blankToNull(detail.dropoff?.landmark)
+        : null,
+      dropoffInstructions: revealDropoff
+        ? blankToNull(detail.dropoff?.instructions)
+        : null,
     };
   }
 

@@ -13,6 +13,10 @@ import {
   pgVarchar,
 } from '../../../infrastructure/database/pg-values';
 import { moneyMinorToDecimalString } from '../../../common/money/money-minor';
+import {
+  blankToNull,
+  readAddressDetails,
+} from '../../../common/address/address-details';
 import { parseMinorUnits } from '../../catalog/domain/catalog.policy';
 import { CART_STATUS_CONVERTED } from '../../cart/domain/cart.policy';
 import type { CheckoutPricingRuleRecord } from '../../checkout/domain/checkout.types';
@@ -44,12 +48,17 @@ import {
   uniqueSortedIds,
 } from '../domain/order.policy';
 import { ORDER_STATUS_EVENT_CUSTOMER_CANCELLED } from '../domain/customer-order-cancellation.policy';
+import {
+  ORDER_STATUS_EVENT_ACTOR_ADMIN,
+  ORDER_STATUS_EVENT_ADMIN_CANCELLED,
+} from '../domain/admin-order-cancellation.policy';
 import type {
   MerchantOrderDetailView,
   MerchantOrderListQuery,
   MerchantOrderStatusEventView,
   MerchantOrderSummaryView,
   OrderAddressRecord,
+  OrderAddressSnapshotView,
   OrderDetailView,
   OrderItemView,
   OrderListQuery,
@@ -72,6 +81,36 @@ function parseCoordinate(value: unknown): number {
     return Number(value);
   }
   return Number.NaN;
+}
+
+function persistOptionalVarchar<N extends number>(
+  value: string | null | undefined,
+): ReturnType<typeof pgVarchar<N>> | null {
+  const normalized = blankToNull(value);
+  return normalized == null ? null : pgVarchar<N>(normalized);
+}
+
+function toDeliveryAddressView(address: {
+  addressText: string;
+  latitude: unknown;
+  longitude: unknown;
+  building?: string | null;
+  floor?: string | null;
+  entrance?: string | null;
+  landmark?: string | null;
+  instructions: string | null;
+}): OrderAddressSnapshotView {
+  const details = readAddressDetails(address);
+  return {
+    addressText: address.addressText,
+    latitude: parseCoordinate(address.latitude),
+    longitude: parseCoordinate(address.longitude),
+    building: details.building,
+    floor: details.floor,
+    entrance: details.entrance,
+    landmark: details.landmark,
+    instructions: address.instructions,
+  };
 }
 
 @Injectable()
@@ -100,10 +139,29 @@ export class OrderRepository {
     if (!row) {
       return null;
     }
+    const details = readAddressDetails(row);
     return {
       id: row.id,
       customerId: row.customerId,
       addressText: row.addressText,
+      latitude: parseCoordinate(row.latitude),
+      longitude: parseCoordinate(row.longitude),
+      building: details.building,
+      floor: details.floor,
+      entrance: details.entrance,
+      landmark: details.landmark,
+    };
+  }
+
+  async findBranchCoordinates(
+    branchId: string,
+    client: OrmClient,
+  ): Promise<{ latitude: number; longitude: number } | null> {
+    const row = await orm(client).MerchantBranch.where({ id: branchId }).first();
+    if (!row) {
+      return null;
+    }
+    return {
       latitude: parseCoordinate(row.latitude),
       longitude: parseCoordinate(row.longitude),
     };
@@ -193,6 +251,10 @@ export class OrderRepository {
       addressText: input.address.addressText,
       latitude: pgNumeric<9, 6>(input.address.latitude, 6),
       longitude: pgNumeric<9, 6>(input.address.longitude, 6),
+      building: persistOptionalVarchar<64>(input.address.building),
+      floor: persistOptionalVarchar<32>(input.address.floor),
+      entrance: persistOptionalVarchar<64>(input.address.entrance),
+      landmark: persistOptionalVarchar<128>(input.address.landmark),
       instructions: null,
     });
     for (const line of input.lines) {
@@ -351,12 +413,7 @@ export class OrderRepository {
       ...summary,
       merchantBranchId: order.merchantBranchId,
       items,
-      deliveryAddress: {
-        addressText: address.addressText,
-        latitude: parseCoordinate(address.latitude),
-        longitude: parseCoordinate(address.longitude),
-        instructions: address.instructions,
-      },
+      deliveryAddress: toDeliveryAddressView(address),
     };
   }
 
@@ -407,6 +464,9 @@ export class OrderRepository {
           ),
           deliveryFeeMinor: moneyMinorToDecimalString(
             financial.customerDeliveryFeeMinor,
+          ),
+          discountMinor: moneyMinorToDecimalString(
+            financial.totalDiscountMinor,
           ),
           customerTotalMinor: moneyMinorToDecimalString(
             financial.customerPayableMinor,
@@ -857,6 +917,68 @@ export class OrderRepository {
     return 'APPLIED';
   }
 
+  /**
+   * Admin early-window cancel (Admin Order Operations v1.0).
+   * Same Order/Payment writers as Customer cancel; event actor is ADMIN.
+   */
+  async applyAdminCancel(
+    orderId: string,
+    actorAccountId: string,
+    reason: string,
+    expectedUpdatedAt: string,
+    client: OrmClient,
+  ): Promise<'APPLIED' | 'NOT_APPLIED'> {
+    const now = pgNow();
+    await orm(client)
+      .Order.where({
+        id: orderId,
+        status: ORDER_STATUS_CREATED,
+        fulfillmentStatus: ORDER_FULFILLMENT_PENDING_ACCEPTANCE,
+        updatedAt: pgTimestamptz(expectedUpdatedAt),
+      })
+      .update({
+        status: ORDER_STATUS_CANCELLED,
+        updatedAt: now,
+      });
+    const row = await orm(client).Order.where({ id: orderId }).first();
+    if (
+      !row ||
+      row.status !== ORDER_STATUS_CANCELLED ||
+      row.fulfillmentStatus !== ORDER_FULFILLMENT_PENDING_ACCEPTANCE
+    ) {
+      return 'NOT_APPLIED';
+    }
+    await orm(client).OrderCancellation.create({
+      id: createUuidV7(),
+      orderId,
+      reason: pgVarchar<255>(reason),
+      internalNote: null,
+      cancelledByAccountId: actorAccountId,
+      cancelledAt: now,
+    });
+    await orm(client)
+      .Payment.where({
+        orderId,
+        status: PAYMENT_STATUS_PENDING,
+      })
+      .update({
+        status: PAYMENT_STATUS_CANCELLED,
+        updatedAt: now,
+      });
+    await orm(client).OrderStatusEvent.create({
+      id: createUuidV7(),
+      orderId,
+      eventType: pgVarchar<64>(ORDER_STATUS_EVENT_ADMIN_CANCELLED),
+      actorType: pgVarchar<32>(ORDER_STATUS_EVENT_ACTOR_ADMIN),
+      actorId: actorAccountId,
+      fromStatus: pgVarchar<32>(ORDER_STATUS_CREATED),
+      toStatus: pgVarchar<32>(ORDER_STATUS_CANCELLED),
+      occurredAt: now,
+      metadataJson: null,
+    });
+    return 'APPLIED';
+  }
+
   async findOrderCancellation(
     orderId: string,
     client?: OrmClient,
@@ -1059,12 +1181,7 @@ export class OrderRepository {
     return {
       ...summary,
       items,
-      deliveryAddress: {
-        addressText: address.addressText,
-        latitude: parseCoordinate(address.latitude),
-        longitude: parseCoordinate(address.longitude),
-        instructions: address.instructions,
-      },
+      deliveryAddress: toDeliveryAddressView(address),
       statusHistory,
       cancellation: cancellation
         ? {

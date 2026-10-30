@@ -7,6 +7,7 @@ const NOTIF = 'dddddddd-dddd-7ddd-8ddd-dddddddddddd';
 const LOG = 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee';
 const MERCHANT = 'ffffffff-ffff-7fff-8fff-ffffffffffff';
 const BRANCH = '11111111-1111-7111-8111-111111111111';
+const ASSIGNMENT = '22222222-2222-7222-8222-222222222222';
 
 function token(id: string) {
   return {
@@ -56,8 +57,21 @@ describe('PushDispatchService', () => {
         orderStatus: 'CREATED',
         fulfillmentStatus: 'PENDING_ACCEPTANCE',
       }),
+      findCustomerOrderPushContext: jest.fn().mockResolvedValue({
+        accountStatus: 'ACTIVE',
+        customerAccountId: ACCOUNT,
+        orderStatus: 'CONFIRMED',
+      }),
       findActiveDeviceTokens: jest.fn().mockResolvedValue([token('t1')]),
       deactivateDeviceTokenById: jest.fn().mockResolvedValue(undefined),
+      findMatchOfferPushContext: jest.fn().mockResolvedValue({
+        accountStatus: 'ACTIVE',
+        driverAccountId: ACCOUNT,
+        assignmentStatus: 'OFFERED',
+        assignedAt: new Date(Date.now() - 5_000).toISOString(),
+        acceptedAt: null,
+        releasedAt: null,
+      }),
     };
     gateway = {
       provider: 'fcm',
@@ -67,7 +81,16 @@ describe('PushDispatchService', () => {
         providerReference: 'fcm:projects/p/messages/1',
       }),
     };
-    service = new PushDispatchService(repo as never, gateway as never);
+    const config = {
+      get: jest.fn((key: string, fallback?: unknown) =>
+        key === 'matching.offerTimeoutMs' ? 30_000 : fallback,
+      ),
+    };
+    service = new PushDispatchService(
+      repo as never,
+      gateway as never,
+      config as never,
+    );
   });
 
   const lastStatus = () =>
@@ -219,5 +242,317 @@ describe('PushDispatchService', () => {
     await service.dispatch({ notificationId: NOTIF }, { finalAttempt: false });
     expect(lastStatus().status).toBe('SKIPPED_NOT_CONFIGURED');
     expect(gateway.send).not.toHaveBeenCalled();
+  });
+
+  it('sends customer ORDER_READY with order routing data only', async () => {
+    repo.findNotificationById.mockResolvedValue({
+      id: NOTIF,
+      accountId: ACCOUNT,
+      templateId: null,
+      title: 'Commande prête',
+      body: 'Votre commande est prête',
+      category: `ORDER_READY:${ORDER}`,
+      read: false,
+      createdAt: '2026-09-28T00:00:00.000Z',
+    });
+    await service.dispatch({ notificationId: NOTIF }, { finalAttempt: false });
+    expect(lastStatus().status).toBe('PROVIDER_ACCEPTED');
+    const msg = gateway.send.mock.calls[0][0] as {
+      data: Record<string, string>;
+      androidChannelId: string;
+    };
+    expect(msg.data).toEqual({
+      type: 'ORDER_READY',
+      orderId: ORDER,
+      notificationId: NOTIF,
+    });
+    expect(msg.androidChannelId).toBe('customer_order_updates');
+  });
+
+  it('skips customer push when the order is cancelled (except cancel/reject types)', async () => {
+    repo.findNotificationById.mockResolvedValue({
+      id: NOTIF,
+      accountId: ACCOUNT,
+      templateId: null,
+      title: 'Commande prête',
+      body: 'body',
+      category: `ORDER_READY:${ORDER}`,
+      read: false,
+      createdAt: '2026-09-28T00:00:00.000Z',
+    });
+    repo.findCustomerOrderPushContext.mockResolvedValue({
+      accountStatus: 'ACTIVE',
+      customerAccountId: ACCOUNT,
+      orderStatus: 'CANCELLED',
+    });
+    await service.dispatch({ notificationId: NOTIF }, { finalAttempt: false });
+    expect(lastStatus().status).toBe('SKIPPED_STALE_SOURCE');
+    expect(gateway.send).not.toHaveBeenCalled();
+  });
+
+  it('still sends ORDER_CANCELLED after the order is CANCELLED', async () => {
+    repo.findNotificationById.mockResolvedValue({
+      id: NOTIF,
+      accountId: ACCOUNT,
+      templateId: null,
+      title: 'Commande annulée',
+      body: 'body',
+      category: `ORDER_CANCELLED:${ORDER}`,
+      read: false,
+      createdAt: '2026-09-28T00:00:00.000Z',
+    });
+    repo.findCustomerOrderPushContext.mockResolvedValue({
+      accountStatus: 'ACTIVE',
+      customerAccountId: ACCOUNT,
+      orderStatus: 'CANCELLED',
+    });
+    await service.dispatch({ notificationId: NOTIF }, { finalAttempt: false });
+    expect(lastStatus().status).toBe('PROVIDER_ACCEPTED');
+  });
+
+  it('skips customer push when the recipient is not the order customer', async () => {
+    repo.findNotificationById.mockResolvedValue({
+      id: NOTIF,
+      accountId: ACCOUNT,
+      templateId: null,
+      title: 'Commande prête',
+      body: 'body',
+      category: `ORDER_READY:${ORDER}`,
+      read: false,
+      createdAt: '2026-09-28T00:00:00.000Z',
+    });
+    repo.findCustomerOrderPushContext.mockResolvedValue({
+      accountStatus: 'ACTIVE',
+      customerAccountId: 'other-account',
+      orderStatus: 'CONFIRMED',
+    });
+    await service.dispatch({ notificationId: NOTIF }, { finalAttempt: false });
+    expect(lastStatus().status).toBe('SKIPPED_RECIPIENT_INELIGIBLE');
+    expect(gateway.send).not.toHaveBeenCalled();
+  });
+
+  it('financial types stay SKIPPED_NOT_CONFIGURED even with a provider', async () => {
+    repo.findNotificationById.mockResolvedValue({
+      id: NOTIF,
+      accountId: ACCOUNT,
+      templateId: null,
+      title: 'Paiement',
+      body: 'body',
+      category: `PAYMENT_SUCCEEDED:${ORDER}`,
+      read: false,
+      createdAt: '2026-09-28T00:00:00.000Z',
+    });
+    await service.dispatch({ notificationId: NOTIF }, { finalAttempt: false });
+    expect(lastStatus().status).toBe('SKIPPED_NOT_CONFIGURED');
+    expect(gateway.send).not.toHaveBeenCalled();
+  });
+
+  it('eligible MATCH_OFFER is sent to the offered Driver with TTL bounded by remaining offer time', async () => {
+    const assignedAt = new Date(Date.now() - 5_000).toISOString();
+    repo.findNotificationById.mockResolvedValue({
+      id: NOTIF,
+      accountId: ACCOUNT,
+      templateId: null,
+      title: 'Nouvelle course',
+      body: 'Une course vous est proposée',
+      category: `MATCH_OFFER:${ASSIGNMENT}`,
+      read: false,
+      createdAt: '2026-09-28T00:00:00.000Z',
+    });
+    repo.findMatchOfferPushContext.mockResolvedValue({
+      accountStatus: 'ACTIVE',
+      driverAccountId: ACCOUNT,
+      assignmentStatus: 'OFFERED',
+      assignedAt,
+      acceptedAt: null,
+      releasedAt: null,
+    });
+    await service.dispatch({ notificationId: NOTIF }, { finalAttempt: false });
+    expect(lastStatus().status).toBe('PROVIDER_ACCEPTED');
+    const msg = gateway.send.mock.calls[0][0] as {
+      ttlSeconds: number;
+      collapseKey: string;
+      androidChannelId: string;
+      data: Record<string, string>;
+    };
+    expect(msg.collapseKey).toBe(ASSIGNMENT);
+    expect(msg.androidChannelId).toBe('driver_match_offers');
+    expect(msg.data).toEqual({
+      type: 'MATCH_OFFER',
+      sourceId: ASSIGNMENT,
+      offerId: ASSIGNMENT,
+      notificationId: NOTIF,
+    });
+    expect(msg.ttlSeconds).toBeGreaterThanOrEqual(24);
+    expect(msg.ttlSeconds).toBeLessThanOrEqual(25);
+  });
+
+  it('skips MATCH_OFFER when the offer has expired', async () => {
+    repo.findNotificationById.mockResolvedValue({
+      id: NOTIF,
+      accountId: ACCOUNT,
+      templateId: null,
+      title: 'Nouvelle course',
+      body: 'body',
+      category: `MATCH_OFFER:${ASSIGNMENT}`,
+      read: false,
+      createdAt: '2026-09-28T00:00:00.000Z',
+    });
+    repo.findMatchOfferPushContext.mockResolvedValue({
+      accountStatus: 'ACTIVE',
+      driverAccountId: ACCOUNT,
+      assignmentStatus: 'OFFERED',
+      assignedAt: new Date(Date.now() - 31_000).toISOString(),
+      acceptedAt: null,
+      releasedAt: null,
+    });
+    await service.dispatch({ notificationId: NOTIF }, { finalAttempt: false });
+    expect(lastStatus().status).toBe('SKIPPED_STALE_SOURCE');
+    expect(gateway.send).not.toHaveBeenCalled();
+  });
+
+  it('skips MATCH_OFFER when remaining TTL is under one second', async () => {
+    repo.findNotificationById.mockResolvedValue({
+      id: NOTIF,
+      accountId: ACCOUNT,
+      templateId: null,
+      title: 'Nouvelle course',
+      body: 'body',
+      category: `MATCH_OFFER:${ASSIGNMENT}`,
+      read: false,
+      createdAt: '2026-09-28T00:00:00.000Z',
+    });
+    repo.findMatchOfferPushContext.mockResolvedValue({
+      accountStatus: 'ACTIVE',
+      driverAccountId: ACCOUNT,
+      assignmentStatus: 'OFFERED',
+      assignedAt: new Date(Date.now() - 29_500).toISOString(),
+      acceptedAt: null,
+      releasedAt: null,
+    });
+    await service.dispatch({ notificationId: NOTIF }, { finalAttempt: false });
+    expect(lastStatus().status).toBe('SKIPPED_STALE_SOURCE');
+    expect(gateway.send).not.toHaveBeenCalled();
+  });
+
+  it('skips MATCH_OFFER when the assignment is accepted, rejected, or released', async () => {
+    repo.findNotificationById.mockResolvedValue({
+      id: NOTIF,
+      accountId: ACCOUNT,
+      templateId: null,
+      title: 'Nouvelle course',
+      body: 'body',
+      category: `MATCH_OFFER:${ASSIGNMENT}`,
+      read: false,
+      createdAt: '2026-09-28T00:00:00.000Z',
+    });
+    for (const ctx of [
+      {
+        assignmentStatus: 'ACCEPTED',
+        acceptedAt: new Date().toISOString(),
+        releasedAt: null,
+      },
+      {
+        assignmentStatus: 'REJECTED',
+        acceptedAt: null,
+        releasedAt: new Date().toISOString(),
+      },
+      {
+        assignmentStatus: 'EXPIRED',
+        acceptedAt: null,
+        releasedAt: new Date().toISOString(),
+      },
+    ]) {
+      gateway.send.mockClear();
+      repo.updateDeliveryLog.mockClear();
+      repo.findMatchOfferPushContext.mockResolvedValue({
+        accountStatus: 'ACTIVE',
+        driverAccountId: ACCOUNT,
+        assignedAt: new Date(Date.now() - 1_000).toISOString(),
+        ...ctx,
+      });
+      await service.dispatch(
+        { notificationId: NOTIF },
+        { finalAttempt: false },
+      );
+      expect(lastStatus().status).toBe('SKIPPED_STALE_SOURCE');
+      expect(gateway.send).not.toHaveBeenCalled();
+    }
+  });
+
+  it('skips MATCH_OFFER when the recipient is not the offered Driver', async () => {
+    repo.findNotificationById.mockResolvedValue({
+      id: NOTIF,
+      accountId: ACCOUNT,
+      templateId: null,
+      title: 'Nouvelle course',
+      body: 'body',
+      category: `MATCH_OFFER:${ASSIGNMENT}`,
+      read: false,
+      createdAt: '2026-09-28T00:00:00.000Z',
+    });
+    repo.findMatchOfferPushContext.mockResolvedValue({
+      accountStatus: 'ACTIVE',
+      driverAccountId: 'other-driver-account',
+      assignmentStatus: 'OFFERED',
+      assignedAt: new Date(Date.now() - 1_000).toISOString(),
+      acceptedAt: null,
+      releasedAt: null,
+    });
+    await service.dispatch({ notificationId: NOTIF }, { finalAttempt: false });
+    expect(lastStatus().status).toBe('SKIPPED_RECIPIENT_INELIGIBLE');
+    expect(gateway.send).not.toHaveBeenCalled();
+  });
+
+  it('does not re-send MATCH_OFFER when the Push log is already terminal', async () => {
+    repo.findNotificationById.mockResolvedValue({
+      id: NOTIF,
+      accountId: ACCOUNT,
+      templateId: null,
+      title: 'Nouvelle course',
+      body: 'body',
+      category: `MATCH_OFFER:${ASSIGNMENT}`,
+      read: false,
+      createdAt: '2026-09-28T00:00:00.000Z',
+    });
+    repo.findDeliveryLog.mockResolvedValue({
+      id: LOG,
+      notificationId: NOTIF,
+      channel: 'PUSH',
+      status: 'PROVIDER_ACCEPTED',
+      providerReference: 'fcm:projects/p/messages/1',
+      sentAt: '2026-09-28T00:00:01.000Z',
+      createdAt: '2026-09-28T00:00:00.000Z',
+    });
+    const result = await service.dispatch(
+      { notificationId: NOTIF },
+      { finalAttempt: false },
+    );
+    expect(result).toEqual({ kind: 'done', status: 'PROVIDER_ACCEPTED' });
+    expect(gateway.send).not.toHaveBeenCalled();
+    expect(repo.updateDeliveryLog).not.toHaveBeenCalled();
+  });
+
+  it('records FAILED for MATCH_OFFER when the provider rejects permanently', async () => {
+    repo.findNotificationById.mockResolvedValue({
+      id: NOTIF,
+      accountId: ACCOUNT,
+      templateId: null,
+      title: 'Nouvelle course',
+      body: 'body',
+      category: `MATCH_OFFER:${ASSIGNMENT}`,
+      read: false,
+      createdAt: '2026-09-28T00:00:00.000Z',
+    });
+    gateway.send.mockResolvedValue({
+      kind: 'permanent',
+      code: 'INVALID_ARGUMENT',
+    });
+    await service.dispatch({ notificationId: NOTIF }, { finalAttempt: true });
+    expect(lastStatus().status).toBe('FAILED');
+    expect(lastStatus().providerReference).toBe(
+      'push:permanent:INVALID_ARGUMENT',
+    );
+    expect(lastStatus().sentAt).toBeNull();
   });
 });

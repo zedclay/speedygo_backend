@@ -72,6 +72,10 @@ describe('MatchingService', () => {
     enqueueRetry: jest.Mock;
     scheduleAfterMatch: jest.Mock;
   };
+  let notifications: {
+    notifyMatchOffer: jest.Mock;
+    notifyDriverAssigned: jest.Mock;
+  };
 
   beforeEach(() => {
     assignments = [];
@@ -148,6 +152,8 @@ describe('MatchingService', () => {
             status: DELIVERY_STATUS_SEARCHING_DRIVER,
           }),
         findMatchingContext: () => Promise.resolve(context),
+        findDeliveryIdByOrderId: (orderId: string) =>
+          Promise.resolve(orderId === ORDER_ID ? DELIVERY_ID : null),
       } as never,
       {
         matchingEligibility: (driverId: string) =>
@@ -209,10 +215,10 @@ describe('MatchingService', () => {
         },
         setDeliveryAssigned: () => Promise.resolve(true),
       } as never,
-      {
+      (notifications = {
         notifyMatchOffer: jest.fn().mockResolvedValue(undefined),
         notifyDriverAssigned: jest.fn().mockResolvedValue(undefined),
-      } as never,
+      }) as never,
       store,
       config as unknown as ConfigService,
       jobs,
@@ -241,6 +247,25 @@ describe('MatchingService', () => {
     expect(result.offered).toBe(true);
     expect(result.assignment?.driverId).toBe(DRIVER_A);
     expect(assignments).toHaveLength(1);
+    expect(notifications.notifyMatchOffer).toHaveBeenCalledWith({
+      assignmentId: assignments[0].id,
+      driverId: DRIVER_A,
+    });
+  });
+
+  it('keeps the persisted offer when MATCH_OFFER notify fails', async () => {
+    geo = [
+      {
+        driverId: DRIVER_A,
+        distanceMeters: 80,
+        recordedAt: '2026-09-02T00:00:00.000Z',
+      },
+    ];
+    notifications.notifyMatchOffer.mockRejectedValue(new Error('notify down'));
+    const result = await service.matchDelivery(DELIVERY_ID);
+    expect(result.offered).toBe(true);
+    expect(assignments).toHaveLength(1);
+    expect(assignments[0].status).toBe(ASSIGNMENT_STATUS_OFFERED);
   });
 
   it('excludes offline, suspended, expired-license, and busy Drivers', async () => {
@@ -498,5 +523,34 @@ describe('MatchingService', () => {
     );
     expect(await service.expireAndContinue('asg-1')).toBeNull();
     expect(assignments[0].status).toBe(ASSIGNMENT_STATUS_ACCEPTED);
+  });
+
+  it('adminCreateOfferForOrder creates OFFERED without geo and supersedes open offer', async () => {
+    locations.clear();
+    geo = [];
+    const first = await service.adminCreateOfferForOrder(ORDER_ID, DRIVER_B);
+    expect(first.assignment.driverId).toBe(DRIVER_B);
+    expect(first.assignment.status).toBe(ASSIGNMENT_STATUS_OFFERED);
+    expect(first.supersededPreviousOffer).toBe(false);
+    expect(jobs.scheduleAfterMatch).toHaveBeenCalled();
+
+    const second = await service.adminCreateOfferForOrder(ORDER_ID, DRIVER_A);
+    expect(second.supersededPreviousOffer).toBe(true);
+    expect(second.assignment.driverId).toBe(DRIVER_A);
+    expect(assignments[0].status).toBe(ASSIGNMENT_STATUS_EXPIRED);
+    expect(assignments[0].releasedAt).not.toBeNull();
+
+    const same = await service.adminCreateOfferForOrder(ORDER_ID, DRIVER_A);
+    expect(same.assignment.id).toBe(second.assignment.id);
+    expect(same.supersededPreviousOffer).toBe(false);
+  });
+
+  it('adminCreateOfferForOrder rejects when driver is not matchable', async () => {
+    eligible.delete(DRIVER_A);
+    await expect(
+      service.adminCreateOfferForOrder(ORDER_ID, DRIVER_A),
+    ).rejects.toMatchObject({
+      code: MATCHING_ERROR_CODES.DRIVER_NOT_MATCHING_ELIGIBLE,
+    });
   });
 });

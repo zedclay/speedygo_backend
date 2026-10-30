@@ -721,7 +721,9 @@ describe('Order foundation (e2e)', () => {
       expect((fakeLower.body as ErrorBody).error.current).toEqual({
         merchandiseSubtotalMinor: '1200',
         deliveryFeeMinor: '500',
+        discountMinor: '0',
         customerTotalMinor: '1700',
+        promoCode: null,
       });
       expect((fakeLower.body as ErrorBody).error).not.toHaveProperty(
         'merchantCommissionAmountMinor',

@@ -33,5 +33,6 @@ import { OrderController } from './presentation/http/order.controller';
     MerchantOrderService,
     { provide: CHECKOUT_CLOCK, useClass: SystemCheckoutClock },
   ],
+  exports: [OrderRepository, OrderService],
 })
 export class OrdersModule {}

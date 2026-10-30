@@ -11,6 +11,10 @@ import {
   pgVarchar,
 } from '../../../infrastructure/database/pg-values';
 import {
+  blankToNull,
+  readAddressDetails,
+} from '../../../common/address/address-details';
+import {
   customerDefaultAddressInvalid,
   customerProfileAlreadyExists,
 } from '../domain/customer.errors';
@@ -170,6 +174,10 @@ export class CustomerRepository {
       addressText?: string;
       latitude?: ReturnType<typeof pgNumeric<9, 6>>;
       longitude?: ReturnType<typeof pgNumeric<9, 6>>;
+      building?: ReturnType<typeof pgVarchar<64>> | null;
+      floor?: ReturnType<typeof pgVarchar<32>> | null;
+      entrance?: ReturnType<typeof pgVarchar<64>> | null;
+      landmark?: ReturnType<typeof pgVarchar<128>> | null;
       updatedAt: ReturnType<typeof pgNow>;
     } = { updatedAt: pgNow() };
     if (input.label !== undefined) {
@@ -183,6 +191,18 @@ export class CustomerRepository {
     }
     if (input.longitude !== undefined) {
       patch.longitude = pgNumeric<9, 6>(input.longitude, 6);
+    }
+    if (input.building !== undefined) {
+      patch.building = optionalVarchar<64>(input.building);
+    }
+    if (input.floor !== undefined) {
+      patch.floor = optionalVarchar<32>(input.floor);
+    }
+    if (input.entrance !== undefined) {
+      patch.entrance = optionalVarchar<64>(input.entrance);
+    }
+    if (input.landmark !== undefined) {
+      patch.landmark = optionalVarchar<128>(input.landmark);
     }
     await orm(this.db())
       .Address.where({ id: addressId, customerId })
@@ -253,6 +273,10 @@ export class CustomerRepository {
       addressText: input.addressText,
       latitude: pgNumeric<9, 6>(input.latitude, 6),
       longitude: pgNumeric<9, 6>(input.longitude, 6),
+      building: optionalVarchar<64>(input.building),
+      floor: optionalVarchar<32>(input.floor),
+      entrance: optionalVarchar<64>(input.entrance),
+      landmark: optionalVarchar<128>(input.landmark),
       isDefault: isFirst,
       createdAt: now,
       updatedAt: now,
@@ -284,10 +308,15 @@ export class CustomerRepository {
     addressText: string;
     latitude: unknown;
     longitude: unknown;
+    building?: string | null;
+    floor?: string | null;
+    entrance?: string | null;
+    landmark?: string | null;
     isDefault: boolean;
     createdAt: string;
     updatedAt: string;
   }): AddressRecord {
+    const details = readAddressDetails(row);
     return {
       id: row.id,
       customerId: row.customerId,
@@ -295,9 +324,20 @@ export class CustomerRepository {
       addressText: row.addressText,
       latitude: parseCoordinate(row.latitude),
       longitude: parseCoordinate(row.longitude),
+      building: details.building,
+      floor: details.floor,
+      entrance: details.entrance,
+      landmark: details.landmark,
       isDefault: row.isDefault,
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
     };
   }
+}
+
+function optionalVarchar<N extends number>(
+  value: string | null | undefined,
+): ReturnType<typeof pgVarchar<N>> | null {
+  const normalized = blankToNull(value);
+  return normalized == null ? null : pgVarchar<N>(normalized);
 }

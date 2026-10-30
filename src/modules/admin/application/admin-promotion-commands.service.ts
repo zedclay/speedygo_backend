@@ -35,6 +35,29 @@ export class AdminPromotionCommandsService {
     });
   }
 
+  async updateValue(
+    admin: CurrentAdminContext,
+    promotionId: string,
+    value: number,
+  ) {
+    return this.prisma.getDb().transaction(async (tx) => {
+      const result = await this.promotions.updatePromotionValueInTx(
+        tx,
+        promotionId,
+        value,
+      );
+      await this.audit.recordInTx(tx, {
+        adminId: admin.adminProfileId,
+        action: ADMIN_AUDIT_ACTIONS.PROMOTION_UPDATE_VALUE,
+        targetType: ADMIN_AUDIT_TARGET_TYPES.PROMOTION,
+        targetId: promotionId,
+        afterJson: result,
+        sessionId: admin.sessionId,
+      });
+      return result;
+    });
+  }
+
   async activate(admin: CurrentAdminContext, promotionId: string) {
     return this.prisma.getDb().transaction(async (tx) => {
       const result = await this.promotions.setPromotionActiveInTx(

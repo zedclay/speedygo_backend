@@ -1,10 +1,12 @@
 import { Module } from '@nestjs/common';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { DriverReviewService } from './application/driver-review.service';
 import { DriverService } from './application/driver.service';
 import { DriverRepository } from './infrastructure/driver.repository';
 import { DriverController } from './presentation/http/driver.controller';
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [DriverController],
   providers: [DriverRepository, DriverService, DriverReviewService],
   exports: [DriverService, DriverReviewService, DriverRepository],

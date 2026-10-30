@@ -71,6 +71,8 @@ export class PaidTerminalRefundService {
       origin: RefundRequestOrigin;
       reason: string;
       internalNote?: string | null;
+      /** Set for ADMIN_ORDER_CANCELLATION; otherwise null. */
+      requestedByAdminId?: string | null;
     },
   ): Promise<PaidTerminalRefundIntentView> {
     if (!isPaidTerminalRefundOrigin(input.origin)) {
@@ -176,7 +178,7 @@ export class PaidTerminalRefundService {
           reason: input.reason.slice(0, 255),
           internalNote: input.internalNote ?? null,
           requestOrigin: input.origin,
-          requestedByAdminId: null,
+          requestedByAdminId: input.requestedByAdminId ?? null,
           paidTerminalIntentKey: intentKey,
         },
         tx,

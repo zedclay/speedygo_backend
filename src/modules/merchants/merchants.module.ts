@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { AuthModule } from '../auth/auth.module';
 import { GeoModule } from '../geo/geo.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 import { MerchantAccessService } from './application/merchant-access.service';
 import { MerchantBranchCoverService } from './application/merchant-branch-cover.service';
 import { MerchantBranchLogoService } from './application/merchant-branch-logo.service';
@@ -23,7 +24,7 @@ import { MerchantController } from './presentation/http/merchant.controller';
 import { MerchantTeamController } from './presentation/http/merchant-team.controller';
 
 @Module({
-  imports: [AuthModule, GeoModule],
+  imports: [AuthModule, GeoModule, NotificationsModule],
   controllers: [MerchantController, MerchantTeamController],
   providers: [
     MerchantRepository,

@@ -97,7 +97,7 @@ export function configureApp(app: INestApplication): void {
   }
 
   const globalPrefix = config.get<string>('apiGlobalPrefix', API_GLOBAL_PREFIX);
-  app.setGlobalPrefix(globalPrefix, { exclude: ['health'] });
+  app.setGlobalPrefix(globalPrefix, { exclude: ['health', 'ready'] });
   app.useGlobalPipes(
     new ValidationPipe({
       whitelist: true,

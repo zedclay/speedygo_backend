@@ -9,9 +9,11 @@ import { CodModule } from '../cod/cod.module';
 import { DeliveryPricingModule } from '../delivery-pricing/delivery-pricing.module';
 import { DriversModule } from '../drivers/drivers.module';
 import { FinancialLedgerModule } from '../financial-ledger/financial-ledger.module';
+import { MatchingModule } from '../matching/matching.module';
 import { MerchantsModule } from '../merchants/merchants.module';
 import { MerchantSettlementsModule } from '../merchant-settlements/merchant-settlements.module';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { OrdersModule } from '../orders/orders.module';
 import { PromotionsModule } from '../promotions/promotions.module';
 import { RefundsModule } from '../refunds/refunds.module';
 import { TrackingModule } from '../tracking/tracking.module';
@@ -22,14 +24,21 @@ import { AdminAuditService } from './application/admin-audit.service';
 import { AdminCodCommandsService } from './application/admin-cod-commands.service';
 import { AdminDocumentAccessService } from './application/admin-document-access.service';
 import { AdminDriverCommandsService } from './application/admin-driver-commands.service';
+import { AdminCustomerCommandsService } from './application/admin-customer-commands.service';
+import { AdminCustomerNotesService } from './application/admin-customer-notes.service';
 import { AdminMerchantCommandsService } from './application/admin-merchant-commands.service';
+import { AdminOrderCommandsService } from './application/admin-order-commands.service';
 import { AdminProfileService } from './application/admin-profile.service';
 import { AdminPromotionCommandsService } from './application/admin-promotion-commands.service';
 import { AdminRefundCommandsService } from './application/admin-refund-commands.service';
+import { AdminNotificationsService } from './application/admin-notifications.service';
+import { AdminNotificationTemplatesService } from './application/admin-notification-templates.service';
+import { AdminSearchService } from './application/admin-search.service';
 import { AdminSettlementCommandsService } from './application/admin-settlement-commands.service';
 import { AdminDeliveryPricingRuleCommandsService } from '../delivery-pricing/application/admin-delivery-pricing-rule-commands.service';
 import { AdminDeliveryZoneCommandsService } from '../delivery-pricing/application/admin-delivery-zone-commands.service';
 import { AdminQueryRepository } from './infrastructure/admin-query.repository';
+import { AdminSearchRepository } from './infrastructure/admin-search.repository';
 import { AdminGuard } from './presentation/guards/admin.guard';
 import { AdminAuditController } from './presentation/http/controllers/admin-audit.controller';
 import { AdminCodController } from './presentation/http/controllers/admin-cod.controller';
@@ -42,9 +51,16 @@ import { AdminOrderController } from './presentation/http/controllers/admin-orde
 import { AdminPaymentController } from './presentation/http/controllers/admin-payment.controller';
 import { AdminPromotionController } from './presentation/http/controllers/admin-promotion.controller';
 import { AdminRefundController } from './presentation/http/controllers/admin-refund.controller';
+import { AdminNotificationsController } from './presentation/http/controllers/admin-notifications.controller';
+import { AdminNotificationTemplatesController } from './presentation/http/controllers/admin-notification-templates.controller';
+import { AdminSearchController } from './presentation/http/controllers/admin-search.controller';
 import { AdminSettlementController } from './presentation/http/controllers/admin-settlement.controller';
 import { AdminDeliveryPricingRuleController } from '../delivery-pricing/presentation/http/controllers/admin-delivery-pricing-rule.controller';
 import { AdminDeliveryZoneController } from '../delivery-pricing/presentation/http/controllers/admin-delivery-zone.controller';
+import { AdminRbacService } from './application/admin-rbac.service';
+import { AdminRbacRepository } from './infrastructure/admin-rbac.repository';
+import { AdminAdminsController } from './presentation/http/controllers/admin-admins.controller';
+import { AdminRolesController } from './presentation/http/controllers/admin-roles.controller';
 
 @Module({
   imports: [
@@ -53,6 +69,8 @@ import { AdminDeliveryZoneController } from '../delivery-pricing/presentation/ht
     MerchantsModule,
     DriversModule,
     TrackingModule,
+    MatchingModule,
+    OrdersModule,
     RefundsModule,
     CodModule,
     MerchantSettlementsModule,
@@ -64,6 +82,11 @@ import { AdminDeliveryZoneController } from '../delivery-pricing/presentation/ht
   ],
   controllers: [
     AdminMeController,
+    AdminSearchController,
+    AdminNotificationsController,
+    AdminNotificationTemplatesController,
+    AdminAdminsController,
+    AdminRolesController,
     AdminMerchantController,
     AdminDriverController,
     AdminCustomerController,
@@ -85,7 +108,16 @@ import { AdminDeliveryZoneController } from '../delivery-pricing/presentation/ht
     AdminProfileService,
     AdminAuditService,
     AdminQueryRepository,
+    AdminSearchRepository,
+    AdminSearchService,
+    AdminNotificationsService,
+    AdminNotificationTemplatesService,
+    AdminRbacRepository,
+    AdminRbacService,
     AdminMerchantCommandsService,
+    AdminOrderCommandsService,
+    AdminCustomerCommandsService,
+    AdminCustomerNotesService,
     AdminDriverCommandsService,
     AdminDocumentAccessService,
     AdminRefundCommandsService,
@@ -102,3 +134,4 @@ import { AdminDeliveryZoneController } from '../delivery-pricing/presentation/ht
   exports: [AdminProfileService, AdminAuditService, AdminGuard],
 })
 export class AdminModule {}
+

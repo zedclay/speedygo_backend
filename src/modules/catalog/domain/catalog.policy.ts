@@ -1,3 +1,4 @@
+import { loadStoredCentimes } from '../../../common/money/prisma-money-decimal';
 import {
   catalogInvalidPrice,
   catalogOptionGroupInvalid,
@@ -203,19 +204,15 @@ export function isProductCustomerOfferable(input: {
 }
 
 export function parseMinorUnits(value: unknown): number {
-  if (typeof value === 'bigint') {
-    if (value < 0n || value > BigInt(CATALOG_PRICE_MINOR_MAX)) {
+  try {
+    const n = loadStoredCentimes(value);
+    if (n < 0n || n > BigInt(CATALOG_PRICE_MINOR_MAX)) {
       return Number.NaN;
     }
-    return Number(value);
+    return Number(n);
+  } catch {
+    return Number.NaN;
   }
-  if (typeof value === 'number') {
-    return value;
-  }
-  if (typeof value === 'string') {
-    return Number(value);
-  }
-  return Number.NaN;
 }
 
 export function escapeLikeContains(raw: string): string {

@@ -11,7 +11,15 @@ export const ADMIN_PERMISSIONS = Object.freeze({
   DRIVERS_VERIFY: 'drivers.verify',
   DRIVERS_SUSPEND: 'drivers.suspend',
   CUSTOMERS_READ: 'customers.read',
+  /** Account.status ACTIVE↔SUSPENDED for a CustomerProfile’s Account — not implied by customers.read. */
+  CUSTOMERS_SUSPEND: 'customers.suspend',
+  /** Create CustomerInternalNote — not implied by customers.read or customers.suspend. */
+  CUSTOMERS_NOTES_MANAGE: 'customers.notes.manage',
   ORDERS_READ: 'orders.read',
+  /** Admin offer-only driver assign (Matching OFFERED) — not implied by orders.read. */
+  ORDERS_ASSIGN: 'orders.assign',
+  /** Admin early-window Order cancel — not implied by orders.read or orders.assign. */
+  ORDERS_CANCEL: 'orders.cancel',
   PAYMENTS_READ: 'payments.read',
   REFUNDS_READ: 'refunds.read',
   REFUNDS_MANAGE: 'refunds.manage',
@@ -42,6 +50,14 @@ export const ADMIN_PERMISSIONS = Object.freeze({
   COMMERCE_VERTICALS_MANAGE: 'commerce.verticals.manage',
   STOREFRONT_COVERS_MANAGE: 'storefront.covers.manage',
   PRODUCT_IMAGES_MANAGE: 'product.images.manage',
+  /** Admin RBAC Management v1.0 — AdminProfile list/detail. */
+  ADMINS_READ: 'admins.read',
+  /** Create/update AdminProfile + Account.status (not roles catalogue). */
+  ADMINS_MANAGE: 'admins.manage',
+  /** Role list/detail + Permission catalogue read. */
+  ROLES_READ: 'roles.read',
+  /** Create/update Role + replace RolePermission set. */
+  ROLES_MANAGE: 'roles.manage',
 } as const);
 
 export type AdminPermissionCode =

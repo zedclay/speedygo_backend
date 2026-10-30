@@ -59,7 +59,7 @@ export class CustomerCatalogController {
   @ApiOperation({
     summary: 'List Customer-visible storefronts (MerchantBranch)',
     description:
-      'Authenticated CustomerProfile required. Returns Branches where Merchant is ACTIVE+verified with non-empty name and Branch operationalStatus=ACTIVE. Optional verticalId filters to explicitly classified branches of an active commerce vertical. Optional openNow=true keeps only branches open at request time (authoritative hours evaluator; unconfigured excluded). Unfiltered lists include unclassified branches and branches classified to a deactivated vertical. Includes opening-hours projection. Does not claim delivery eligibility or order acceptance.',
+      'Authenticated CustomerProfile required. Returns Branches where Merchant is ACTIVE+verified with non-empty name and Branch operationalStatus=ACTIVE. Optional verticalId filters to explicitly classified branches of an active commerce vertical. Optional openNow=true keeps only branches open at request time (authoritative hours evaluator; unconfigured excluded). Optional addressId limits to branches ST_Covers by the same active DeliveryZone as the owned pin; outside/ambiguous coverage returns an empty page with coverage.reason. Optional wilayaCode is a discovery filter only and cannot override zone coverage. Unfiltered lists include unclassified branches and branches classified to a deactivated vertical. Includes opening-hours projection.',
   })
   @ApiOkResponse({ type: CustomerStorefrontListResponseDto })
   @ApiResponse({
